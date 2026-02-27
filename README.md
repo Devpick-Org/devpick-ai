@@ -1,6 +1,6 @@
-# devpick-ai
+# Devpick AI
 
-DevPick 캡스톤 프로젝트의 AI 서버(FastAPI)입니다.
+DevPick 캡스톤 프로젝트의 AI 서버입니다.
 
 ## 설치 및 실행
 

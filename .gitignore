@@ -144,6 +144,10 @@ ENV/
 env.bak/
 venv.bak/
 
+# dotenv
+.env.*
+!.env.example
+
 # Spyder project settings
 .spyderproject
 .spyproject

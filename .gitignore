@@ -8,6 +8,8 @@ venv/
 
 # Environment variables
 .env
+.env.*
+!.env.example
 
 # Test/coverage cache
 .pytest_cache/

@@ -1,0 +1,63 @@
+# CLAUDE.md — tests/
+
+이 폴더는 devpick-ai 서버의 pytest 기반 테스트 코드를 보관한다.
+
+---
+
+## 폴더 목적
+
+- 엔드포인트 동작, AI 출력 검증, 유틸 함수의 정확성을 자동으로 확인한다
+- CI(`pytest -q`)에서 자동 실행되며, 실패 시 머지가 차단된다
+
+---
+
+## 현재 테스트
+
+| 파일 | 테스트 대상 | 내용 |
+|------|-------------|------|
+| `test_health.py` | `health_check()` | `{"status": "ok"}` 반환 확인 |
+
+---
+
+## 테스트 작성 원칙
+
+- 테스트 파일명은 `test_*.py` 형식을 따른다
+- 테스트 함수명은 `test_` 접두사를 붙이고 의도가 드러나게 작성한다
+  - 예: `test_summary_returns_valid_schema`, `test_invalid_input_returns_422`
+- 외부 의존성(LLM API, DB)은 Mock 또는 Fixture로 격리한다
+- 테스트는 서버가 실행 중이지 않아도 동작해야 한다 (`TestClient` 또는 직접 함수 호출)
+- 하나의 테스트 함수는 하나의 동작만 검증한다
+
+---
+
+## 앞으로 추가할 테스트 방향
+
+기능이 추가될 때 함께 작성한다. 아래 순서로 우선 추가한다.
+
+| 파일 (예시) | 테스트 내용 |
+|-------------|------------|
+| `test_summary.py` | summary 응답이 Pydantic 스키마를 만족하는지 검증 (schema validation) |
+| `test_refine.py` | refine 출력 JSON 파싱 정상 동작 확인 (output parsing) |
+| `test_answer.py` | AI 1차 답변 실패 시 fallback 응답 반환 확인 (fallback) |
+| `test_cache.py` | 캐시 hit/miss 동작 확인, 중복 호출 시 캐시 적중 여부 |
+| `test_schemas.py` | Pydantic 스키마 유효성 — 필수 필드 누락 시 ValidationError 발생 확인 |
+
+---
+
+## 로컬 실행
+
+```bash
+# 가상환경 활성화 후
+pytest -q
+
+# 특정 파일만
+pytest tests/test_health.py -v
+```
+
+---
+
+## 주의사항
+
+- 실제 Claude API를 호출하는 테스트를 CI에 포함하지 않는다. 비용과 속도 문제가 있다
+- API 호출이 필요한 테스트는 Mock을 사용하거나 별도 `integration/` 폴더로 분리한다
+- 테스트에 시크릿 값을 하드코딩하지 않는다

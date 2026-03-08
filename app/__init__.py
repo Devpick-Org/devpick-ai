@@ -1,0 +1,1 @@
+"""DevPick AI application package."""

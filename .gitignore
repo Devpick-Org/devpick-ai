@@ -19,3 +19,6 @@ htmlcov/
 # Type/lint cache
 .mypy_cache/
 .ruff_cache/
+
+# Raw collected data (local ingestion output)
+data/

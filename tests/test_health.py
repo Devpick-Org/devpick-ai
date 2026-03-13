@@ -1,5 +1,5 @@
-from main import health_check
+from main import health
 
 
 def test_health_check_returns_ok() -> None:
-    assert health_check() == {"status": "ok"}
+    assert health() == {"status": "ok"}

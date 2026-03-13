@@ -35,6 +35,41 @@ curl http://127.0.0.1:8000/health
 {"status":"ok"}
 ```
 
+## Internal API (Spring ↔ FastAPI 내부 통신)
+
+Spring Boot가 AI 서버와 통신할 때 사용하는 내부 전용 API다.
+Base URL: `http://ai-server:8000/internal`
+
+### 인증
+
+모든 `/internal/*` 엔드포인트는 `X-Internal-Key` 헤더 인증이 필요하다.
+키 값은 `.env`의 `INTERNAL_API_KEY`로 관리한다.
+
+| 상황 | 응답 |
+|------|------|
+| 헤더 없음 | 422 |
+| 키 불일치 | 401 |
+| 키 일치 | 200 |
+
+### 엔드포인트
+
+| 메서드 | 경로 | 설명 |
+|--------|------|------|
+| GET | `/internal/health` | AI 서버 내부 헬스체크 |
+
+### 호출 예시
+
+```bash
+# 헤더 없음 → 422
+curl http://localhost:8000/internal/health
+
+# 잘못된 키 → 401
+curl -H "X-Internal-Key: wrong" http://localhost:8000/internal/health
+
+# 올바른 키 → 200 {"status": "ok"}
+curl -H "X-Internal-Key: {키값}" http://localhost:8000/internal/health
+```
+
 ## CI 파이프라인 (PR 체크)
 
 GitHub Actions 워크플로 `AI PR Checks`가 아래 조건에서 실행됩니다.

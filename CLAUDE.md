@@ -15,6 +15,7 @@
 * 담당: **수헌** (AI 메인)
 * MVP 데드라인: **2026-04-13**
 * 현재 상태: **RSS/크롤 수집 파이프라인 + SentIdStore dedup + PushService 구현 완료 (DP-199)**
+             **+ /internal 라우터 + X-Internal-Key 인증 + 에러 핸들러 세팅 완료 (DP-215)**
 
 ---
 
@@ -65,6 +66,9 @@
 ```text
 devpick-ai/
 ├── app/
+│   ├── api/            # FastAPI 라우터 + 인증 (DP-215~)
+│   │   ├── deps.py     # X-Internal-Key 인증 dependency
+│   │   └── internal/   # /internal/* 라우터
 │   ├── collectors/     # RSS / RSS+크롤링 수집기
 │   ├── configs/        # 수집 대상 소스 목록
 │   ├── schemas/        # Pydantic 스키마
@@ -83,9 +87,13 @@ devpick-ai/
 
 ## 6. 브랜치 / 커밋 / PR 규칙
 
+브랜치 흐름: `feature/*` → `develop` (통합) → `main` (배포)
+
 ```bash
 git checkout -b feature/DP-{티켓번호}-{기능명}
 ```
+
+> PR 머지 대상은 `develop`이다. `main`은 배포 브랜치이므로 직접 푸시 금지.
 
 커밋 예시:
 ```text
@@ -139,6 +147,8 @@ pytest -q
 | 폴더 | CLAUDE.md |
 |------|-----------|
 | `app/` | [app/CLAUDE.md](app/CLAUDE.md) — 앱 전체 구조 개요 |
+| `app/api/` | [app/api/CLAUDE.md](app/api/CLAUDE.md) — 라우터 레이어 |
+| `app/api/internal/` | [app/api/internal/CLAUDE.md](app/api/internal/CLAUDE.md) — /internal 라우터 |
 | `app/collectors/` | [app/collectors/CLAUDE.md](app/collectors/CLAUDE.md) — 수집기 클래스 |
 | `app/schemas/` | [app/schemas/CLAUDE.md](app/schemas/CLAUDE.md) — Pydantic 스키마 |
 | `app/stores/` | [app/stores/CLAUDE.md](app/stores/CLAUDE.md) — 저장소 및 dedup |

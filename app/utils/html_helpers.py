@@ -276,6 +276,21 @@ def _extract_from_nuxt_payload(soup: BeautifulSoup) -> tuple[str | None, str | N
     return best["html"], best["text"]
 
 
+def extract_og_image(html: str) -> str | None:
+    """Extract representative image URL from HTML meta tags."""
+    soup = BeautifulSoup(html, "html.parser")
+
+    og = soup.find("meta", property="og:image")
+    if og and og.get("content"):
+        return og["content"].strip() or None
+
+    tw = soup.find("meta", attrs={"name": "twitter:image"})
+    if tw and tw.get("content"):
+        return tw["content"].strip() or None
+
+    return None
+
+
 def extract_kakao_article_body_result(html: str) -> ExtractionResult:
     """Extract Kakao article body and include debug metadata for logging."""
     soup = BeautifulSoup(html, "html.parser")

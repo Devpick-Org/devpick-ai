@@ -61,7 +61,7 @@ def test_select_body_candidate_prefers_html_text_full_body() -> None:
 
     normalized = normalizer.normalize_entry(raw_entry)
     assert normalized.body_candidate == "h" * 1000
-    assert normalized.body_source == "html_text_raw"
+    assert normalized.body_source == "crawl"
     assert normalized.content_kind == "full_body"
 
 
@@ -75,8 +75,8 @@ def test_select_body_candidate_prefers_html_text_even_if_content_is_longer() -> 
 
     normalized = normalizer.normalize_entry(raw_entry)
     assert normalized.body_candidate == "h" * 500
-    assert normalized.body_source == "html_text_raw"
-    assert normalized.content_kind == "partial_body"
+    assert normalized.body_source == "crawl"
+    assert normalized.content_kind == "preview_only"
 
 
 def test_existing_content_summary_rules_work_when_html_missing() -> None:
@@ -89,7 +89,7 @@ def test_existing_content_summary_rules_work_when_html_missing() -> None:
 
     normalized = normalizer.normalize_entry(raw_entry)
     assert normalized.body_candidate == "s" * 1200
-    assert normalized.body_source == "summary_raw"
+    assert normalized.body_source == "rss"
     assert normalized.content_kind == "full_body"
 
 

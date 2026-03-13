@@ -70,6 +70,35 @@ def sha256_text(value: str) -> str:
     return hashlib.sha256(value.encode("utf-8")).hexdigest()
 
 
+def extract_thumbnail_url(entry: Any) -> str | None:
+    """Extract thumbnail image URL from feedparser entry media fields."""
+    thumbnails = entry.get("media_thumbnail") or []
+    if thumbnails and isinstance(thumbnails, list):
+        url = safe_get_text(thumbnails[0].get("url"))
+        if url:
+            return url
+
+    media_contents = entry.get("media_content") or []
+    for media in media_contents:
+        if isinstance(media, dict):
+            media_type = safe_get_text(media.get("type"), "")
+            if media_type and media_type.startswith("image/"):
+                url = safe_get_text(media.get("url"))
+                if url:
+                    return url
+
+    enclosures = entry.get("enclosures") or []
+    for enclosure in enclosures:
+        if isinstance(enclosure, dict):
+            enc_type = safe_get_text(enclosure.get("type"), "")
+            if enc_type and enc_type.startswith("image/"):
+                url = safe_get_text(enclosure.get("href"))
+                if url:
+                    return url
+
+    return None
+
+
 def compute_entry_hash(
     source_name: str,
     entry_external_id: str | None,

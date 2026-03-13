@@ -51,17 +51,17 @@ class NormalizeService:
         summary_len = self.text_length(summary_raw)
 
         if html_len >= PARTIAL_BODY_MIN_LENGTH:
-            return html_text_raw, "html_text_raw"
+            return html_text_raw, "crawl"
 
         if content_len >= FULL_BODY_MIN_LENGTH:
-            return content_raw, "content_raw"
+            return content_raw, "rss"
         if summary_len >= FULL_BODY_MIN_LENGTH:
-            return summary_raw, "summary_raw"
+            return summary_raw, "rss"
 
         if content_len >= PARTIAL_BODY_MIN_LENGTH:
-            return content_raw, "content_raw"
+            return content_raw, "rss"
         if summary_len >= PARTIAL_BODY_MIN_LENGTH:
-            return summary_raw, "summary_raw"
+            return summary_raw, "rss"
 
         return None, "none"
 
@@ -75,8 +75,6 @@ class NormalizeService:
         body_length = self.text_length(body_candidate)
         if body_length >= FULL_BODY_MIN_LENGTH:
             return "full_body"
-        if body_length >= PARTIAL_BODY_MIN_LENGTH:
-            return "partial_body"
         return "preview_only"
 
     def build_preview(

@@ -16,6 +16,7 @@ from app.schemas.source import SourceConfig
 from app.utils.xml_helpers import (
     compute_entry_hash,
     detect_parser_type,
+    extract_thumbnail_url,
     normalize_date,
     safe_get_text,
     sha256_text,
@@ -219,6 +220,7 @@ class RSSCollector(BaseCollector):
                     published_at_raw=published_raw,
                     summary_raw=summary_raw,
                     content_raw=content_raw,
+                    thumbnail_url=extract_thumbnail_url(entry),
                     categories_raw=categories_raw,
                     # feedparser does not provide stable per-entry raw XML fragment access.
                     # Keep this as None and retain full response XML via feed-level storage.

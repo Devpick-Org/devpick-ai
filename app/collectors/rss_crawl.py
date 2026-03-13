@@ -14,6 +14,7 @@ from app.schemas.source import SourceConfig
 from app.utils.html_helpers import (
     MIN_MEANINGFUL_TEXT_LENGTH,
     extract_kakao_article_body_result,
+    extract_og_image,
 )
 
 logger = logging.getLogger(__name__)
@@ -122,9 +123,14 @@ class RSSCrawlCollector:
             len((result.body_text or "").strip()),
         )
 
+        thumbnail_url = entry.thumbnail_url
+        if thumbnail_url is None:
+            thumbnail_url = extract_og_image(response.text)
+
         return entry.model_copy(
             update={
                 "html_body_raw": result.body_html,
                 "html_text_raw": result.body_text,
+                "thumbnail_url": thumbnail_url,
             }
         )

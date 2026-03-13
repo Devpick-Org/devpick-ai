@@ -1,0 +1,82 @@
+# CLAUDE.md — app/services/
+
+이 폴더는 비즈니스 로직과 외부 통신을 담당하는 서비스 레이어다.
+라우터는 얇게, 로직은 여기에 모은다.
+
+---
+
+## 현재 서비스
+
+| 파일 | 클래스 | 역할 |
+|------|--------|------|
+| `ingest_service.py` | `IngestService` | Collector 실행 + FileRawStore 저장 오케스트레이션 |
+| `normalize_service.py` | `NormalizeService` | `RawEntry` → `NormalizedContent` 변환 |
+| `push_service.py` | `PushService` | 정규화된 콘텐츠를 Backend ingest API로 HTTP POST |
+
+---
+
+## 데이터 흐름
+
+### run_collect_and_push.py 기준 실제 파이프라인
+
+```
+Collector.collect(source)
+    → FileRawStore (data/raw/ JSONL 저장)
+    → NormalizeService.normalize_entry() → list[NormalizedContent]
+    → SentIdStore.load(source.name) → 이미 전송된 ID 필터
+    → PushService.push(new_items) → POST /internal/contents
+    → SentIdStore.add(source.name, pushed_ids)
+```
+
+새 항목이 없으면 PushService 호출 없이 skip한다.
+
+### IngestService (독립 사용 가능)
+
+```
+IngestService.run_source(source)
+    → Collector.collect()
+    → FileRawStore.save_feed() + save_entries()
+    → {"source": ..., "saved_entries": ..., "status": "ok"}
+```
+
+`IngestService`는 수집+저장만 담당한다. 정규화/dedup/push는 포함하지 않는다.
+
+---
+
+## PushService 상세 (DP-199)
+
+```python
+PushService(backend_url: str, timeout: int = 30)
+push(items: list[NormalizedContent]) -> dict
+# 반환 예: {"saved": 5, "skipped": 1}
+```
+
+- `BACKEND_URL` 환경변수로 URL 주입 (기본값 `http://localhost:8080`)
+- 빈 리스트 입력 시 HTTP 호출 없이 `{"saved": 0, "skipped": 0}` 반환
+- `requests.HTTPError` (4xx/5xx) / `requests.Timeout` 그대로 raise — 호출부에서 처리
+
+### 설계 결정 (DP-199)
+
+- AI 레포는 **저장하지 않는다**. 수집 + 정규화 + push만 담당
+- PostgreSQL 저장 책임은 Backend (Spring Boot)
+- 인터페이스: `POST /internal/contents` — `list[NormalizedContent]` JSON 배열
+
+---
+
+## 작성 원칙
+
+- 서비스 클래스는 생성자에서 의존성(URL, timeout 등)을 주입받는다
+- 외부 I/O(HTTP, 파일, DB)는 서비스 레이어에서만 발생하게 한다
+- 예외는 삼키지 않는다. 로깅 후 raise하거나 호출부에서 명시적으로 처리
+- 프롬프트 문자열, JSON 파싱 로직을 이 레이어에 직접 쓰지 않는다 (향후 `core/prompts/` 분리)
+
+---
+
+## 향후 추가 예정
+
+| 파일 | 역할 |
+|------|------|
+| `summary_service.py` | 콘텐츠 AI 요약 생성 (Epic C) |
+| `refine_service.py` | 질문 개선 (Epic D) |
+| `answer_service.py` | AI 1차 답변 생성 (Epic D) |
+| `report_service.py` | 주간 리포트 인사이트 생성 (Epic F) |

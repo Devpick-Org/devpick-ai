@@ -16,6 +16,32 @@
 | 파일 | 테스트 대상 | 내용 |
 |------|-------------|------|
 | `test_health.py` | `health_check()` | `{"status": "ok"}` 반환 확인 |
+| `test_rss_collector.py` | `RSSCollector` | RSS/Atom 수집 기본 동작 확인 |
+| `test_rss_crawl_collector.py` | `RSSCrawlCollector` | Kakao RSS + HTML 본문 보강 수집 확인 |
+| `test_normalize_service.py` | `NormalizeService` | `RawEntry` → `NormalizedContent` 변환 검증 |
+| `test_push_service.py` | `PushService` | Backend ingest HTTP 전송 동작 확인 (mock) |
+| `test_sent_id_store.py` | `SentIdStore` | cross-run dedup 저장/로드 동작 확인 |
+
+### `test_push_service.py` 케이스 (DP-199)
+
+| 테스트 함수 | 검증 내용 |
+|-------------|----------|
+| `test_push_success_returns_backend_response` | 정상 응답 시 backend JSON 반환 확인 |
+| `test_push_empty_list_skips_http_call` | 빈 리스트 입력 시 HTTP 호출 없이 `{saved:0}` 반환 |
+| `test_push_raises_on_http_error` | 4xx 응답 시 `HTTPError` raise |
+| `test_push_raises_on_server_error` | 5xx 응답 시 `HTTPError` raise |
+| `test_push_raises_on_timeout` | 타임아웃 시 `Timeout` raise |
+| `test_push_sends_all_items_as_json_payload` | 다중 아이템 전송 시 전체 payload 전달 확인 |
+
+### `test_sent_id_store.py` 케이스
+
+| 테스트 함수 | 검증 내용 |
+|-------------|----------|
+| `test_load_returns_empty_set_when_no_file` | 파일 없을 때 빈 집합 반환 |
+| `test_add_creates_file_and_stores_ids` | ID 추가 시 파일 생성 및 내용 저장 |
+| `test_add_merges_with_existing_ids` | 기존 ID와 새 ID 병합 저장 |
+| `test_load_after_add_returns_stored_ids` | add 후 load 시 저장된 ID 반환 |
+| `test_add_is_idempotent` | 동일 ID 중복 추가 시 중복 없이 저장 |
 
 ---
 

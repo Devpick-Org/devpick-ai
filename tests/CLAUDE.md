@@ -21,6 +21,7 @@
 | `test_normalize_service.py` | `NormalizeService` | `RawEntry` → `NormalizedContent` 변환 검증 |
 | `test_push_service.py` | `PushService` | Backend ingest HTTP 전송 동작 확인 (mock) |
 | `test_sent_id_store.py` | `SentIdStore` | cross-run dedup 저장/로드 동작 확인 |
+| `test_preprocess_service.py` | `PreprocessService` | HTML→텍스트 변환, 노이즈 제거, 구조 보존 검증 |
 
 ### `test_push_service.py` 케이스 (DP-199)
 
@@ -32,6 +33,18 @@
 | `test_push_raises_on_server_error` | 5xx 응답 시 `HTTPError` raise |
 | `test_push_raises_on_timeout` | 타임아웃 시 `Timeout` raise |
 | `test_push_sends_all_items_as_json_payload` | 다중 아이템 전송 시 전체 payload 전달 확인 |
+
+### `test_preprocess_service.py` 케이스 (DP-216)
+
+| 테스트 함수 | 검증 내용 |
+|-------------|----------|
+| `test_script_style_removed` | script/style 태그 완전 제거 |
+| `test_nav_footer_removed` | nav/footer 노이즈 섹션 제거 |
+| `test_pre_code_preserved` | 코드블록 구조 보존 |
+| `test_heading_conversion` | h1~h6 → 마크다운 heading 변환 |
+| `test_img_alt_preserved` | img alt → [이미지: ...] 인라인 변환 |
+| `test_img_without_alt_ignored` | alt 없는 이미지 무시 |
+| 그 외 11개 | blockquote, br, hr, boilerplate 제거 등 |
 
 ### `test_sent_id_store.py` 케이스
 

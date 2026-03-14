@@ -12,6 +12,7 @@
 | `ingest_service.py` | `IngestService` | Collector 실행 + FileRawStore 저장 오케스트레이션 |
 | `normalize_service.py` | `NormalizeService` | `RawEntry` → `NormalizedContent` 변환 |
 | `push_service.py` | `PushService` | 정규화된 콘텐츠를 Backend ingest API로 HTTP POST |
+| `preprocess_service.py` | `PreprocessService` | HTML → 구조 보존 텍스트 변환 (LLM 입력 전처리) |
 
 ---
 
@@ -29,6 +30,14 @@ Collector.collect(source)
 ```
 
 새 항목이 없으면 PushService 호출 없이 skip한다.
+
+### 전처리 흐름 (DP-216)
+
+```
+NormalizedContent.body_candidate (HTML)
+    → PreprocessService.preprocess() → 구조 보존 텍스트
+    → (향후) SummaryService → Claude API
+```
 
 ### IngestService (독립 사용 가능)
 
@@ -80,3 +89,4 @@ push(items: list[NormalizedContent]) -> dict
 | `refine_service.py` | 질문 개선 (Epic D) |
 | `answer_service.py` | AI 1차 답변 생성 (Epic D) |
 | `report_service.py` | 주간 리포트 인사이트 생성 (Epic F) |
+

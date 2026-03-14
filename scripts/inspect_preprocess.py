@@ -79,7 +79,9 @@ def _run_single(
 
     has_heading = "##" in result or "# " in result
     has_code = "```" in result
-    print(f"  ## 헤딩 마커 : {'있음' if has_heading else '없음'} / ``` 코드블록 : {'있음' if has_code else '없음'}")
+    print(
+        f"  ## 헤딩 마커 : {'있음' if has_heading else '없음'} / ``` 코드블록 : {'있음' if has_code else '없음'}"
+    )
 
     if show_preview:
         print("\n" + "=" * 60)
@@ -88,7 +90,9 @@ def _run_single(
         else:
             print(result[:chars])
             if result_len > chars:
-                print(f"\n... (이후 {result_len - chars:,} chars 생략, --full 로 전체 출력)")
+                print(
+                    f"\n... (이후 {result_len - chars:,} chars 생략, --full 로 전체 출력)"
+                )
 
 
 def run_url(url: str, chars: int, full: bool) -> None:
@@ -113,7 +117,9 @@ def run_from_raw(json_path: Path, chars: int, full: bool, max_entries: int) -> N
         sys.exit(1)
 
     total = min(len(entries), max_entries)
-    print(f"피드: {json_path.name}  |  호스트: {hostname}  |  엔트리: {len(entries)}개 중 {total}개 처리\n")
+    print(
+        f"피드: {json_path.name}  |  호스트: {hostname}  |  엔트리: {len(entries)}개 중 {total}개 처리\n"
+    )
 
     for i, entry in enumerate(entries[:total]):
         html_node = entry.find("content") or entry.find("description")
@@ -122,7 +128,9 @@ def run_from_raw(json_path: Path, chars: int, full: bool, max_entries: int) -> N
             continue
         html_text = html_node.get_text()
         print(f"[entry {i}]", end=" ")
-        _run_single(html_text, hostname, chars, full, suffix=f"_entry{i}", show_preview=False)
+        _run_single(
+            html_text, hostname, chars, full, suffix=f"_entry{i}", show_preview=False
+        )
         print()
 
 
@@ -138,7 +146,10 @@ def parse_args() -> argparse.Namespace:
         help="피드 JSON 파일 경로 (data/raw/feeds/.../*.json)",
     )
     parser.add_argument(
-        "--chars", type=int, default=2000, help="미리보기 글자 수 (기본 2000, --url 모드)"
+        "--chars",
+        type=int,
+        default=2000,
+        help="미리보기 글자 수 (기본 2000, --url 모드)",
     )
     parser.add_argument("--full", action="store_true", help="전체 출력 (--url 모드)")
     parser.add_argument(

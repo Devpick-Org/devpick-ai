@@ -106,8 +106,8 @@ RSS/Atom Feed
     ↓ SentIdStore (이미 전송된 항목 dedup)
     ↓ PushService (POST {BACKEND_URL}/internal/contents)
     ↓ Backend → PostgreSQL
-    ↓ (향후) PreprocessService (HTML → 구조 보존 텍스트)
-    ↓ (향후) SummaryService → Claude API
+    ↓ PreprocessService (HTML → 구조 보존 텍스트)
+    ↓ SummaryService (Tool Use + Prompt Caching) → Claude API
 ```
 
 ### 주요 모듈
@@ -115,9 +115,11 @@ RSS/Atom Feed
 - `app/collectors`: RSS / RSS+크롤링 수집기
 - `app/stores`: raw 저장 인터페이스(JSONL) + SentIdStore(전송 완료 ID 관리)
 - `app/schemas`: SourceConfig, RawEntry, NormalizedContent 스키마
-- `app/schemas/summary.py`: SummaryResponse 스키마 (AI 요약 출력 계약)
-- `app/services`: IngestService, NormalizeService, PushService
+- `app/schemas/summary.py`: SectionSummary, SummaryResponse 스키마 (AI 요약 출력 계약)
+- `app/services`: IngestService, NormalizeService, PushService, SummaryService
+- `app/services/summary_service.py`: Claude Tool Use 기반 레벨별 AI 요약 생성
 - `app/services/preprocess_service.py`: HTML → 구조 보존 텍스트 전처리
+- `app/core/prompts/summary.py`: 요약 시스템 프롬프트 + Tool Use 스키마 + 레벨별 지시문
 - `app/configs`: 수집 대상 목록 (`DEFAULT_SOURCES`, `KAKAO_CRAWL_SOURCE`)
 - `app/utils`: RSS/Atom 파싱, HTML 본문 추출 보조 유틸
 - `data/raw`: 원본(raw) JSONL 저장 디렉토리

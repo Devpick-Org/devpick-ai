@@ -22,6 +22,7 @@
 | `test_push_service.py` | `PushService` | Backend ingest HTTP 전송 동작 확인 (mock) |
 | `test_sent_id_store.py` | `SentIdStore` | cross-run dedup 저장/로드 동작 확인 |
 | `test_preprocess_service.py` | `PreprocessService` | HTML→텍스트 변환, 노이즈 제거, 구조 보존 검증 |
+| `test_summary_service.py` | `SummaryService` | Tool Use 기반 AI 요약 mock 테스트 (DP-219) |
 
 ### `test_push_service.py` 케이스 (DP-199)
 
@@ -45,6 +46,17 @@
 | `test_img_alt_preserved` | img alt → [이미지: ...] 인라인 변환 |
 | `test_img_without_alt_ignored` | alt 없는 이미지 무시 |
 | 그 외 11개 | blockquote, br, hr, boilerplate 제거 등 |
+
+### `test_summary_service.py` 케이스 (DP-219)
+
+| 테스트 함수 | 검증 내용 |
+|-------------|----------|
+| `test_summarize_junior_success` | SummaryResponse 반환, `core_summary`가 `list[SectionSummary]`, tags/thumbnail 확인 |
+| `test_summarize_mid_success` | mid 레벨 정상 파싱 |
+| `test_summarize_senior_success` | senior 레벨 정상 파싱, thumbnail_url=None |
+| `test_invalid_tool_response_raises` | tool_use 블록 없는 응답 → `StopIteration` |
+| `test_empty_text_raises` | text="" → `ValueError` |
+| `test_invalid_level_raises` | level="expert" → `ValueError` |
 
 ### `test_sent_id_store.py` 케이스
 

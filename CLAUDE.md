@@ -17,6 +17,7 @@
 * 현재 상태: **RSS/크롤 수집 파이프라인 + SentIdStore dedup + PushService 구현 완료 (DP-199)**
              **+ /internal 라우터 + X-Internal-Key 인증 + 에러 핸들러 세팅 완료 (DP-215)**
              **+ PreprocessService (HTML→텍스트) + SummaryResponse 스키마 구현 완료 (DP-216)**
+             **+ SummaryService (Tool Use + Prompt Caching + 소제목별 요약) 구현 완료 (DP-219)**
 
 ---
 
@@ -39,7 +40,7 @@
 
 1. **콘텐츠 수집 및 정규화** — RSS/크롤링 → `NormalizedContent`
 2. **Backend ingest push** — `POST /internal/contents`
-3. **AI 요약/질문/리포트** (Epic C, D, F — 향후 구현)
+3. **AI 요약** — SummaryService (Tool Use + Prompt Caching, DP-219 구현 완료) / 질문·리포트 (Epic D, F — 향후 구현)
 4. **출력 JSON 스키마 검증 + 파싱 실패 대응**
 5. **캐시/저장/로그 기록**
 6. **실패 대응 및 품질 평가(Eval)**
@@ -73,7 +74,7 @@ devpick-ai/
 │   ├── collectors/     # RSS / RSS+크롤링 수집기
 │   ├── configs/        # 수집 대상 소스 목록
 │   ├── schemas/        # Pydantic 스키마
-│   ├── services/       # 비즈니스 로직 (ingest, normalize, push)
+│   ├── services/       # 비즈니스 로직 (ingest, normalize, push, summary)
 │   ├── stores/         # raw JSONL 저장 + SentIdStore
 │   └── utils/          # XML/HTML 파싱 헬퍼
 ├── docs/               # 운영/설계 문서
@@ -151,6 +152,7 @@ pytest -q
 | `app/api/` | [app/api/CLAUDE.md](app/api/CLAUDE.md) — 라우터 레이어 |
 | `app/api/internal/` | [app/api/internal/CLAUDE.md](app/api/internal/CLAUDE.md) — /internal 라우터 |
 | `app/collectors/` | [app/collectors/CLAUDE.md](app/collectors/CLAUDE.md) — 수집기 클래스 |
+| `app/core/` | [app/core/CLAUDE.md](app/core/CLAUDE.md) — 프롬프트 템플릿 + 설정 |
 | `app/schemas/` | [app/schemas/CLAUDE.md](app/schemas/CLAUDE.md) — Pydantic 스키마 |
 | `app/stores/` | [app/stores/CLAUDE.md](app/stores/CLAUDE.md) — 저장소 및 dedup |
 | `app/configs/` | [app/configs/CLAUDE.md](app/configs/CLAUDE.md) — 소스 설정 |

@@ -6,6 +6,7 @@ from dataclasses import dataclass
 import json
 import re
 from typing import Any
+from urllib.parse import urljoin
 
 from bs4 import BeautifulSoup
 
@@ -274,6 +275,22 @@ def _extract_from_nuxt_payload(soup: BeautifulSoup) -> tuple[str | None, str | N
 
     best = max(candidates, key=lambda item: item["score"])
     return best["html"], best["text"]
+
+
+def extract_first_image(html: str, base_url: str | None = None) -> str | None:
+    """Extract the first usable image URL from HTML body content.
+
+    Skips data: URIs. Resolves relative URLs using base_url if provided.
+    """
+    soup = BeautifulSoup(html, "html.parser")
+    for img in soup.find_all("img"):
+        src = img.get("src", "").strip()
+        if not src or src.startswith("data:"):
+            continue
+        if base_url and not src.startswith(("http://", "https://")):
+            src = urljoin(base_url, src)
+        return src or None
+    return None
 
 
 def extract_og_image(html: str) -> str | None:

@@ -13,6 +13,7 @@ import re
 
 from app.schemas.normalized_content import NormalizedContent
 from app.schemas.raw_content import RawEntry
+from app.utils.html_helpers import extract_first_image
 
 FULL_BODY_MIN_LENGTH = 800
 PARTIAL_BODY_MIN_LENGTH = 300
@@ -87,6 +88,22 @@ class NormalizeService:
             return None
         return cleaned[:PREVIEW_MAX_LENGTH]
 
+    def resolve_thumbnail(self, raw_entry: RawEntry) -> str | None:
+        """Resolve thumbnail URL: RSS/OG 추출 → 본문 첫 이미지 fallback."""
+        if raw_entry.thumbnail_url:
+            return raw_entry.thumbnail_url
+        base_url = raw_entry.site_url
+        for field in [
+            raw_entry.html_body_raw,
+            raw_entry.content_raw,
+            raw_entry.summary_raw,
+        ]:
+            if field:
+                img = extract_first_image(field, base_url=base_url)
+                if img:
+                    return img
+        return None
+
     def normalize_entry(self, raw_entry: RawEntry) -> NormalizedContent:
         """Convert one raw entry into minimum normalized content shape."""
         body_candidate, body_source = self.select_body_candidate_with_source(raw_entry)
@@ -102,5 +119,6 @@ class NormalizeService:
             body_candidate=body_candidate,
             body_source=body_source,
             content_kind=content_kind,
+            thumbnail_url=self.resolve_thumbnail(raw_entry),
             entry_external_id=raw_entry.entry_external_id,
         )

@@ -10,12 +10,15 @@ def make_raw_entry(
     content_raw: str | None,
     summary_raw: str | None,
     html_text_raw: str | None = None,
+    html_body_raw: str | None = None,
+    thumbnail_url: str | None = None,
     entry_external_id: str = "entry-1",
+    site_url: str = "https://example.com",
 ) -> RawEntry:
     return RawEntry(
         source_name="NAVER_D2",
         feed_url="https://example.com/feed",
-        site_url="https://example.com",
+        site_url=site_url,
         parser_type="rss",
         content_level_hint=2,
         entry_external_id=entry_external_id,
@@ -26,6 +29,8 @@ def make_raw_entry(
         summary_raw=summary_raw,
         content_raw=content_raw,
         html_text_raw=html_text_raw,
+        html_body_raw=html_body_raw,
+        thumbnail_url=thumbnail_url,
         categories_raw=["dev"],
         raw_xml_fragment=None,
         response_hash="resp-hash",
@@ -115,3 +120,51 @@ def test_preview_generation_prefers_summary_and_cleans_html() -> None:
     assert "<" not in normalized.preview
     assert normalized.preview.startswith("Hello DevPick RSS")
     assert len(normalized.preview) <= 260
+
+
+def test_thumbnail_passthrough() -> None:
+    normalizer = NormalizeService()
+    raw_entry = make_raw_entry(
+        content_raw="c" * 900,
+        summary_raw=None,
+        thumbnail_url="https://example.com/thumb.png",
+    )
+    normalized = normalizer.normalize_entry(raw_entry)
+    assert normalized.thumbnail_url == "https://example.com/thumb.png"
+
+
+def test_thumbnail_fallback_from_content_raw() -> None:
+    normalizer = NormalizeService()
+    raw_entry = make_raw_entry(
+        content_raw='<p>text</p><img src="https://cdn.example.com/img.png" /><p>more</p>',
+        summary_raw=None,
+        thumbnail_url=None,
+    )
+    normalized = normalizer.normalize_entry(raw_entry)
+    assert normalized.thumbnail_url == "https://cdn.example.com/img.png"
+
+
+def test_thumbnail_fallback_resolves_relative_url() -> None:
+    normalizer = NormalizeService()
+    raw_entry = make_raw_entry(
+        content_raw='<img src="/content/images/2026/03/photo.png" />',
+        summary_raw=None,
+        thumbnail_url=None,
+        site_url="https://d2.naver.com",
+    )
+    normalized = normalizer.normalize_entry(raw_entry)
+    assert (
+        normalized.thumbnail_url
+        == "https://d2.naver.com/content/images/2026/03/photo.png"
+    )
+
+
+def test_thumbnail_none_when_no_image() -> None:
+    normalizer = NormalizeService()
+    raw_entry = make_raw_entry(
+        content_raw="plain text with no images",
+        summary_raw="also no images here",
+        thumbnail_url=None,
+    )
+    normalized = normalizer.normalize_entry(raw_entry)
+    assert normalized.thumbnail_url is None

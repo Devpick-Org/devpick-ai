@@ -18,6 +18,8 @@
              **+ /internal 라우터 + X-Internal-Key 인증 + 에러 핸들러 세팅 완료 (DP-215)**
              **+ PreprocessService (HTML→텍스트) + SummaryResponse 스키마 구현 완료 (DP-216)**
              **+ SummaryService (Tool Use + Prompt Caching + 소제목별 요약) 구현 완료 (DP-219)**
+             **+ POST /internal/summary 엔드포인트 구현 완료 (DP-217)**
+             **+ AI 요약 결과 MongoDB ai_summaries 저장 구현 완료 (DP-220)**
 
 ---
 

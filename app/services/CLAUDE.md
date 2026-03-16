@@ -94,6 +94,7 @@ summarize(content_id, level, text, thumbnail_url=None) -> SummaryResponse
 - **Temperature 0**: 일관성 + 속도
 - 프롬프트/스키마: `app/core/prompts/summary.py` (SYSTEM_PROMPT, SUMMARY_TOOL, build_user_prompt)
 - `core_summary`는 `list[SectionSummary]` (소제목별 요약)
+- 요약 완료 후 `SummaryRepository.save()`로 MongoDB `ai_summaries` 저장 (DP-220, 라우터에서 호출)
 
 ---
 

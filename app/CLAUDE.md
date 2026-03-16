@@ -19,6 +19,7 @@ app/
 ├── services/       # 비즈니스 로직 (IngestService, NormalizeService, PushService, SummaryService)
 ├── stores/         # raw JSONL 저장 + SentIdStore (cross-run dedup)
 ├── utils/          # XML/HTML 파싱 헬퍼
+├── repositories/   # MongoDB 접근 레이어 (DP-220~)
 └── main.py         # FastAPI 앱 서브모듈 진입점 (현재 사용 최소)
 ```
 
@@ -46,7 +47,7 @@ SentIdStore.add() → 전송 완료 ID 기록
 
 ---
 
-## AI 요약 흐름 (DP-219)
+## AI 요약 흐름 (DP-219, DP-220)
 
 ```
 PreprocessService.preprocess(html) → 구조 보존 텍스트
@@ -56,6 +57,8 @@ SummaryService.summarize(content_id, level, text)
     ↓ Claude API (Tool Use + Prompt Caching, temperature=0)
     ↓ tool_use 블록에서 input dict 추출
     ↓ SummaryResponse.model_validate(payload)
+    ↓
+SummaryRepository.save(summary) → MongoDB ai_summaries 컬렉션 upsert
 ```
 
 ---
@@ -64,10 +67,9 @@ SummaryService.summarize(content_id, level, text)
 
 ```text
 app/
-├── core/
-│   ├── config.py
-│   └── logging.py
-└── repositories/   # DB 접근 레이어
+└── core/
+    ├── config.py
+    └── logging.py
 ```
 
 ---
@@ -83,3 +85,4 @@ app/
 - [configs/CLAUDE.md](configs/CLAUDE.md)
 - [utils/CLAUDE.md](utils/CLAUDE.md)
 - [services/CLAUDE.md](services/CLAUDE.md)
+- [repositories/CLAUDE.md](repositories/CLAUDE.md)

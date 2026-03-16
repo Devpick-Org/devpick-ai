@@ -12,6 +12,7 @@ Pydantic 기반 데이터 계약. 수집부터 전송까지 모든 데이터 형
 | `raw_content.py` | `RawEntry` | 수집기가 반환하는 원시 항목 |
 | `raw_content.py` | `RawFeedMeta` | 피드 메타 정보 (제목, 수집 시각 등) |
 | `normalized_content.py` | `NormalizedContent` | Backend로 전송하는 최종 정규화 항목 |
+| `summary.py` | `SummaryRequest` | AI 요약 요청 스키마 (content_id, level, text, thumbnail_url) |
 | `summary.py` | `SectionSummary` | 소제목별 요약 항목 (heading + content) |
 | `summary.py` | `SummaryResponse` | AI 요약 출력 스키마 (LLM 응답 계약) |
 

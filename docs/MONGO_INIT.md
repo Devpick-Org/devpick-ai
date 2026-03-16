@@ -34,8 +34,16 @@ DevPick AI에서 MongoDB를 **MVP 베이스**로 시작하기 위한 최소 초�
 - `ux_configs_key` (`key` unique)
   - 설정 키 중복 방지
 
+### 3) `ai_summaries` 컬렉션 (DP-220)
+- `ux_summaries_content_level` ((`content_id`, `level`) unique)
+  - 같은 콘텐츠의 같은 레벨 요약 중복 방지, upsert 기준 키
+- `ix_summaries_content_id` (`content_id`)
+  - 특정 콘텐츠의 모든 레벨 요약 조회 성능
+- `ix_summaries_updated_at_desc` (`updated_at` 내림차순)
+  - 최신 요약 조회 성능
+
 ### seed/upsert 데이터
-- `key=schema_version`, `value=1`
+- `key=schema_version`, `value=2`
   - upsert로 유지
   - `created_at`/`updated_at` 관리
 - `key=initialized_at`

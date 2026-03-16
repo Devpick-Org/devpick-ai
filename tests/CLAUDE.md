@@ -23,6 +23,7 @@
 | `test_sent_id_store.py` | `SentIdStore` | cross-run dedup 저장/로드 동작 확인 |
 | `test_preprocess_service.py` | `PreprocessService` | HTML→텍스트 변환, 노이즈 제거, 구조 보존 검증 |
 | `test_summary_service.py` | `SummaryService` | Tool Use 기반 AI 요약 mock 테스트 (DP-219) |
+| `test_summary_endpoint.py` | `POST /internal/summary` | 요약 엔드포인트 통합 테스트 (DP-217) |
 
 ### `test_push_service.py` 케이스 (DP-199)
 
@@ -46,6 +47,19 @@
 | `test_img_alt_preserved` | img alt → [이미지: ...] 인라인 변환 |
 | `test_img_without_alt_ignored` | alt 없는 이미지 무시 |
 | 그 외 11개 | blockquote, br, hr, boilerplate 제거 등 |
+
+### `test_summary_endpoint.py` 케이스 (DP-217)
+
+| 테스트 함수 | 검증 내용 |
+|-------------|----------|
+| `test_summary_success` | 정상 요청 → 200 + SummaryResponse |
+| `test_summary_level_mapping_upper` | JUNIOR → junior 매핑 확인 |
+| `test_summary_level_mapping_middle` | MIDDLE → mid 매핑 확인 |
+| `test_summary_level_mapping_lower` | junior 직접 입력도 동작 확인 |
+| `test_summary_missing_auth` | X-Internal-Key 없음 → 422 |
+| `test_summary_wrong_auth` | 잘못된 키 → 401 |
+| `test_summary_empty_text` | text="" → 422 (Pydantic min_length) |
+| `test_summary_invalid_level` | 존재하지 않는 레벨 → 400 |
 
 ### `test_summary_service.py` 케이스 (DP-219)
 

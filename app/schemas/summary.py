@@ -1,10 +1,19 @@
-"""AI 요약 출력 스키마 (Confluence AI 기능 명세서 확정본)."""
+"""AI 요약 입출력 스키마 (Confluence AI 기능 명세서 확정본)."""
 
 from __future__ import annotations
 
 from typing import Literal
 
 from pydantic import BaseModel, Field
+
+
+class SummaryRequest(BaseModel):
+    """콘텐츠 AI 요약 요청 스키마."""
+
+    content_id: str
+    level: str  # JUNIOR/MIDDLE/SENIOR 또는 junior/mid/senior
+    text: str = Field(min_length=1)  # HTML 본문 (빈 문자열 → 422 자동 거부)
+    thumbnail_url: str | None = None
 
 
 class SectionSummary(BaseModel):

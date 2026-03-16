@@ -1,0 +1,19 @@
+"""Minimum normalized content schema from raw RSS entries."""
+
+from __future__ import annotations
+
+from pydantic import BaseModel
+
+
+class NormalizedContent(BaseModel):
+    """Normalized content view derived from a single raw entry."""
+
+    source_name: str
+    title: str | None = None
+    canonical_url: str | None = None
+    published_at: str | None = None
+    preview: str | None = None
+    body_candidate: str | None = None
+    body_source: str = "none"
+    content_kind: str
+    entry_external_id: str | None = None

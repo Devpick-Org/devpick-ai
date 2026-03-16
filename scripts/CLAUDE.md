@@ -34,6 +34,37 @@
 | 파일 | 설명 |
 |------|------|
 | `init_mongo.py` | Mongo ping 확인, 최소 컬렉션/인덱스 생성, seed upsert |
+| `run_collect_and_push.py` | 수집 → 정규화 → dedup → Backend push 통합 파이프라인 (DP-199) |
+| `run_scheduler.py` | 6시간 간격으로 `run_collect_and_push.main()` 반복 실행 |
+| `run_rss_collect.py` | RSS/Atom 수집만 실행 (push 없음) |
+| `run_rss_crawl_collect.py` | Kakao RSS + HTML 본문 보강 수집만 실행 |
+| `inspect_raw_data.py` | `data/raw/` JSONL 내용 점검 |
+
+### `run_collect_and_push.py` (DP-199)
+
+수집 파이프라인 전체를 한 번에 실행한다.
+
+```bash
+BACKEND_URL=http://localhost:8080 python scripts/run_collect_and_push.py
+```
+
+- `BACKEND_URL` 미설정 시 `http://localhost:8080` 기본값 사용
+- Level-2 소스(RSS/Atom) → `RSSCollector`, Level-1 소스(Crawl) → `RSSCrawlCollector` 순으로 실행
+- `SentIdStore`로 cross-run dedup — 이미 전송된 항목은 재전송하지 않는다
+- 소스별 실패는 개별 catch — 전체 파이프라인이 중단되지 않는다
+
+### `run_scheduler.py`
+
+APScheduler 기반 반복 실행기. 즉시 1회 실행 후 6시간마다 반복한다.
+
+```bash
+BACKEND_URL=http://localhost:8080 python scripts/run_scheduler.py
+# Ctrl+C로 중단
+```
+
+- `BlockingScheduler` 사용 — 프로세스가 살아 있는 동안 계속 실행
+- `next_run_time=datetime.now()` — 시작 즉시 첫 실행
+- 도커/서버 환경에서 장기 실행 프로세스로 사용
 
 ### 앞으로 추가 가능
 

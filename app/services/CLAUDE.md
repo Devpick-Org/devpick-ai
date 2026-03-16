@@ -13,6 +13,7 @@
 | `normalize_service.py` | `NormalizeService` | `RawEntry` → `NormalizedContent` 변환 |
 | `push_service.py` | `PushService` | 정규화된 콘텐츠를 Backend ingest API로 HTTP POST |
 | `preprocess_service.py` | `PreprocessService` | HTML → 구조 보존 텍스트 변환 (LLM 입력 전처리) |
+| `summary_service.py` | `SummaryService` | Claude Tool Use 기반 레벨별 AI 요약 생성 (DP-219) |
 
 ---
 
@@ -36,7 +37,7 @@ Collector.collect(source)
 ```
 NormalizedContent.body_candidate (HTML)
     → PreprocessService.preprocess() → 구조 보존 텍스트
-    → (향후) SummaryService → Claude API
+    → SummaryService.summarize(content_id, level, text) → SummaryResponse
 ```
 
 ### IngestService (독립 사용 가능)
@@ -77,7 +78,22 @@ push(items: list[NormalizedContent]) -> dict
 - 서비스 클래스는 생성자에서 의존성(URL, timeout 등)을 주입받는다
 - 외부 I/O(HTTP, 파일, DB)는 서비스 레이어에서만 발생하게 한다
 - 예외는 삼키지 않는다. 로깅 후 raise하거나 호출부에서 명시적으로 처리
-- 프롬프트 문자열, JSON 파싱 로직을 이 레이어에 직접 쓰지 않는다 (향후 `core/prompts/` 분리)
+- 프롬프트 문자열은 `app/core/prompts/`에 분리한다. 서비스에 직접 쓰지 않는다
+
+---
+
+## SummaryService 상세 (DP-219)
+
+```python
+SummaryService(api_key: str, model: str = "claude-sonnet-4-6")
+summarize(content_id, level, text, thumbnail_url=None) -> SummaryResponse
+```
+
+- **Tool Use**: `tool_choice={"type": "tool", "name": "save_summary"}` — JSON 파싱 실패 0%
+- **Prompt Caching**: system 블록에 `cache_control: ephemeral` — 비용 90% 절감
+- **Temperature 0**: 일관성 + 속도
+- 프롬프트/스키마: `app/core/prompts/summary.py` (SYSTEM_PROMPT, SUMMARY_TOOL, build_user_prompt)
+- `core_summary`는 `list[SectionSummary]` (소제목별 요약)
 
 ---
 
@@ -85,7 +101,6 @@ push(items: list[NormalizedContent]) -> dict
 
 | 파일 | 역할 |
 |------|------|
-| `summary_service.py` | 콘텐츠 AI 요약 생성 (Epic C) |
 | `refine_service.py` | 질문 개선 (Epic D) |
 | `answer_service.py` | AI 1차 답변 생성 (Epic D) |
 | `report_service.py` | 주간 리포트 인사이트 생성 (Epic F) |

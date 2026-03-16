@@ -1,0 +1,49 @@
+# CLAUDE.md — app/core/
+
+AI 기능의 프롬프트 템플릿, 설정, 공통 유틸을 관리하는 레이어다.
+
+---
+
+## 현재 구조
+
+```text
+core/
+└── prompts/        # AI 기능별 프롬프트 + Tool Use 스키마
+    └── summary.py  # 요약 프롬프트 (DP-219)
+```
+
+---
+
+## prompts/ 상세
+
+| 파일 | 내용 |
+|------|------|
+| `summary.py` | `SYSTEM_PROMPT`, `SUMMARY_TOOL` (Tool Use 스키마), `build_user_prompt()` (레벨별 지시문 생성) |
+
+### summary.py 구성 요소
+
+- `SYSTEM_PROMPT` — 필드별 작성 기준을 포함한 시스템 프롬프트. Prompt Caching 대상
+- `SUMMARY_TOOL` — `save_summary` Tool Use input_schema. 9개 필드 required
+- `_LEVEL_INSTRUCTIONS` — junior/mid/senior 레벨별 요약 관점 지시문
+- `build_user_prompt(level, text)` — 레벨 지시문 + 본문을 결합하여 user 메시지 생성
+
+---
+
+## 프롬프트 작성 원칙
+
+- 프롬프트는 서비스 코드에 직접 쓰지 않는다. 반드시 `core/prompts/`에 분리한다
+- Tool Use 스키마(`input_schema`)와 Pydantic 스키마(`app/schemas/`)의 필드를 일치시킨다
+- 시스템 프롬프트는 Prompt Caching 효율을 위해 자주 변경하지 않는다
+- 레벨별 지시문은 `_LEVEL_INSTRUCTIONS` dict으로 관리하여 확장이 용이하게 한다
+
+---
+
+## 향후 추가 예정
+
+| 파일 | 역할 |
+|------|------|
+| `prompts/refine.py` | 질문 개선 프롬프트 (Epic D) |
+| `prompts/answer.py` | AI 1차 답변 프롬프트 (Epic D) |
+| `prompts/report.py` | 주간 리포트 프롬프트 (Epic F) |
+| `config.py` | 공통 설정 (모델명, temperature 등) |
+| `logging.py` | 로깅 설정 |

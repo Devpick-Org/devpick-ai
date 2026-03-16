@@ -16,6 +16,7 @@
 * MVP 데드라인: **2026-04-13**
 * 현재 상태: **RSS/크롤 수집 파이프라인 + SentIdStore dedup + PushService 구현 완료 (DP-199)**
              **+ /internal 라우터 + X-Internal-Key 인증 + 에러 핸들러 세팅 완료 (DP-215)**
+             **+ PreprocessService (HTML→텍스트) + SummaryResponse 스키마 구현 완료 (DP-216)**
 
 ---
 

@@ -39,6 +39,7 @@
 | `run_rss_collect.py` | RSS/Atom 수집만 실행 (push 없음) |
 | `run_rss_crawl_collect.py` | Kakao RSS + HTML 본문 보강 수집만 실행 |
 | `inspect_raw_data.py` | `data/raw/` JSONL 내용 점검 |
+| `inspect_preprocess.py` | URL 또는 raw 피드 JSON 기반 전처리 출력 확인 |
 
 ### `run_collect_and_push.py` (DP-199)
 
@@ -65,6 +66,18 @@ BACKEND_URL=http://localhost:8080 python scripts/run_scheduler.py
 - `BlockingScheduler` 사용 — 프로세스가 살아 있는 동안 계속 실행
 - `next_run_time=datetime.now()` — 시작 즉시 첫 실행
 - 도커/서버 환경에서 장기 실행 프로세스로 사용
+
+### `inspect_preprocess.py` (DP-216)
+
+전처리 출력을 확인하는 디버그용 스크립트다.
+
+```bash
+# URL 직접 전처리
+python scripts/inspect_preprocess.py --url https://d2.naver.com/...
+
+# 저장된 raw 피드 JSON으로 전처리
+python scripts/inspect_preprocess.py --raw data/raw/feeds/NAVER_D2/20260307T145414Z_d52125d89072.json
+```
 
 ### 앞으로 추가 가능
 

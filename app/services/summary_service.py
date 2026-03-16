@@ -2,12 +2,22 @@
 
 from __future__ import annotations
 
+import logging
 from datetime import datetime, timezone
 
 import anthropic
+import pydantic
 
+from app.core.exceptions import (
+    AIBadRequestError,
+    AIInternalError,
+    AITimeoutError,
+    AIUpstreamError,
+)
 from app.core.prompts.summary import SUMMARY_TOOL, SYSTEM_PROMPT, build_user_prompt
 from app.schemas.summary import SummaryResponse
+
+logger = logging.getLogger(__name__)
 
 
 class SummaryService:
@@ -40,36 +50,65 @@ class SummaryService:
             SummaryResponse
 
         Raises:
-            ValueError: 잘못된 level 또는 빈 text
+            AIBadRequestError: 잘못된 level 또는 빈 text
+            AITimeoutError: LLM 타임아웃
+            AIUpstreamError: LLM 연결 실패 / API 에러 / Rate Limit
+            AIInternalError: 인증 실패 / 파싱 실패 / tool_use 블록 없음
         """
-        user_prompt = build_user_prompt(level, text)
+        try:
+            user_prompt = build_user_prompt(level, text)
+        except ValueError as exc:
+            raise AIBadRequestError(str(exc)) from exc
 
-        response = self._client.messages.create(
-            model=self._model,
-            max_tokens=2048,
-            temperature=0,
-            system=[
-                {
-                    "type": "text",
-                    "text": SYSTEM_PROMPT,
-                    "cache_control": {"type": "ephemeral"},
-                }
-            ],
-            messages=[{"role": "user", "content": user_prompt}],
-            tools=[SUMMARY_TOOL],
-            tool_choice={"type": "tool", "name": "save_summary"},
-        )
+        try:
+            response = self._client.messages.create(
+                model=self._model,
+                max_tokens=2048,
+                temperature=0,
+                system=[
+                    {
+                        "type": "text",
+                        "text": SYSTEM_PROMPT,
+                        "cache_control": {"type": "ephemeral"},
+                    }
+                ],
+                messages=[{"role": "user", "content": user_prompt}],
+                tools=[SUMMARY_TOOL],
+                tool_choice={"type": "tool", "name": "save_summary"},
+            )
+        except anthropic.APITimeoutError as exc:
+            logger.warning("LLM 타임아웃: %s", exc)
+            raise AITimeoutError() from exc
+        except anthropic.RateLimitError as exc:
+            logger.warning("LLM Rate Limit: %s", exc)
+            raise AIUpstreamError("LLM Rate Limit 초과입니다") from exc
+        except anthropic.APIConnectionError as exc:
+            logger.error("LLM 연결 실패: %s", exc)
+            raise AIUpstreamError("LLM 연결에 실패했습니다") from exc
+        except anthropic.AuthenticationError as exc:
+            logger.error("LLM 인증 실패: %s", exc)
+            raise AIInternalError("LLM 인증에 실패했습니다") from exc
+        except anthropic.APIStatusError as exc:
+            logger.error("LLM API 상태 에러 (status=%s): %s", exc.status_code, exc)
+            raise AIUpstreamError(f"LLM API 오류: {exc.status_code}") from exc
 
         # Tool Use 응답에서 input dict 추출
         tool_blocks = [b for b in response.content if b.type == "tool_use"]
         if not tool_blocks:
-            raise ValueError("LLM 응답에 tool_use 블록이 없습니다")
+            logger.error(
+                "LLM 응답에 tool_use 블록이 없습니다. content=%s", response.content
+            )
+            raise AIInternalError("LLM 응답에 tool_use 블록이 없습니다")
 
-        payload = {
-            **tool_blocks[0].input,
-            "content_id": content_id,
-            "level": level,
-            "generated_at": datetime.now(tz=timezone.utc).isoformat(),
-            "thumbnail_url": thumbnail_url,
-        }
-        return SummaryResponse.model_validate(payload)
+        try:
+            payload = {
+                **tool_blocks[0].input,
+                "content_id": content_id,
+                "level": level,
+                "generated_at": datetime.now(tz=timezone.utc).isoformat(),
+                "thumbnail_url": thumbnail_url,
+            }
+            return SummaryResponse.model_validate(payload)
+        except pydantic.ValidationError as exc:
+            logger.error("SummaryResponse 파싱 실패: %s", exc)
+            raise AIInternalError("AI 응답 파싱에 실패했습니다") from exc

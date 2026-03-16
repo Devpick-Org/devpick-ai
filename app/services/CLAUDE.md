@@ -82,7 +82,7 @@ push(items: list[NormalizedContent]) -> dict
 
 ---
 
-## SummaryService 상세 (DP-219)
+## SummaryService 상세 (DP-219, DP-223)
 
 ```python
 SummaryService(api_key: str, model: str = "claude-sonnet-4-6")
@@ -95,6 +95,27 @@ summarize(content_id, level, text, thumbnail_url=None) -> SummaryResponse
 - 프롬프트/스키마: `app/core/prompts/summary.py` (SYSTEM_PROMPT, SUMMARY_TOOL, build_user_prompt)
 - `core_summary`는 `list[SectionSummary]` (소제목별 요약)
 - 요약 완료 후 `SummaryRepository.save()`로 MongoDB `ai_summaries` 저장 (DP-220, 라우터에서 호출)
+
+### 에러 처리 패턴 (DP-223)
+
+`summarize()`는 모든 예외를 `app/core/exceptions.py`의 커스텀 예외로 변환한다.
+전역 핸들러(`main.py`)가 `AIServiceError`를 HTTP 응답으로 변환한다.
+
+| 상황 | 발생 예외 | HTTP |
+|------|-----------|------|
+| 잘못된 level / 빈 text | `AIBadRequestError` | 400 |
+| LLM 타임아웃 | `AITimeoutError` | 504 |
+| Rate Limit / 연결 실패 / API 에러 | `AIUpstreamError` | 502 |
+| 인증 실패 / 파싱 실패 / tool_use 없음 | `AIInternalError` | 500 |
+
+```python
+# 서비스에서 예외 발생 → 전역 핸들러가 HTTP 변환
+# 라우터는 try/except 없이 SummaryService 호출만 담당
+raise AITimeoutError()          # → 504
+raise AIUpstreamError("...")    # → 502
+raise AIInternalError("...")    # → 500
+raise AIBadRequestError("...")  # → 400
+```
 
 ---
 

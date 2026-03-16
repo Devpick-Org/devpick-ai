@@ -1,12 +1,19 @@
-"""SummaryService 단위 테스트 — mock 기반, 실제 API 호출 없음 (DP-219)."""
+"""SummaryService 단위 테스트 — mock 기반, 실제 API 호출 없음 (DP-219, DP-223)."""
 
 from __future__ import annotations
 
 import copy
 from unittest.mock import MagicMock, patch
 
+import anthropic
 import pytest
 
+from app.core.exceptions import (
+    AIBadRequestError,
+    AIInternalError,
+    AITimeoutError,
+    AIUpstreamError,
+)
 from app.services.summary_service import SummaryService
 
 _VALID_LLM_PAYLOAD = {
@@ -104,7 +111,7 @@ def test_invalid_tool_response_raises() -> None:
         svc = SummaryService(api_key="test-key")
         svc._client = mock_client
 
-        with pytest.raises(ValueError, match="tool_use 블록이 없습니다"):
+        with pytest.raises(AIInternalError, match="tool_use 블록이 없습니다"):
             svc.summarize(
                 content_id="art-004",
                 level="junior",
@@ -115,7 +122,7 @@ def test_invalid_tool_response_raises() -> None:
 def test_empty_text_raises() -> None:
     svc, _ = _make_service_with_mock(copy.deepcopy(_VALID_LLM_PAYLOAD))
 
-    with pytest.raises(ValueError, match="요약할 텍스트가 없습니다"):
+    with pytest.raises(AIBadRequestError, match="요약할 텍스트가 없습니다"):
         svc.summarize(
             content_id="art-005",
             level="junior",
@@ -126,9 +133,68 @@ def test_empty_text_raises() -> None:
 def test_invalid_level_raises() -> None:
     svc, _ = _make_service_with_mock(copy.deepcopy(_VALID_LLM_PAYLOAD))
 
-    with pytest.raises(ValueError, match="지원하지 않는 레벨"):
+    with pytest.raises(AIBadRequestError, match="지원하지 않는 레벨"):
         svc.summarize(
             content_id="art-006",
             level="expert",
             text="유효한 텍스트.",
         )
+
+
+# ─── DP-223: SDK 예외 → 커스텀 예외 변환 단위 테스트 ───────────────────────
+
+
+def _make_service_with_api_error(side_effect: Exception) -> SummaryService:
+    """messages.create가 지정된 예외를 raise하는 SummaryService를 반환한다."""
+    with patch("anthropic.Anthropic"):
+        svc = SummaryService(api_key="test-key")
+    mock_client = MagicMock()
+    mock_client.messages.create.side_effect = side_effect
+    svc._client = mock_client
+    return svc
+
+
+def test_api_timeout_raises_ai_timeout_error() -> None:
+    svc = _make_service_with_api_error(anthropic.APITimeoutError(request=MagicMock()))
+
+    with pytest.raises(AITimeoutError):
+        svc.summarize(content_id="art-t1", level="junior", text="텍스트.")
+
+
+def test_rate_limit_raises_ai_upstream_error() -> None:
+    svc = _make_service_with_api_error(
+        anthropic.RateLimitError(
+            message="rate limit",
+            response=MagicMock(status_code=429),
+            body={},
+        )
+    )
+
+    with pytest.raises(AIUpstreamError):
+        svc.summarize(content_id="art-t2", level="junior", text="텍스트.")
+
+
+def test_api_connection_error_raises_ai_upstream_error() -> None:
+    svc = _make_service_with_api_error(
+        anthropic.APIConnectionError(request=MagicMock())
+    )
+
+    with pytest.raises(AIUpstreamError):
+        svc.summarize(content_id="art-t3", level="junior", text="텍스트.")
+
+
+def test_validation_error_raises_ai_internal_error() -> None:
+    """SummaryResponse 파싱 실패 → AIInternalError."""
+    with patch("anthropic.Anthropic"):
+        svc = SummaryService(api_key="test-key")
+
+    mock_client = MagicMock()
+    # tool_use 블록은 있지만 필수 필드가 누락된 payload 반환
+    tool_block = MagicMock()
+    tool_block.type = "tool_use"
+    tool_block.input = {"one_line_summary": "요약"}  # 필수 필드 대부분 누락
+    mock_client.messages.create.return_value.content = [tool_block]
+    svc._client = mock_client
+
+    with pytest.raises(AIInternalError, match="파싱"):
+        svc.summarize(content_id="art-t4", level="junior", text="텍스트.")

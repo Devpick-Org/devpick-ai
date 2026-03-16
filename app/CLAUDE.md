@@ -8,6 +8,9 @@
 
 ```text
 app/
+├── api/            # FastAPI 라우터 + 인증 (DP-215)
+│   ├── deps.py     # X-Internal-Key 인증 dependency
+│   └── internal/   # /internal/* 라우터
 ├── collectors/     # 수집기 — RSS, RSS+크롤링
 ├── configs/        # 수집 대상 소스 목록
 ├── schemas/        # Pydantic 스키마 (RawEntry, NormalizedContent, SourceConfig)
@@ -47,8 +50,6 @@ AI 기능(요약/질문/리포트)이 추가되면 아래 폴더가 생긴다.
 
 ```text
 app/
-├── api/
-│   └── v1/         # FastAPI 라우터
 ├── core/
 │   ├── config.py
 │   ├── prompts/    # 프롬프트 템플릿
@@ -60,6 +61,8 @@ app/
 
 ## 폴더별 CLAUDE.md 링크
 
+- [api/CLAUDE.md](api/CLAUDE.md)
+- [api/internal/CLAUDE.md](api/internal/CLAUDE.md)
 - [collectors/CLAUDE.md](collectors/CLAUDE.md)
 - [schemas/CLAUDE.md](schemas/CLAUDE.md)
 - [stores/CLAUDE.md](stores/CLAUDE.md)

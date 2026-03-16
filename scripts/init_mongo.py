@@ -58,13 +58,28 @@ def main() -> None:
             name="ux_configs_key",
         )
 
+        ai_summaries = db["ai_summaries"]
+        ai_summaries.create_index(
+            [("content_id", 1), ("level", 1)],
+            unique=True,
+            name="ux_summaries_content_level",
+        )
+        ai_summaries.create_index(
+            [("content_id", 1)],
+            name="ix_summaries_content_id",
+        )
+        ai_summaries.create_index(
+            [("updated_at", DESCENDING)],
+            name="ix_summaries_updated_at_desc",
+        )
+
         now = utc_now()
 
         configs.update_one(
             {"key": "schema_version"},
             {
                 "$set": {
-                    "value": 1,
+                    "value": 2,
                     "updated_at": now,
                 },
                 "$setOnInsert": {

@@ -10,7 +10,7 @@ Spring Boot ↔ FastAPI 내부 통신 전용 라우터. Base URL: `/internal`
 | 메서드 | 경로 | 설명 |
 |--------|------|------|
 | GET | `/internal/health` | AI 서버 내부 헬스체크 |
-| POST | `/internal/summary` | 콘텐츠 AI 요약 생성 (DP-217) |
+| POST | `/internal/summary` | 콘텐츠 AI 요약 생성 + MongoDB 저장 (DP-217, DP-220) |
 
 ---
 

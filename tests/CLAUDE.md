@@ -23,7 +23,8 @@
 | `test_sent_id_store.py` | `SentIdStore` | cross-run dedup 저장/로드 동작 확인 |
 | `test_preprocess_service.py` | `PreprocessService` | HTML→텍스트 변환, 노이즈 제거, 구조 보존 검증 |
 | `test_summary_service.py` | `SummaryService` | Tool Use 기반 AI 요약 mock 테스트 (DP-219) |
-| `test_summary_endpoint.py` | `POST /internal/summary` | 요약 엔드포인트 통합 테스트 (DP-217) |
+| `test_summary_endpoint.py` | `POST /internal/summary` | 요약 엔드포인트 통합 테스트 (DP-217, DP-220) |
+| `test_summary_repository.py` | `SummaryRepository` | MongoDB ai_summaries 저장 mock 테스트 (DP-220) |
 
 ### `test_push_service.py` 케이스 (DP-199)
 
@@ -48,6 +49,15 @@
 | `test_img_without_alt_ignored` | alt 없는 이미지 무시 |
 | 그 외 11개 | blockquote, br, hr, boilerplate 제거 등 |
 
+### `test_summary_repository.py` 케이스 (DP-220)
+
+| 테스트 함수 | 검증 내용 |
+|-------------|----------|
+| `test_save_calls_upsert_with_correct_filter` | `{content_id, level}` 필터로 update_one 호출 확인 |
+| `test_save_includes_updated_at` | `$set`에 `updated_at` 포함 확인 |
+| `test_save_includes_created_at_on_insert` | `$setOnInsert`에 `created_at` 포함 확인 |
+| `test_save_upsert_true` | `upsert=True` 옵션 전달 확인 |
+
 ### `test_summary_endpoint.py` 케이스 (DP-217)
 
 | 테스트 함수 | 검증 내용 |
@@ -60,6 +70,9 @@
 | `test_summary_wrong_auth` | 잘못된 키 → 401 |
 | `test_summary_empty_text` | text="" → 422 (Pydantic min_length) |
 | `test_summary_invalid_level` | 존재하지 않는 레벨 → 400 |
+| `test_summary_saves_to_mongo` | 정상 요청 시 `SummaryRepository.save` 호출됨 |
+| `test_summary_returns_ok_even_if_mongo_fails` | MongoDB 저장 실패해도 200 반환 |
+| `test_summary_skips_mongo_when_uri_empty` | MONGO_URI 미설정 시 저장 안 함 |
 
 ### `test_summary_service.py` 케이스 (DP-219)
 

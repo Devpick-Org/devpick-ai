@@ -1,4 +1,4 @@
-"""POST /internal/summary 엔드포인트 테스트 — SummaryService mock 기반 (DP-217)."""
+"""POST /internal/summary 엔드포인트 테스트 — SummaryService mock 기반 (DP-217, DP-220)."""
 
 from __future__ import annotations
 
@@ -149,3 +149,65 @@ def test_summary_invalid_level(client: TestClient) -> None:
         headers={"X-Internal-Key": _VALID_KEY},
     )
     assert resp.status_code == 400
+
+
+# --- DP-220: MongoDB 저장 관련 테스트 ---
+
+
+def test_summary_saves_to_mongo(
+    client: TestClient, mock_summary_service: MagicMock, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(
+        "app.api.internal.router._MONGO_URI", "mongodb://localhost:27017"
+    )
+
+    with patch("app.api.internal.router.SummaryRepository") as mock_repo_cls:
+        mock_repo = MagicMock()
+        mock_repo_cls.return_value = mock_repo
+
+        resp = client.post(
+            "/internal/summary",
+            json=_VALID_BODY,
+            headers={"X-Internal-Key": _VALID_KEY},
+        )
+
+    assert resp.status_code == 200
+    mock_repo.save.assert_called_once()
+
+
+def test_summary_returns_ok_even_if_mongo_fails(
+    client: TestClient, mock_summary_service: MagicMock, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(
+        "app.api.internal.router._MONGO_URI", "mongodb://localhost:27017"
+    )
+
+    with patch("app.api.internal.router.SummaryRepository") as mock_repo_cls:
+        mock_repo = MagicMock()
+        mock_repo.save.side_effect = Exception("MongoDB connection failed")
+        mock_repo_cls.return_value = mock_repo
+
+        resp = client.post(
+            "/internal/summary",
+            json=_VALID_BODY,
+            headers={"X-Internal-Key": _VALID_KEY},
+        )
+
+    assert resp.status_code == 200
+    assert resp.json()["content_id"] == "test-001"
+
+
+def test_summary_skips_mongo_when_uri_empty(
+    client: TestClient, mock_summary_service: MagicMock, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr("app.api.internal.router._MONGO_URI", "")
+
+    with patch("app.api.internal.router.SummaryRepository") as mock_repo_cls:
+        resp = client.post(
+            "/internal/summary",
+            json=_VALID_BODY,
+            headers={"X-Internal-Key": _VALID_KEY},
+        )
+
+    assert resp.status_code == 200
+    mock_repo_cls.assert_not_called()

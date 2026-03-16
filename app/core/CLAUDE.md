@@ -8,9 +8,29 @@ AI 기능의 프롬프트 템플릿, 설정, 공통 유틸을 관리하는 레�
 
 ```text
 core/
+├── exceptions.py   # AI 서비스 커스텀 예외 계층 (DP-223)
 └── prompts/        # AI 기능별 프롬프트 + Tool Use 스키마
     └── summary.py  # 요약 프롬프트 (DP-219)
 ```
+
+---
+
+## 예외 계층 (exceptions.py, DP-223)
+
+```
+AIServiceError (base, status_code + message)
+├── AIBadRequestError  → 400  잘못된 입력 (level, text)
+├── AIUpstreamError    → 502  LLM 연결 실패 / Rate Limit / API 에러
+├── AITimeoutError     → 504  LLM 타임아웃
+└── AIInternalError    → 500  인증 실패 / 파싱 실패 / tool_use 없음
+```
+
+백엔드(Spring Boot)가 HTTP 상태코드로 AI_001/002/003을 변환한다:
+- 400, 500 → AI_001 (재시도 불가)
+- 502 → AI_001 (재시도 가능)
+- 504 → AI_002 (타임아웃, 재시도 가능)
+
+**규칙**: 에러는 HTTP 상태코드로만 표현한다. 별도 에러 코드 필드 없음.
 
 ---
 

@@ -4,9 +4,10 @@ import logging
 import os
 
 from dotenv import load_dotenv
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends
 
 from app.api.deps import verify_internal_key
+from app.core.exceptions import AIBadRequestError
 from app.repositories.summary_repository import SummaryRepository
 from app.schemas.summary import SummaryRequest, SummaryResponse
 from app.services.preprocess_service import PreprocessService
@@ -42,27 +43,28 @@ def internal_health() -> dict[str, str]:
     dependencies=[Depends(verify_internal_key)],
 )
 def create_summary(body: SummaryRequest) -> SummaryResponse:
+    """콘텐츠 AI 요약 생성.
+
+    에러는 전역 핸들러(AIServiceError)가 처리한다.
+    라우터는 입력 검증 + 서비스 호출만 담당한다.
+    """
     level = _LEVEL_MAP.get(body.level)
     if level is None:
-        raise HTTPException(
-            status_code=400,
-            detail=f"지원하지 않는 레벨: {body.level!r}. JUNIOR/MIDDLE/SENIOR 또는 junior/mid/senior 사용",
+        raise AIBadRequestError(
+            f"지원하지 않는 레벨: {body.level!r}. JUNIOR/MIDDLE/SENIOR 또는 junior/mid/senior 사용"
         )
 
     try:
         preprocessed = PreprocessService().preprocess(body.text)
     except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
+        raise AIBadRequestError(str(exc)) from exc
 
-    try:
-        result = SummaryService(api_key=_ANTHROPIC_API_KEY).summarize(
-            content_id=body.content_id,
-            level=level,
-            text=preprocessed,
-            thumbnail_url=body.thumbnail_url,
-        )
-    except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    result = SummaryService(api_key=_ANTHROPIC_API_KEY).summarize(
+        content_id=body.content_id,
+        level=level,
+        text=preprocessed,
+        thumbnail_url=body.thumbnail_url,
+    )
 
     # MongoDB 저장 (fire-and-forget: 실패해도 응답은 반환)
     if _MONGO_URI:

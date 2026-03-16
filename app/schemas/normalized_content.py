@@ -16,4 +16,5 @@ class NormalizedContent(BaseModel):
     body_candidate: str | None = None
     body_source: str = "none"
     content_kind: str
+    thumbnail_url: str | None = None
     entry_external_id: str | None = None

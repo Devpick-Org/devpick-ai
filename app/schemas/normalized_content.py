@@ -10,11 +10,12 @@ class NormalizedContent(BaseModel):
 
     source_name: str
     title: str | None = None
+    author: str | None = None
     canonical_url: str | None = None
     published_at: str | None = None
     preview: str | None = None
     body_candidate: str | None = None
-    body_source: str = "none"
-    content_kind: str
+    is_original_visible: bool = False
     thumbnail_url: str | None = None
-    entry_external_id: str | None = None
+    license_type: str | None = None
+    tags: list[str] = []

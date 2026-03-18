@@ -30,10 +30,9 @@ def print_normalized_preview(raw_entry: RawEntry, normalizer: NormalizeService) 
     html_text_length = len((raw_entry.html_text_raw or "").strip())
 
     print(f"- title: {normalized.title}")
-    print(f"  content_kind: {normalized.content_kind}")
+    print(f"  is_original_visible: {normalized.is_original_visible}")
     print(f"  preview_length: {preview_length}")
     print(f"  body_candidate_length: {body_length}")
-    print(f"  body_source: {normalized.body_source}")
     print(f"  html_text_length: {html_text_length}")
     print(f"  canonical_url: {normalized.canonical_url}")
 

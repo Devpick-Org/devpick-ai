@@ -71,13 +71,6 @@ class NormalizeService:
         body_candidate, _ = self.select_body_candidate_with_source(raw_entry)
         return body_candidate
 
-    def classify_content_kind(self, body_candidate: str | None) -> str:
-        """Classify content quality based on body candidate length."""
-        body_length = self.text_length(body_candidate)
-        if body_length >= FULL_BODY_MIN_LENGTH:
-            return "full_body"
-        return "preview_only"
-
     def build_preview(
         self, raw_entry: RawEntry, body_candidate: str | None
     ) -> str | None:
@@ -106,19 +99,16 @@ class NormalizeService:
 
     def normalize_entry(self, raw_entry: RawEntry) -> NormalizedContent:
         """Convert one raw entry into minimum normalized content shape."""
-        body_candidate, body_source = self.select_body_candidate_with_source(raw_entry)
-        content_kind = self.classify_content_kind(body_candidate)
+        body_candidate, _ = self.select_body_candidate_with_source(raw_entry)
         preview = self.build_preview(raw_entry, body_candidate)
 
         return NormalizedContent(
             source_name=raw_entry.source_name,
             title=raw_entry.title_raw,
+            author=raw_entry.author_raw,
             canonical_url=raw_entry.entry_url,
             published_at=raw_entry.published_at_raw,
             preview=preview,
             body_candidate=body_candidate,
-            body_source=body_source,
-            content_kind=content_kind,
             thumbnail_url=self.resolve_thumbnail(raw_entry),
-            entry_external_id=raw_entry.entry_external_id,
         )

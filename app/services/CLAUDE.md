@@ -24,8 +24,8 @@
 ```
 Collector.collect(source)
     → FileRawStore (data/raw/ JSONL 저장)
+    → SentIdStore.load(source.name) → 이미 전송된 ID 필터 (RawEntry 기준)
     → NormalizeService.normalize_entry() → list[NormalizedContent]
-    → SentIdStore.load(source.name) → 이미 전송된 ID 필터
     → PushService.push(new_items) → POST /internal/contents
     → SentIdStore.add(source.name, pushed_ids)
 ```

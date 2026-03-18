@@ -43,8 +43,8 @@ add(source_name: str, ids: set[str]) -> None  # 전송 완료 ID 추가
 
 ```
 SentIdStore.load(source.name) → sent_ids
-new_items = [item for item in normalized if item.entry_external_id not in sent_ids]
-PushService.push(new_items)
+new_entries = [entry for entry in entries if entry.entry_external_id not in sent_ids]
+PushService.push([normalize(e) for e in new_entries])
 SentIdStore.add(source.name, pushed_ids)
 ```
 

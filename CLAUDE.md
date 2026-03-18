@@ -20,6 +20,8 @@
              **+ SummaryService (Tool Use + Prompt Caching + 소제목별 요약) 구현 완료 (DP-219)**
              **+ POST /internal/summary 엔드포인트 구현 완료 (DP-217)**
              **+ AI 요약 결과 MongoDB ai_summaries 저장 구현 완료 (DP-220)**
+             **+ NormalizedContent 썸네일 필드 추가 및 본문 이미지 fallback 추출 완료 (DP-291)**
+             **+ AI 요약 실패 시 에러 분류 + 재시도 가능 응답 구현 완료 (DP-223)**
 
 ---
 
@@ -75,6 +77,9 @@ devpick-ai/
 │   │   └── internal/   # /internal/* 라우터
 │   ├── collectors/     # RSS / RSS+크롤링 수집기
 │   ├── configs/        # 수집 대상 소스 목록
+│   ├── core/           # 프롬프트 템플릿 + Tool Use 스키마 (DP-219~)
+│   │   └── prompts/    # 요약/질문/리포트 프롬프트
+│   ├── repositories/   # MongoDB 접근 레이어 (DP-220~)
 │   ├── schemas/        # Pydantic 스키마
 │   ├── services/       # 비즈니스 로직 (ingest, normalize, push, summary)
 │   ├── stores/         # raw JSONL 저장 + SentIdStore
@@ -160,6 +165,7 @@ pytest -q
 | `app/configs/` | [app/configs/CLAUDE.md](app/configs/CLAUDE.md) — 소스 설정 |
 | `app/utils/` | [app/utils/CLAUDE.md](app/utils/CLAUDE.md) — XML/HTML 헬퍼 |
 | `app/services/` | [app/services/CLAUDE.md](app/services/CLAUDE.md) — 서비스 레이어 |
+| `app/repositories/` | [app/repositories/CLAUDE.md](app/repositories/CLAUDE.md) — MongoDB 접근 레이어 |
 | `scripts/` | [scripts/CLAUDE.md](scripts/CLAUDE.md) — 운영 스크립트 |
 | `tests/` | [tests/CLAUDE.md](tests/CLAUDE.md) — 테스트 |
 | `docs/` | [docs/CLAUDE.md](docs/CLAUDE.md) — 설계/운영 문서 |

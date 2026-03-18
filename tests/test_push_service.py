@@ -21,9 +21,7 @@ def make_item(
         published_at="2026-03-12T00:00:00+00:00",
         preview="Short preview text.",
         body_candidate=None,
-        body_source="none",
-        content_kind="preview_only",
-        entry_external_id="ext-001",
+        is_original_visible=False,
     )
 
 

@@ -43,21 +43,16 @@ def collect_and_push(
             store.save_feed(meta, raw_xml)
             store.save_entries(entries)
 
-            normalized = [normalizer.normalize_entry(entry) for entry in entries]
-
             sent_ids = sent_id_store.load(source.name)
-            new_items = [
-                item for item in normalized if item.entry_external_id not in sent_ids
-            ]
+            new_entries = [e for e in entries if e.entry_external_id not in sent_ids]
 
-            if not new_items:
-                print(f"[SKIP] {source.name} all {len(normalized)} items already sent")
+            if not new_entries:
+                print(f"[SKIP] {source.name} all {len(entries)} items already sent")
                 continue
 
+            new_items = [normalizer.normalize_entry(entry) for entry in new_entries]
             result = push_service.push(new_items)
-            pushed_ids = {
-                item.entry_external_id for item in new_items if item.entry_external_id
-            }
+            pushed_ids = {e.entry_external_id for e in new_entries}
             sent_id_store.add(source.name, pushed_ids)
             print(
                 f"[OK] {source.name} collected={len(entries)} new={len(new_items)}"

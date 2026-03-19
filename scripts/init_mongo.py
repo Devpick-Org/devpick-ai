@@ -73,6 +73,17 @@ def main() -> None:
             name="ix_summaries_updated_at_desc",
         )
 
+        rag_documents = db["rag_documents"]
+        rag_documents.create_index(
+            [("content_id", 1), ("chunk_index", 1)],
+            unique=True,
+            name="ux_rag_content_chunk",
+        )
+        rag_documents.create_index(
+            [("content_id", 1)],
+            name="ix_rag_content_id",
+        )
+
         now = utc_now()
 
         configs.update_one(

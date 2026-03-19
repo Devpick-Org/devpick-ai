@@ -14,6 +14,7 @@
 | `push_service.py` | `PushService` | 정규화된 콘텐츠를 Backend ingest API로 HTTP POST |
 | `preprocess_service.py` | `PreprocessService` | HTML → 구조 보존 텍스트 변환 (LLM 입력 전처리) |
 | `summary_service.py` | `SummaryService` | Claude Tool Use 기반 레벨별 AI 요약 생성 (DP-219) |
+| `embedding_service.py` | `EmbeddingOrchestrator` | 청킹 → 임베딩 → MongoDB+FAISS 저장 오케스트레이션 (DP-218) |
 
 ---
 
@@ -116,6 +117,31 @@ raise AIUpstreamError("...")    # → 502
 raise AIInternalError("...")    # → 500
 raise AIBadRequestError("...")  # → 400
 ```
+
+---
+
+---
+
+## EmbeddingOrchestrator 상세 (DP-218)
+
+```python
+EmbeddingOrchestrator(
+    openai_api_key: str,
+    mongo_uri: str,
+    mongo_db: str = "devpick",
+    index_path: str = "data/vectors/devpick",
+    chunk_size: int = 1000,
+    chunk_overlap: int = 200,
+)
+embed_and_store(content_id, preprocessed_text, summary: SummaryResponse) -> None
+```
+
+- `DocumentChunker` → body 청킹 (RecursiveCharacterTextSplitter)
+- `EmbeddingService` → OpenAI text-embedding-3-small 호출 (1536차원)
+- `VectorRepository` → MongoDB `rag_documents` 컬렉션 bulk upsert
+- `VectorStoreManager` → FAISS 인덱스 추가 + 파일 저장
+- 청킹 결과 없으면 경고 로그 후 조기 반환
+- router.py에서 fire-and-forget 패턴으로 호출 (실패해도 요약 응답 정상 반환)
 
 ---
 

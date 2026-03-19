@@ -25,6 +25,8 @@
 | `test_summary_service.py` | `SummaryService` | Tool Use 기반 AI 요약 mock 테스트 (DP-219) |
 | `test_summary_endpoint.py` | `POST /internal/summary` | 요약 엔드포인트 통합 테스트 (DP-217, DP-220) |
 | `test_summary_repository.py` | `SummaryRepository` | MongoDB ai_summaries 저장 mock 테스트 (DP-220) |
+| `test_refine_service.py` | `RefineService` | Tool Use 기반 질문 개선 mock 테스트 (DP-231) |
+| `test_refine_endpoint.py` | `POST /internal/refine` | 질문 개선 엔드포인트 통합 테스트 (DP-231) |
 
 ### `test_push_service.py` 케이스 (DP-199)
 
@@ -84,6 +86,43 @@
 | `test_invalid_tool_response_raises` | tool_use 블록 없는 응답 → `StopIteration` |
 | `test_empty_text_raises` | text="" → `ValueError` |
 | `test_invalid_level_raises` | level="expert" → `ValueError` |
+
+### `test_refine_service.py` 케이스 (DP-231)
+
+| 테스트 함수 | 검증 내용 |
+|-------------|----------|
+| `test_refine_junior_success` | RefineResponse 반환, 필드 타입 확인 |
+| `test_refine_mid_success` | mid 레벨 정상 파싱 |
+| `test_refine_senior_success` | senior 레벨 정상 파싱 |
+| `test_refine_with_context_chunks` | 컨텍스트 청크가 프롬프트에 포함 확인 |
+| `test_refine_without_context_chunks` | 컨텍스트 없으면 "참고 문서" 섹션 미포함 |
+| `test_invalid_tool_response_raises` | tool_use 블록 없는 응답 → `AIInternalError` |
+| `test_empty_title_raises` | title="" → `AIBadRequestError` |
+| `test_empty_content_raises` | content="" → `AIBadRequestError` |
+| `test_invalid_level_raises` | level="expert" → `AIBadRequestError` |
+| `test_validation_error_raises_ai_internal_error` | 필수 필드 누락 → `AIInternalError` |
+| `test_api_timeout_raises_ai_timeout_error` | LLM 타임아웃 → `AITimeoutError` |
+| `test_rate_limit_raises_ai_upstream_error` | Rate Limit → `AIUpstreamError` |
+| `test_api_connection_error_raises_ai_upstream_error` | 연결 실패 → `AIUpstreamError` |
+
+### `test_refine_endpoint.py` 케이스 (DP-231)
+
+| 테스트 함수 | 검증 내용 |
+|-------------|----------|
+| `test_refine_success` | 정상 요청 → 200 + RefineResponse |
+| `test_refine_level_mapping_beginner` | BEGINNER → junior 매핑 확인 |
+| `test_refine_level_mapping_junior` | JUNIOR → junior 매핑 확인 |
+| `test_refine_level_mapping_middle` | MIDDLE → mid 매핑 확인 |
+| `test_refine_level_mapping_senior` | SENIOR → senior 매핑 확인 |
+| `test_refine_missing_auth` | X-Internal-Key 없음 → 422 |
+| `test_refine_wrong_auth` | 잘못된 키 → 401 |
+| `test_refine_empty_title` | title="" → 422 |
+| `test_refine_empty_content` | content="" → 422 |
+| `test_refine_invalid_level` | 존재하지 않는 레벨 → 400 |
+| `test_refine_with_content_id_fetches_chunks` | content_id 있으면 MongoDB 청크 조회 + 컨텍스트 전달 |
+| `test_refine_without_content_id_skips_mongo` | content_id 없으면 MongoDB 미호출 |
+| `test_refine_returns_ok_even_if_mongo_fails` | MongoDB 실패해도 200 반환 |
+| `test_refine_skips_mongo_when_uri_empty` | MONGO_URI 미설정 시 MongoDB 미호출 |
 
 ### `test_sent_id_store.py` 케이스
 

@@ -10,7 +10,8 @@ AI 기능의 프롬프트 템플릿, 설정, 공통 유틸을 관리하는 레�
 core/
 ├── exceptions.py   # AI 서비스 커스텀 예외 계층 (DP-223)
 └── prompts/        # AI 기능별 프롬프트 + Tool Use 스키마
-    └── summary.py  # 요약 프롬프트 (DP-219)
+    ├── summary.py  # 요약 프롬프트 (DP-219)
+    └── refine.py   # 질문 개선 프롬프트 (DP-231)
 ```
 
 ---
@@ -39,6 +40,7 @@ AIServiceError (base, status_code + message)
 | 파일 | 내용 |
 |------|------|
 | `summary.py` | `SYSTEM_PROMPT`, `SUMMARY_TOOL` (Tool Use 스키마), `build_user_prompt()` (레벨별 지시문 생성) |
+| `refine.py` | `SYSTEM_PROMPT`, `REFINE_TOOL` (Tool Use 스키마), `build_user_prompt()` (레벨별 지시문 + 컨텍스트 청크) (DP-231) |
 
 ### summary.py 구성 요소
 
@@ -62,7 +64,6 @@ AIServiceError (base, status_code + message)
 
 | 파일 | 역할 |
 |------|------|
-| `prompts/refine.py` | 질문 개선 프롬프트 (Epic D) |
 | `prompts/answer.py` | AI 1차 답변 프롬프트 (Epic D) |
 | `prompts/report.py` | 주간 리포트 프롬프트 (Epic F) |
 | `config.py` | 공통 설정 (모델명, temperature 등) |

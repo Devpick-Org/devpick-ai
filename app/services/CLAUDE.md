@@ -14,6 +14,7 @@
 | `push_service.py` | `PushService` | 정규화된 콘텐츠를 Backend ingest API로 HTTP POST |
 | `preprocess_service.py` | `PreprocessService` | HTML → 구조 보존 텍스트 변환 (LLM 입력 전처리) |
 | `summary_service.py` | `SummaryService` | Claude Tool Use 기반 레벨별 AI 요약 생성 (DP-219) |
+| `refine_service.py` | `RefineService` | Claude Tool Use 기반 레벨별 질문 개선 (DP-231) |
 | `embedding_service.py` | `EmbeddingOrchestrator` | 청킹 → 임베딩 → MongoDB+FAISS 저장 오케스트레이션 (DP-218) |
 
 ---
@@ -145,11 +146,27 @@ embed_and_store(content_id, preprocessed_text, summary: SummaryResponse) -> None
 
 ---
 
+## RefineService 상세 (DP-231)
+
+```python
+RefineService(api_key: str, model: str = "claude-sonnet-4-6")
+refine(title, content, level, context_chunks=None) -> RefineResponse
+```
+
+- **Tool Use**: `tool_choice={"type": "tool", "name": "save_refined_question"}` — JSON 파싱 실패 0%
+- **Prompt Caching**: system 블록에 `cache_control: ephemeral` — 비용 90% 절감
+- **Temperature 0**: 일관성
+- 프롬프트/스키마: `app/core/prompts/refine.py` (SYSTEM_PROMPT, REFINE_TOOL, build_user_prompt)
+- 컨텍스트 조회: content_id가 있으면 `VectorRepository.find_by_content_id()`로 MongoDB 직접 조회 (라우터에서 호출)
+- content_id 없으면 컨텍스트 없이 Claude 기본 지식만으로 질문 개선
+- 에러 처리 패턴은 SummaryService와 동일 (DP-223)
+
+---
+
 ## 향후 추가 예정
 
 | 파일 | 역할 |
 |------|------|
-| `refine_service.py` | 질문 개선 (Epic D) |
 | `answer_service.py` | AI 1차 답변 생성 (Epic D) |
 | `report_service.py` | 주간 리포트 인사이트 생성 (Epic F) |
 

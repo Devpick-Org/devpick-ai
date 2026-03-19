@@ -23,5 +23,8 @@ htmlcov/
 # Raw collected data (local ingestion output)
 data/raw/
 
+# Preprocessed text output (local inspection artifacts)
+data/preprocessed/
+
 # FAISS vector index files
 data/vectors/

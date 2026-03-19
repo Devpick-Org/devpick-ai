@@ -15,12 +15,12 @@ app/
 ├── configs/        # 수집 대상 소스 목록
 ├── core/           # 프롬프트 템플릿 + 설정 (DP-219~)
 │   └── prompts/    # 요약/질문/리포트 프롬프트 + Tool Use 스키마
+├── rag/            # RAG 파이프라인 (청킹 → 임베딩 → FAISS, DP-218)
 ├── schemas/        # Pydantic 스키마 (RawEntry, NormalizedContent, SourceConfig, SummaryResponse)
-├── services/       # 비즈니스 로직 (IngestService, NormalizeService, PushService, SummaryService)
+├── services/       # 비즈니스 로직 (IngestService, NormalizeService, PushService, SummaryService, EmbeddingOrchestrator)
 ├── stores/         # raw JSONL 저장 + SentIdStore (cross-run dedup)
 ├── utils/          # XML/HTML 파싱 헬퍼
-├── repositories/   # MongoDB 접근 레이어 (DP-220~)
-└── main.py         # FastAPI 앱 서브모듈 진입점 (현재 사용 최소)
+└── repositories/   # MongoDB 접근 레이어 (SummaryRepository, VectorRepository, DP-220~)
 ```
 
 ---
@@ -47,7 +47,7 @@ SentIdStore.add() → 전송 완료 ID 기록
 
 ---
 
-## AI 요약 흐름 (DP-219, DP-220)
+## AI 요약 + 임베딩 흐름 (DP-219, DP-220, DP-218)
 
 ```
 PreprocessService.preprocess(html) → 구조 보존 텍스트
@@ -58,7 +58,13 @@ SummaryService.summarize(content_id, level, text)
     ↓ tool_use 블록에서 input dict 추출
     ↓ SummaryResponse.model_validate(payload)
     ↓
-SummaryRepository.save(summary) → MongoDB ai_summaries 컬렉션 upsert
+SummaryRepository.save(summary) → MongoDB ai_summaries 컬렉션 upsert (fire-and-forget)
+    ↓
+EmbeddingOrchestrator.embed_and_store(content_id, preprocessed_text, summary)
+    ↓ DocumentChunker.chunk() → list[RAGDocument]
+    ↓ EmbeddingService.embed() → list[list[float]]
+    ↓ VectorRepository.save_chunks() → MongoDB rag_documents 컬렉션 upsert
+    ↓ VectorStoreManager.add_documents() + save() → FAISS 인덱스 파일 (fire-and-forget)
 ```
 
 ---
@@ -84,5 +90,6 @@ app/
 - [stores/CLAUDE.md](stores/CLAUDE.md)
 - [configs/CLAUDE.md](configs/CLAUDE.md)
 - [utils/CLAUDE.md](utils/CLAUDE.md)
+- [rag/CLAUDE.md](rag/CLAUDE.md)
 - [services/CLAUDE.md](services/CLAUDE.md)
 - [repositories/CLAUDE.md](repositories/CLAUDE.md)

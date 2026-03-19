@@ -1,0 +1,642 @@
+스마트스토어 플랫폼 내 여러 파트가 공동으로 사용하던 Oracle DBMS는 비즈니스 성장에 따라 리소스 경합이 심화되면서 서비스 성능 불안정을 초래했습니다. 기존 Oracle 인프라의 확장은 막대한 라이선스 비용 증가로 이어지기 때문에, 스마트스토어 회원 파트는 운영 비효율성과 비용 압박을 해소하고자 오픈소스인 MySQL로 DBMS 마이그레이션을 결정했습니다.
+
+이 글에서는 10년 이상의 레거시 프로젝트가 서비스 중단 없이 Oracle 공동 환경에서 벗어나 MySQL로 전환하며 채택한 전략과 기술적 해결 과정을 공유합니다.
+
+## 마이그레이션 준비 및 전략 수립
+
+기존 서비스는 Oracle DBMS 환경에서 JPA와 MyBatis를 사용하고 있었습니다.
+
+기존 서비스 아키텍처
+
+회원 파트의 모듈은 타 부서 시스템과 광범위하게 연계되어 있어 서비스 중단이 불가능했습니다. 따라서 Oracle에서 MySQL로의 DB 전환에는 무중단 배포가 필수였습니다. 또한 사소한 기능 버그에는 핫픽스로 대응할 수 있지만, DB 전환 후 치명적인 성능 저하나 서비스 장애가 발생하는 경우에는 재배포만으로 해결할 수 없으므로 신속한 롤백 능력도 확보해야 했습니다.
+
+### 전환 전략: 이중 쓰기
+
+Kubernetes 환경에서 MyBatis 및 Spring JPA를 사용하는 기존 Oracle DB 기반 서비스를 MySQL로 무중단 전환하고 롤백 가능성을 확보하기 위해 이중 쓰기(dual write) 기법을 채택했습니다. 이중 쓰기란 모든 쓰기 트랜잭션을 기존 데이터베이스와 새 데이터베이스에 동시에 반영하는 기법으로, 신규 시스템의 안정성을 검증하는 기간 동안 두 DB가 완벽하게 동기화된 상태를 유지하는 것을 보장해, 데이터 손실이나 서비스 중단 없이 안전하게 신규 환경으로 전환하기 위한 안전장치가 되었습니다.
+
+전환 과정은 다음과 같이 진행됩니다.
+
+- 전환 전 단계: 구버전 애플리케이션은 모든 Read/Write 트래픽을 Oracle에서 처리하되, CUD(Create, Update, Delete) 작업 시에만 백그라운드에서 MySQL에도 이중 쓰기를 수행합니다.
+
+- 데이터 마이그레이션: 신버전 애플리케이션 배포 전에 Oracle의 전체 데이터를 MySQL로 마이그레이션해 정합성을 맞춥니다.
+
+- 전환 후 단계: 신버전 애플리케이션은 모든 Read/Write 트래픽을 MySQL에서 처리하며, CUD 작업 시 백그라운드에서 Oracle에도 이중 쓰기를 수행합니다.
+
+이 구조를 통해 데이터 정합성을 유지하면서 무중단 배포가 가능해지며, Oracle 방향으로 이중 쓰기가 지속되므로 롤백이 필요한 경우에도 별도의 데이터 복구 과정 없이 즉시 롤백할 수 있습니다.
+
+이중 쓰기 아키텍처
+
+## 기술적 도전과 해결 과정
+
+### JPA 이중 쓰기
+
+저희 서비스에서 JPA로 수행하는 CUD 작업은 대부분 단순한 SQL 조합으로 이루어져, Oracle과 MySQL 간 CUD 쿼리 차이는 거의 없었습니다. 따라서 실제 수행되는 쿼리를 가져와 MySQL에서도 동일하게 실행하면 JPA 이중 쓰기를 큰 문제 없이 구현할 수 있을 것이라고 생각했습니다.
+
+datasource-proxy 라이브러리를 활용해 Oracle에서 수행되는 쿼리를 가져온 뒤 별도의 MySQL DataSource로 해당 쿼리를 실행하도록 JPA용 DataSource를 구성했습니다.
+
+Proxy DataSource 구조
+
+`LocalContainerEntityManagerFactoryBean` 빈 등록 시점에 Proxy DataSource 구현체를 설정했습니다.
+
+```
+@Primary
+public LocalContainerEntityManagerFactoryBean entityManagerFactory() {  
+    LocalContainerEntityManagerFactoryBean factory = getLocalContainerEntityManagerFactoryBean();
+    factory.setDataSource(dualWriteProxyDatasource);    // Proxy DataSource 구현체
+    return factory;
+}
+
+```
+
+이렇게 설정하면 `EntityManager`에서 Oracle DB로 쿼리가 flush될 때 MySQL DB에도 쿼리가 수행됩니다. 다만 몇 가지 해결해야 할 문제가 있습니다.
+
+#### 트랜잭션 처리
+
+한 트랜잭션 내에서 여러 쿼리가 수행되던 중 오류가 발생하면 두 DB 간의 정합성이 유지될까요?
+
+저희 서비스에서는 트랜잭션 매니저로 `JpaTransactionManager`를 사용하고 있습니다. 이중 쓰기 Proxy DataSource에서 두 DB의 DataSource를 참조하더라도, 실제 트랜잭션에 사용되는 쪽은 메인 DB인 Oracle DataSource이고 MySQL DataSource는 트랜잭션으로 관리되지 않습니다. 따라서 롤백 과정에서 두 DB의 정합성이 깨질 수 있으므로 이중 쓰기 수행 시 트랜잭션 대응을 별도로 구성해야 합니다.
+
+단, `ChainedTransactionManager`를 사용하거나 분산 트랜잭션으로 MySQL 쿼리를 트랜잭션에 포함시키면 안 됩니다. 그 이유는 다음과 같습니다.
+
+- 이중 쓰기를 구현하는 시점에는 Oracle과 MySQL 간 데이터 정합성이 대부분 맞지 않습니다.
+
+- 서비스 내 JPA의 모든 Oracle CUD 쿼리가 MySQL에서 오류 없이 동작하는지 아직 검증되지 않았습니다.
+
+- 테이블 인덱스 구성이나 커넥션 풀 등 환경 설정이 아직 최적화되지 않았습니다.
+
+실제 Read 전환이 이루어지기 전까지 다양한 이유로 MySQL 쿼리만 실패하는 상황이 발생할 수 있습니다. 따라서 MySQL 쿼리는 트랜잭션에 따라 원자적으로 수행하되, 실패하더라도 트랜잭션이 롤백되지 않고 무시되어야 합니다.
+
+이에 MySQL 쿼리만 실패하는 케이스를 용인하고, 주기적으로 마이그레이션과 검증(아래 정합성 검증 참고)을 반복하며 불일치 원인을 찾아 제거해 나가는 방식을 선택했습니다.
+
+Oracle 쿼리 수행에 영향을 주지 않는 가장 확실한 방법은 트랜잭션 도중 수행되는 쿼리를 모아두었다가 커밋 후 한꺼번에 MySQL에서 수행하는 것입니다.
+
+트랜잭션 처리 흐름
+
+트랜잭션이 롤백되더라도 MySQL에서는 수행된 쿼리가 없으므로 신경 쓰지 않아도 됩니다. Oracle 커넥션을 점유하는 시간이 늘어나지도 않고 예외 처리 및 추적도 용이합니다.
+
+`TransactionSynchronizationManager`를 활용해 이 동작을 구현할 수 있습니다. 다음은 datasource-proxy 라이브러리 사용을 가정한 예입니다.
+
+```
+public void execute(ExecutionInfo execInfo, List<QueryInfo> queryInfoList) throws SQLException {  
+    // 트랜잭션이 있으면 커밋 시점에 한 번에 이중 쓰기 수행
+    if (TransactionSynchronizationManager.isSynchronizationActive()) {
+        List<Pair<ExecutionInfo, List<QueryInfo>>> queryExecInfos = (List<Pair<ExecutionInfo, List<QueryInfo>>>)TransactionSynchronizationManager.getResource(OBJECT);
+        // 트랜잭션에서 첫 호출 시 동기화 및 리소스 등록
+        if (Objects.isNull(queryExecInfos)) {
+            queryExecInfos = Lists.newArrayList();
+            initDualWriteQueryAccumulationInTransaction(queryExecInfos);
+        }
+        // 리스트에 쿼리 저장
+        queryExecInfos.add(Pair.of(execInfo, queryInfoList));
+    } else {
+        // 트랜잭션이 없으면 바로 이중 쓰기 수행
+    }
+}
+
+private void initDualWriteQueryAccumulationInTransaction(List<Pair<ExecutionInfo, List<QueryInfo>>> queryExecInfos) {  
+    TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronizationAdapter() {
+        @Override
+        public void afterCommit() {
+            try {
+                // MySQL 커넥션을 열어서 queryExecInfos에 쌓인 쿼리를 한 번에 실행
+            } catch (SQLException e) {
+                // 쿼리 로깅해 실패 원인 분석
+            }
+        }
+
+        @Override
+        public void afterCompletion(int status) {
+            TransactionSynchronizationManager.unbindResourceIfPossible(OBJECT);
+            queryExecInfos.clear();
+        }
+    });
+    TransactionSynchronizationManager.bindResource(property, queryExecInfos);
+}
+
+```
+
+#### 엔티티 설정
+
+Oracle에서는 Primary Key 생성 전략으로 시퀀스를 사용했으나, MySQL에서는 시퀀스가 없으므로 auto increment를 사용하도록 변경해야 합니다.
+
+```
+@Id
+// @SequenceGenerator(name = "SQ_ID", sequenceName = "SQ_ID", allocationSize = 1)
+// @GeneratedValue(strategy = GenerationType.SEQUENCE, generator = "SQ_ID")
+@GeneratedValue(strategy = GenerationType.IDENTITY)
+@Column(name = "ID_PK", nullable = false)
+private Long id;  
+
+```
+
+이렇게 설정하면 MySQL INSERT 쿼리에는 PK가 없기 때문에, Read 전환 후 MySQL에서 Oracle 방향으로 이중 쓰기할 때 쿼리를 그대로 사용할 수 없습니다. 이 문제를 해결하려면 MySQL INSERT 쿼리 수행 시 generated key 정보를 별도로 가져와 PK를 채우도록 쿼리를 수정한 후 Oracle에서 수행해야 합니다.(UUID v7이나 Snowflake ID 등 DB에 의존하지 않는 방식으로 PK를 생성했다면 이런 고민은 필요 없습니다.)
+
+일부 경우에는 엔티티 클래스의 칼럼 구성에서 `columnDefinition`을 MySQL 칼럼 타입에 맞게 지정해야 합니다.
+
+```
+// Oracle VARCHAR2(n) -> MySQL TEXT 변경 시
+// @Column(name = "TEXT1") - Oracle
+@Column(name = "TEXT1", columnDefinition = "text")
+private String text1;
+
+// Oracle CLOB -> MySQL LONGTEXT 변경 시
+// @Column(name = "LONGTEXT1") - Oracle
+@Column (name = "LONGTEXT1", columnDefinition = "longtext")
+private String longtext1;
+
+// Oracle NUMBER(n,m) -> MySQL DECIMAL(n,m) 변경 시
+// @Column(name = "DECIMAL1", columnDefinition = "NUMBER(11, 2)") - Oracle
+@Column(name = "DECIMAL1", columnDefinition = "decimal(11, 2)")
+private Double decimal1;  
+
+```
+
+### MyBatis 이중 쓰기
+
+MyBatis 이중 쓰기를 구현할 때, 기존 Oracle DataSource와 신규 MySQL DataSource를 처리하는 MyBatis 인터페이스를 각각 분리해 호출하는 방식은 소스 코드 변경 범위가 지나치게 넓다는 문제가 있었습니다.
+
+다음과 같은 코드를 모든 쓰기 로직에 추가하려면 10년 넘은 서비스의 비즈니스 로직 전체에 걸쳐 수백, 수천 곳을 수정해야 합니다.
+
+```
+mybatisRepository.updateData(i); // oracle mybatis  
+mybatisForMySQLRepository.updateData(i); // mysql mybatis  
+
+```
+
+이는 휴먼 에러 발생 가능성 증대와 개발 기간 대폭 증가로 이어져 위험성이 높다고 판단해, 비즈니스 로직 코드 수정 없이 Oracle과 MySQL 양쪽으로 쓰기 작업을 수행하는 방법을 고민했습니다. 비즈니스 로직의 순수성을 유지하면서 이중 쓰기 로직을 단일 위치에 중앙 집중화해 관리하고, 마이그레이션 완료 시점에 이중 쓰기 코드를 쉽게 제거할 수 있는 유연성과 유지보수성을 확보하기 위한 것이기도 합니다.
+
+#### MyBatis 동작 구조
+
+MyBatis의 동작 구조를 간단히 설명하면, `@Mapper` 애너테이션이 붙은 인터페이스가 XML 등에 정의된 QueryId와 Query를 참조하는 구조입니다.
+
+MyBatis 동작 구조
+
+`SqlSession`은 `Configuration` 객체를 참조합니다.
+
+```
+// https://github.com/mybatis/mybatis-3/blob/master/src/main/java/org/apache/ibatis/session/SqlSession.java#L360
+
+/**
+ * Retrieves current configuration.
+ *
+ * @return Configuration
+ */
+Configuration getConfiguration();  
+
+```
+
+`Configuration` 객체 안에는 XML 등에 정의된 쿼리가 QueryId와 함께 `MappedStatement` 객체로 변환되어 저장됩니다.
+
+```
+// https://github.com/mybatis/mybatis-3/blob/master/src/main/java/org/apache/ibatis/session/Configuration.java#L158
+
+protected final Map<String, MappedStatement> mappedStatements = new StrictMap<MappedStatement>(  
+    "Mapped Statements collection")
+        .conflictMessageProducer((savedValue, targetValue) -> ". please check " + savedValue.getResource() + " and "
+            + targetValue.getResource());
+
+```
+
+`@Mapper` 애너테이션이 붙은 MyBatis용 인터페이스는 `MapperProxy` 빈으로 등록되고, `mybatisRepository.findById()` 등의 메서드 호출은 `MapperProxy` 객체의 `invoke` 함수가 호출되는 구조입니다.
+
+```
+// https://github.com/mybatis/mybatis-3/blob/master/src/main/java/org/apache/ibatis/binding/MapperProxy.java
+
+@Override
+public Object invoke(Object proxy, Method method, Object[] args) throws Throwable {  
+    if (Object.class.equals(method.getDeclaringClass())) {
+        try {
+            return method.invoke(this, args);
+        } catch (Throwable t) {
+            throw ExceptionUtil.unwrapThrowable(t);
+        }
+    }
+    // ...
+    final MapperMethod mapperMethod = cachedMapperMethod(method);
+    return mapperMethod.execute(sqlSession, args);
+}
+
+```
+
+`MapperProxy`의 `invoke`는 `MapperMethod`의 `execute`를 수행합니다. `MapperMethod`의 `execute`는 쿼리 타입에 맞게 `SqlSession`의 메서드를 수행합니다.
+
+```
+// https://github.com/mybatis/mybatis-3/blob/master/src/main/java/org/apache/ibatis/binding/MapperMethod.java
+
+public Object execute(SqlSession sqlSession, Object[] args) {  
+    Object result;
+    switch (command.getType()) {
+        case INSERT: {
+            Object param = method.convertArgsToSqlCommandParam(args);
+            result = rowCountResult(sqlSession.insert(command.getName(), param));
+            break;
+        }
+        case UPDATE: {
+            Object param = method.convertArgsToSqlCommandParam(args);
+            result = rowCountResult(sqlSession.update(command.getName(), param));
+            break;
+        }
+        // ...
+    }
+}
+
+```
+
+즉, XML에 정의된 SQL은 `MappedStatement` 객체가 되고, `SqlSession`은 MyBatis 설정 시 주입된 DataSource를 참조하면서 이 `MappedStatement` 객체를 보유했다가 필요할 때 실행합니다.
+
+`MybatisRepository`는 `MapperMethod`를 invoke하고, `MapperMethod`는 `SqlSession`의 메서드를 invoke합니다. 따라서 `SqlSession`의 invoke 시 Oracle과 MySQL 양쪽으로 실행할 수 있다면 원하는 바를 이룰 수 있습니다.
+
+#### 구현 방법
+
+이 구조를 활용하기 위해, 쿼리 문법 차이를 고려해 MySQL 문법에 맞는 SQL로 작성된 MyBatis XML을 한 벌 더 만들어야 합니다.
+
+XML 내의 SQL을 보유하는 `SqlSession`은 `SessionTemplate`이 `SqlSessionFactory`에 위임해서 만드는 구조입니다. `SqlSessionFactory`를 추상화해서 Oracle과 MySQL 두 개의 `SqlSession`이 모두 수행하게 구현하면 됩니다.
+
+CombinedSqlSessionFactory 구조
+
+`CombinedSqlSessionFactory`라는 이름으로 다음과 같이 구현했습니다.
+
+```
+public class CombinedSqlSessionFactory implements SqlSessionFactory {
+
+    private SqlSession openSessionFromDataSource(ExecutorType execType, TransactionIsolationLevel level, boolean autoCommit) {
+        SqlSession primarySession = openPrimarySessionFromDataSource(execType, level, autoCommit);
+        SqlSession secondarySession = openSecondarySessionFromDataSource(execType, level, autoCommit);
+
+        return (SqlSession) Proxy.newProxyInstance(
+            // 세션을 만들 때 양쪽으로 쓰는 로직을 사용하도록 Proxy 객체로 리턴
+            SqlSession.class.getClassLoader(),
+            new Class[]{SqlSession.class},
+            // CombinedSqlSessionHandler는 원하는 로직을 보유하고,
+            // 양쪽에 써야 하기 때문에 Oracle과 MySQL 세션을 모두 보유
+            new CombinedSqlSessionHandler(primarySession, secondarySession, applicationEventPublisher)
+        );
+    }
+    // ...
+}
+
+```
+
+```
+public class CombinedSqlSessionHandler implements InvocationHandler {
+
+    private SqlSession oracleSqlSession;
+    private SqlSession mysqlSqlSession;
+
+    @Override
+    public Object invoke(Object proxy, Method method, Object[] args) throws Throwable {
+        final String methodName = method.getName();
+
+        if (CUD액션인_경우(methodName, maybeStatement)) {
+            Object oracleResult = method.invoke(oracleSqlSession, args);
+            Object mysqlResult = method.invoke(mysqlSqlSession, args);
+
+            log.warn("primaryResult: {}", primaryResult);
+            log.warn("secondary: {}", secondaryResult);
+            // 쓰기 자체가 목적이므로 쓰기 액션의 결과 값은 Oracle의 결과를 반환
+            return oracleResult;
+        }
+
+        // READ인 경우 Oracle의 결과를 사용
+        Object oracleResult = method.invoke(oracleSqlSession, args);
+        return oracleResult;
+    }
+}
+
+```
+
+Oracle과 MySQL 간에는 근본적인 문법 차이가 있습니다. 특히 날짜/시간 처리 함수(`SYSDATE` vs `NOW()`, `TO_CHAR` vs `DATE_FORMAT`), NULL 값 처리(`NVL` vs `IFNULL`), 페이징 처리(`ROWNUM` vs `LIMIT`) 방식이 다릅니다. 따라서 모든 MyBatis XML 쿼리를 MySQL 문법에 맞게 재작성해 위 구조로 MyBatis 이중 쓰기를 수행했습니다.
+
+### 쿼리/DBMS 성능 검증
+
+새로운 MySQL 데이터베이스로의 전환을 추진할 때, 기존 Oracle 환경에서 안정적으로 처리되던 대규모 트랜잭션과 복잡한 쿼리가 MySQL 환경에서도 동일한 성능을 보장하는지 검증하는 것이 핵심 과제였습니다. Oracle과 MySQL 간의 쿼리 실행 계획 및 최적화 엔진 차이로 인해, 특정 고부하 쿼리가 신규 MySQL의 CPU, 메모리, I/O 등 핵심 DB 자원에 예상치 못한 과부하를 초래해 서비스 안정성을 저해할 위험이 있었습니다.
+
+따라서 이중 쓰기 기간 동안 실제 운영 트래픽을 신규 DB에 반영하면서 MySQL 데이터베이스의 CPU 사용률, 메모리 사용량, 연결 수(connection count) 등의 자원 지표를 정밀하게 측정하고 모니터링하는 작업은 마이그레이션의 안정성을 확보하고 성능 저하 위험을 사전에 방지하기 위한 필수 단계였습니다.
+
+#### 성능 검증 전략
+
+운영과 동일한 부하를 주기 위해 HTTP 트래픽 복사나 Kafka 토픽 복제 같은 방식을 사용하면 비즈니스 로직 호출 시 타 부서 시스템에 중복 호출 부하를 야기하거나, 예상치 못한 부작용으로 운영에 영향을 줄 위험이 매우 높습니다.
+
+타 부서와 연관된 시스템에 영향을 주지 않고 성능 검증이라는 목표를 달성하기 위해, 이미 수행 중인 이중 쓰기 로직을 유지하면서 오직 내부 서비스 로직에서 발생하는 Read 트래픽만 신규 MySQL DB로 복제해 호출하는 전략을 채택했습니다.
+
+MyBatis나 JPA 같은 영속성 프레임워크의 특성상, 대부분의 Read 메서드는 매개변수가 쿼리로 변환되기 전에는 원시 타입이나 직렬화가 가능한 객체를 매개변수로 사용합니다. 이 특성을 활용해 기존 Oracle로 향하는 Repository 계층의 Read 메서드 호출이 발생할 때 해당 메서드의 실행 시간과 함께 이름, 매개변수 값을 캡처하고 JSON으로 직렬화했습니다.
+
+```
+{
+    "repositoryInterfaceName": "com.example.DataRepository",
+    "methodName": "findByKey",
+    "parameterList": [
+        {
+            "index": 0,
+            "className": "java.lang.Class",
+            "valueString": "com.example.ParamVO"
+        },
+        {
+            "index": 1,
+            "className": "com.example.KeyVO",
+            "valueString": "{\"key\":1234}"
+        }
+    ],
+    "oracleExecutionTime": 71
+}
+
+```
+
+직렬화된 데이터를 Kafka 같은 메시지 큐로 전송했습니다. 메시지를 수신한 별도의 성능 측정 Consumer 모듈은 수신된 데이터를 역직렬화해 원본 메서드 이름과 매개변수 리스트를 복원했습니다. 이후 Java Reflection API를 사용해 신규 MySQL을 바라보는 Repository 인터페이스의 동일한 메서드를 찾아 매개변수를 주입하고 호출함으로써, 마치 실제 서비스가 호출한 것처럼 읽기 작업을 MySQL에서 수행할 수 있었습니다.
+
+Read 트래픽 복제 아키텍처
+
+각 토픽 메시지마다 실행 시간이 있으므로, 이를 시각화해 각 쿼리의 성능도 확인할 수 있었습니다.
+
+쿼리 실행 시간 분포
+
+성능 모니터링 대시보드
+
+위 지표를 활용해 성능이 좋지 않은 쿼리를 수정하고 인덱스 추가 등을 수행해 안정적인 성능을 확보할 수 있었습니다.
+
+### 정합성 검증
+
+프로젝트의 중요한 목표는 데이터 정합성의 완벽한 확보였습니다. 이중 쓰기로 실시간 쓰기 동기화는 이루었지만, 이중 쓰기 로직에 문제가 있어 데이터가 다르게 쓰이고 있지는 않은지, 최종 전환 전에 두 DBMS 간의 데이터 일치 여부를 정량적으로 검증하는 과정이 필수였습니다.
+
+워크플로 관리 도구인 Airflow로 정합성 검증 프로세스를 자동화했습니다. Airflow 파이프라인으로 주기적으로 기존 Oracle DB와 신규 MySQL DB의 주요 테이블 데이터를 추출해 Hive 데이터 웨어하우스로 통합했습니다. Hive 환경에서 고성능의 분산 쿼리를 실행해 두 데이터셋을 비교했으며, 레코드 수 비교, 핵심 칼럼 값의 해시 비교, 주요 비즈니스 통계 값의 차이를 검출했습니다.
+
+이 과정에서 발견된 불일치 건은 상세 분석 및 수정을 거쳐 최종적으로 두 데이터베이스 간의 정합성이 100% 보장되도록 조치했습니다. 이 엄격한 검증 단계는 신규 MySQL 환경으로의 최종 컷오버를 위한 결정적인 안전장치가 되었습니다. 테이블별 row의 추출 시간 차이 때문에 발생하는 불일치 건은 수동으로 검증하는 과정을 거쳤습니다.
+
+약 6개월간 테이블별 불일치 데이터 건수와 그 내용을 분석해 로직을 수정한 끝에 이중 쓰기 환경에서 데이터 정합성을 확보했습니다.
+
+테이블별 불일치 건수 리포트
+
+불일치 내용 상세
+
+## 마이그레이션 후 아키텍처 및 검증
+
+### 서비스 테스트 및 전환
+
+데이터베이스를 Oracle에서 MySQL로 전환하는 과제에서 중요한 것은 사용자가 이용하는 기능을 이전과 완전히 동일하게 유지하는 것이었습니다. 단순히 데이터만 옮기는 것이 아니라, DBMS 변화가 기존 비즈니스 로직에 예기치 못한 영향을 주지 않도록 약 3개월간의 QA 기간을 거쳤습니다.
+
+이 과정에서 쿼리 실행 결과의 미세한 차이부터 트랜잭션 처리 방식까지 철저히 검증함으로써, 내부 인프라의 변화에도 불구하고 서비스의 모든 기능이 기존과 변함없이 안정적으로 작동함을 확인했습니다.
+
+QA 진행 현황
+
+전환이 제대로 되었다는 것은 회원 부서가 발행하는 쿼리가 더 이상 Oracle로 유입되지 않고 MySQL로 유입된다는 의미입니다.
+
+이를 검증하기 위해 모든 기존의 전환 대상 쿼리에 사전에 `\*\*회원개발쿼리\*\*`와 같은 임의의 주석을 추가했습니다. 전환 후 해당 주석이 포함된 쿼리가 Oracle 데이터베이스에 더 이상 인입되지 않는지 모니터링했습니다. 기존 Oracle로 향하던 트래픽이 완전히 차단되었음을 확인해, 모든 데이터 요청이 의도한 대로 신규 MySQL로 정상 전환되었음을 확인했습니다.
+
+## 트러블슈팅 및 기타 고려 사항
+
+전환 과정에서 겪은 몇 가지 트러블슈팅 사례와 성능을 위해 고려한 요소를 소개합니다.
+
+### MySQL의 Index Merge Optimization
+
+Index Merge는 MySQL에서 WHERE 절에 여러 인덱스 칼럼이 OR 조건으로 연결되는 경우, 각 인덱스를 독립적으로 검색한 후 결과를 합치는 전략입니다.
+
+다만 nesting OR 등 조건이 조금만 복잡해지면 최적화하지 못하고 풀스캔을 사용합니다.
+
+Index Merge 실행 계획
+
+다음 조건문의 `KEY`, `KEY2`, `TP`, `TP2`에 모두 인덱스가 있을 때 Oracle에서는 성능이 좋았으나, MySQL에서는 최적화하지 못해 풀스캔을 사용했습니다.
+
+```
+TABLE.KEY = 11  
+AND TABLE.TP = 'ALPHA'  
+OR TABLE.KEY2 = 22  
+AND TABLE.TP2 IN ('ALPHA2', 'BETA2')  
+
+```
+
+이러한 경우 다음과 같이 UNION으로 쿼리를 변경해 대응했습니다.
+
+```
+SELECT *  
+FROM TABLE  
+WHERE KEY = 11  
+  AND TP = 'ALPHA'
+
+UNION
+
+SELECT *  
+FROM TABLE  
+WHERE KEY2 = 22  
+  AND TP2 IN ('ALPHA2', 'BETA2');
+
+```
+
+### 마이그레이션 배치 성능 이슈
+
+마이그레이션 배치는 Spring Batch로 작성했으며, 크기가 큰 테이블은 `JdbcPagingItemReader`로 Oracle 전체 데이터를 가져와 MySQL로 쓰기를 수행합니다.
+
+`QueryProvider`로 `OraclePagingQueryProvider`를 사용했을 때, 조회 시 수행되는 페이징 쿼리는 다음과 같습니다.
+
+```
+-- page size = 100, 이전 조회에서 마지막 TABLE_ID = 500일 때
+SELECT *  
+FROM (  
+  SELECT TABLE_ID
+  FROM SOURCE_TABLE
+  ORDER BY TABLE_ID ASC
+)
+WHERE ROWNUM <= 100 AND (TABLE_ID > 500)  
+
+```
+
+페이징 시 사용되는 sortKey(위 쿼리에서 `TABLE_ID`)는 반드시 정의되어야 합니다.
+
+여러 개의 sortKey가 필요한 다중 PK 테이블의 경우 다음과 같이 페이징 쿼리가 생성됩니다.
+
+```
+-- page size = 100, 이전 조회에서 마지막 (TABLE_ID1, TABLE_ID2) = (300, 8)일 때
+SELECT *  
+FROM (  
+  SELECT TABLE_ID1, TABLE_ID2
+  FROM SOURCE_TABLE2
+  ORDER BY TABLE_ID1 ASC, TABLE_ID2 ASC
+)
+WHERE ROWNUM <= 100 AND (TABLE_ID1 > 300 OR (TABLE_ID1 = 300 AND TABLE_ID2 > 8))  
+
+```
+
+위 쿼리들은 과연 빠르게 수행될 수 있을까요?
+
+테이블 크기가 충분히 클 때 위의 단일 PK 페이징 쿼리는 옵티마이저가 INDEX RANGE SCAN + COUNT STOPKEY로 최적화해 주기도 하지만, 아래의 다중 PK 페이징 쿼리는 거의 항상 전체 정렬이 발생합니다. 서브쿼리 내 정렬 + OR 조건으로 인해 인덱스 시작 지점을 특정할 수 없기 때문에, 옵티마이저가 최적화하지 못하고 '전체 정렬 후 조건에 맞는 데이터 100건을 조회'하는 가장 비효율적인 방식으로 동작합니다.
+
+이를 해결하려면 'PK 순서로 조건을 만족하는 상위 100건을 조회'할 수 있도록 쿼리 튜닝이 필요합니다.
+
+```
+-- page size = 100, 이전 조회에서 마지막 (TABLE_ID1, TABLE_ID2) = (300, 8)일 때
+SELECT TABLE_ID1, TABLE_ID2  
+FROM SOURCE_TABLE2  
+WHERE TABLE_ID1 > 300 OR (TABLE_ID1 = 300 AND TABLE_ID2 > 8)  
+ORDER BY TABLE_ID1 ASC, TABLE_ID2 ASC  
+FETCH NEXT 100 ROWS ONLY  
+
+```
+
+OR 조건으로 INDEX FULL SCAN이 발생할 수 있으므로, 다음과 같이 UNION ALL 구문으로 변경합니다.
+
+```
+-- page size = 100, 이전 조회에서 마지막 (TABLE_ID1, TABLE_ID2) = (300, 8)일 때
+SELECT * FROM  
+(
+  SELECT TABLE_ID1, TABLE_ID2
+  FROM SOURCE_TABLE2
+  WHERE TABLE_ID1 = 300 AND TABLE_ID2 > 8
+  ORDER BY TABLE_ID1 ASC, TABLE_ID2 ASC
+  FETCH NEXT 100 ROWS ONLY
+)
+UNION ALL  
+(
+  SELECT TABLE_ID1, TABLE_ID2
+  FROM SOURCE_TABLE2
+  WHERE TABLE_ID1 > 300
+  ORDER BY TABLE_ID1 ASC, TABLE_ID2 ASC
+  FETCH NEXT 100 ROWS ONLY
+)
+FETCH NEXT 100 ROWS ONLY  
+
+```
+
+인덱스를 탄 두 번의 Top-N 조회 후 최종적으로 page size만큼의 row를 가져옵니다. 이와 같이 쿼리를 생성하도록 커스텀 `QueryProvider`를 구현해 사용하면 조회 성능을 최적화할 수 있습니다.
+
+### MySQL의 HikariCP 설정
+
+Oracle과 달리 MySQL에서만 권고되는 설정값이 있습니다. HikariCP MySQL Configuration에서 권장하는 설정입니다.
+
+```
+dataSource.cachePrepStmts=true  
+dataSource.prepStmtCacheSize=250  
+dataSource.prepStmtCacheSqlLimit=2048  
+dataSource.useServerPrepStmts=true  
+dataSource.useLocalSessionState=true  
+dataSource.rewriteBatchedStatements=true  
+dataSource.cacheResultSetMetadata=true  
+dataSource.cacheServerConfiguration=true  
+dataSource.elideSetAutoCommits=true  
+dataSource.maintainTimeStats=false  
+
+```
+
+#### cachePrepStmts, useServerPrepStmts
+
+쿼리를 수행하는 객체에는 `Statement`, `PreparedStatement` 등이 있습니다.
+
+```
+// Statement
+stmt = connection.createStatement();  
+rs = stmt.executeQuery("SELECT * FROM car WHERE car_id = 1");
+
+// Prepared Statement
+connection = DriverManager.getConnection(jdbcUrl + properties, id, password);  
+// prepareStatement() 메서드 실행
+stmt = connection.prepareStatement("SELECT * FROM car WHERE car_id = ?");  
+// 쿼리에 전달할 파라미터 세팅
+stmt.setLong(1, 1L);  
+rs = stmt.executeQuery();  
+
+```
+
+```
+// https://docs.oracle.com/en/java/javase/21/docs/api/java.sql/java/sql/Statement.html
+The object used for executing a static SQL statement and returning the results it produces.
+
+// https://docs.oracle.com/en/java/javase/21/docs/api/java.sql/java/sql/PreparedStatement.html
+An object that represents a precompiled SQL statement.  
+
+```
+
+`Statement`는 정적인 쿼리를 실행할 때, `PreparedStatement`는 동적인 쿼리를 실행할 때 주로 사용합니다.
+
+JDBC 인터페이스로 DBMS(MySQL)의 `PreparedStatement`를 사용하므로 JDBC 없이 MySQL만 사용해도 `PreparedStatement`를 사용할 수 있습니다.
+
+```
+-- prepared statement 생성
+PREPARE pstmt1 FROM 'SELECT * FROM car WHERE car_id = ?';
+
+-- 파라미터를 지정해 prepared statement 실행
+SET @a = 1;  
+EXECUTE pstmt1 USING @a;
+
+-- prepared statement 제거
+DEALLOCATE PREPARE pstmt1;  
+
+```
+
+`cachePrepStmts`와 `useServerPrepStmts`는 `PreparedStatement` 캐시를 DBMS에서 할지, 클라이언트에서 할지 결정하는 값입니다.
+
+MySQL Connector/J는 `PreparedStatement`의 구현을 `ClientPreparedStatement`와 `ServerPreparedStatement`로 하고 있으며, `useServerPrepStmts` 속성값에 따라 어떤 구현체를 사용할지 결정합니다.
+
+```
+// https://github.com/mysql/mysql-connector-j/blob/release/9.x/src/main/user-impl/java/com/mysql/cj/jdbc/ConnectionImpl.java#L1631
+
+ClientPreparedStatement pStmt = null;  
+if (this.useServerPrepStmts.getValue()) {  
+    if (this.cachePrepStmts.getValue()) {
+        pStmt = // 캐시에서 ServerPreparedStatement 조회
+    } else {
+        pStmt = ServerPreparedStatement.getInstance()
+    }
+} else {
+    if (this.cachePrepStmts.getValue()) {
+        pStmt = // 캐시에서 ClientPreparedStatement 조회
+    } else {
+        pStmt = ClientPreparedStatement.getInstance()
+    }
+}
+
+```
+
+#### useLocalSessionState
+
+`useLocalSessionState`가 false면 임의 세션의 상태를 매번 DB로 전송하고, true면 로컬에서 관리해 네트워크 오버헤드를 제거합니다.
+
+#### rewriteBatchedStatements
+
+INSERT나 UPDATE를 배치로 실행할 때, 여러 개의 쿼리를 하나의 쿼리(`INSERT INTO ... VALUES (...), (...), (...)`)로 묶어서 보냅니다. 대량 데이터 삽입 시 성능이 수십 배 차이 날 수 있습니다.
+
+#### cacheResultSetMetadata
+
+`ResultSet` 객체의 `getMetadata()` 메서드가 반환하는 객체를 캐시할지에 대한 설정입니다. true로 설정하면 쿼리 결과의 메타데이터(칼럼 이름, 타입 등)를 캐싱해 매번 서버에 요청하지 않습니다.
+
+```
+getColumnCount()              - Returns the number of columns in this ResultSet object.  
+getColumnName(int column)     - Get the designated column's name.  
+getColumnTypeName(int column) - Retrieves the designated column's database-specific type  
+                                name.
+getPrecision(int column)      - Get the designated column's specified column size.  
+getTableName()                - Returns the qualifier for the underlying table of the  
+                                ResultSet
+getSchemaName()               - Returns the the designated column's table's schema name  
+getColumnDisplaySize()        - Returns column display length  
+
+```
+
+#### cacheServerConfiguration
+
+MySQL 서버의 구성 정보를 클라이언트 측에서 캐싱할지 여부입니다.
+
+#### elideSetAutoCommits
+
+JDBC 클라이언트에서 `setAutoCommit()`이 호출될 때마다 MySQL 서버로 `SET autocommit=?` 명령을 전송합니다. true로 설정하면 현재 상태와 불일치할 때만 전송합니다.
+
+#### maintainTimeStats
+
+MySQL JDBC 드라이버에서 제공하는 설정 옵션으로, SQL 쿼리 실행 시간 통계를 유지할지 여부입니다.
+
+### Oracle 시퀀스와 MySQL auto increment
+
+Oracle 시퀀스를 사용하던 환경에서 MySQL auto increment로 변경하면서, JPA의 식별자 생성 시점 차이로 인해 연관관계 객체 저장 로직을 수정해야 했습니다.
+
+기존 Oracle 환경에서는 SEQUENCE 기반으로 식별자가 INSERT 이전에 생성되므로 `persist()` 호출 직후에도 ID를 활용할 수 있어 연관관계 설정과 저장 로직이 자연스럽게 동작했습니다. 반면 MySQL의 IDENTITY 전략에서는 INSERT 이후에야 식별자가 생성되기 때문에, 동일한 로직을 그대로 적용하면 연관관계 설정 시점에 ID가 존재하지 않아 의도하지 않은 동작이 발생할 수 있었습니다.
+
+따라서 `flush()` 호출 시점 조정이나 저장 순서 변경이 필요했습니다. 이 과정에서 식별자에 의존하던 로직을 정리하고 연관관계의 주인 설정을 명확히 하는 등 코드를 수정했습니다. 로직 수정이 불가능한 경우에는 채번용 MySQL 테이블을 별도로 두어 테이블에서 ID를 채번하도록 수정했습니다.
+
+## 마치며
+
+성공적인 이관 작업의 결과, Oracle 데이터베이스의 세션 수가 감소하면서 시스템의 PGA 메모리 사용량이 줄어들었습니다. 이로 인해 PagingSpace Used(swap)가 감소하고 메모리 자원이 추가로 확보되었습니다.
+
+Oracle 세션 수 및 메모리 사용량 변화
+
+이 리소스 여유분은 공용 장비를 사용하는 타 부서에 자원적 안정성을 제공하는 동시에, 서비스 측면에서는 확보된 별도 장비 환경에서 기존 공용 장비 제약(타 부서 영향 및 부하 우려) 없이 파드 개수를 늘려 안정적인 서비스 확장 및 운영의 토대를 마련하게 되었습니다.
+
+서비스 확장 후 아키텍처
+
+또한 과제 수행 중 성능 모니터링을 통해 데이터베이스 쿼리 튜닝을 포함한 시스템 최적화를 수행한 결과, 서비스 API의 Latency(응답 지연 시간)가 유의미하게 개선되었습니다.

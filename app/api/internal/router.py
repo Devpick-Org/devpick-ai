@@ -10,6 +10,7 @@ from app.api.deps import verify_internal_key
 from app.core.exceptions import AIBadRequestError
 from app.repositories.summary_repository import SummaryRepository
 from app.schemas.summary import SummaryRequest, SummaryResponse
+from app.services.embedding_service import EmbeddingOrchestrator
 from app.services.preprocess_service import PreprocessService
 from app.services.summary_service import SummaryService
 
@@ -17,6 +18,7 @@ load_dotenv()
 _ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
 _MONGO_URI = os.getenv("MONGO_URI", "")
 _MONGO_DB = os.getenv("MONGO_DB", "devpick")
+_OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
 
 logger = logging.getLogger(__name__)
 
@@ -72,5 +74,20 @@ def create_summary(body: SummaryRequest) -> SummaryResponse:
             SummaryRepository(mongo_uri=_MONGO_URI, db_name=_MONGO_DB).save(result)
         except Exception:
             logger.exception("Failed to save summary to MongoDB")
+
+    # 임베딩 + RAG 저장 (fire-and-forget: 실패해도 응답은 반환)
+    if _OPENAI_API_KEY and _MONGO_URI:
+        try:
+            EmbeddingOrchestrator(
+                openai_api_key=_OPENAI_API_KEY,
+                mongo_uri=_MONGO_URI,
+                mongo_db=_MONGO_DB,
+            ).embed_and_store(
+                content_id=body.content_id,
+                preprocessed_text=preprocessed,
+                summary=result,
+            )
+        except Exception:
+            logger.exception("Failed to embed content for RAG")
 
     return result

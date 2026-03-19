@@ -1,0 +1,38 @@
+## 주요소식
+
+#### React Foundation
+
+React 생태계를 지속 가능하게 유지하고 발전시키기 위한 커뮤니티 주도 재단이다. "Building the future of React, together"라는 슬로건 아래, 코드 기여, 커뮤니티 조직화, 교육 콘텐츠 제작, 지속 가능한 자금 조달을 통해 수백만 개발자가 의존하는 도구의 유지보수자들을 지원하는 것을 목표로 한다.
+
+#### CSS Day 2025
+
+CSS Day 2025 컨퍼런스의 발표 영상 모음 플레이리스트다. CSS의 철학부터 새로운 HTML UI 기능 스타일링, 폼 컨트롤 스타일링, CSS 리팩토링 등 다양한 주제를 다루고 있으며, John Allsopp, Rachel Andrew, Ahmad Shadeed 등 저명한 웹 개발자들이 발표자로 참여했다.
+
+#### Head of Claude Code: What happens after coding is solved
+
+Anthropic의 Claude Code 책임자인 Boris Cherny가 Lenny's Podcast에 출연하여 Claude Code의 탄생부터 현재까지의 성장 과정을 이야기한다. Claude Code는 1년 전 단순한 터미널 프로토타입에서 시작하여 현재 공개 GitHub 커밋의 4%를 차지할 만큼 성장했으며, 코딩이 이미 "해결된 문제"라고 주장한다.
+
+#### The history of C# and TypeScript with Anders Hejlsberg
+
+Turbo Pascal, Delphi, C#, TypeScript를 만든 프로그래밍 언어 설계자 Anders Hejlsberg의 인터뷰 영상이다. 특히 TypeScript 컴파일러를 Rust가 아닌 Go로 포팅하여 10배 성능 향상을 달성한 이유를 설명하며, AI 시대에 기존 프로그래밍 언어의 이점과 시니어 개발자 부족 위기에 대해서도 논의한다.
+
+#### Vinext: Rebuilding Next.js on Vite in a Week
+
+Cloudflare 엔지니어가 AI의 도움을 받아 일주일 만에 Next.js를 Vite 기반으로 재구현한 프로젝트다. 33개 라우트 App Router 애플리케이션 기준, Rolldown 사용 시 빌드 속도 4.4배 향상(7.38초 → 1.67초), 번들 크기 57% 감소(168.9KB → 72.9KB)를 달성했다.
+
+App Router와 Pages Router를 모두 지원하며, 서버 액션, 캐싱, 미들웨어 등 Next.js 16 API의 94%를 커버한다. Next.js의 빌드 속도나 Vercel 종속성에 불만이 있는 팀이라면 주목할 만한 대안이다.
+
+## >> FE News 26년 3월 소식 보러가기
+
+ 
+
+> ◎ FE News란?
+> 
+> 네이버 FE 엔지니어들이 엄선한 양질의 FE 및 주요한 기술 소식들을 큐레이션해 공유하는 것을 목표로 하며, 이를 통해 국내 개발자들에게 지식 공유에 대한 가치 인식과 성장에 도움을 주고자 하는 기술소식 공유 프로젝트 입니다.
+> 
+> 
+> 
+> 
+> 매월 첫째 주 수요일, 월 1회 발행 되고 있으니 많은 관심 부탁드립니다.
+> 
+> ▷ 구독하기

@@ -21,4 +21,7 @@ htmlcov/
 .ruff_cache/
 
 # Raw collected data (local ingestion output)
-data/
+data/raw/
+
+# FAISS vector index files
+data/vectors/

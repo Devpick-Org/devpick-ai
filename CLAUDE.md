@@ -22,6 +22,7 @@
              **+ AI 요약 결과 MongoDB ai_summaries 저장 구현 완료 (DP-220)**
              **+ NormalizedContent 썸네일 필드 추가 및 본문 이미지 fallback 추출 완료 (DP-291)**
              **+ AI 요약 실패 시 에러 분류 + 재시도 가능 응답 구현 완료 (DP-223)**
+             **+ LangChain + FAISS RAG 파이프라인 구현 완료 (DP-218)**
 
 ---
 
@@ -79,15 +80,17 @@ devpick-ai/
 │   ├── configs/        # 수집 대상 소스 목록
 │   ├── core/           # 프롬프트 템플릿 + Tool Use 스키마 (DP-219~)
 │   │   └── prompts/    # 요약/질문/리포트 프롬프트
+│   ├── rag/            # RAG 파이프라인 (청킹/임베딩/FAISS, DP-218)
 │   ├── repositories/   # MongoDB 접근 레이어 (DP-220~)
 │   ├── schemas/        # Pydantic 스키마
-│   ├── services/       # 비즈니스 로직 (ingest, normalize, push, summary)
+│   ├── services/       # 비즈니스 로직 (ingest, normalize, push, summary, embedding)
 │   ├── stores/         # raw JSONL 저장 + SentIdStore
 │   └── utils/          # XML/HTML 파싱 헬퍼
 ├── docs/               # 운영/설계 문서
 ├── scripts/            # 일회성/운영 스크립트
 ├── tests/              # pytest 테스트
 ├── data/raw/           # 수집 원본 JSONL (gitignore)
+├── data/vectors/       # FAISS 인덱스 파일 (gitignore)
 ├── main.py             # FastAPI 앱 진입점
 └── requirements.txt
 ```
@@ -142,8 +145,14 @@ BACKEND_URL=http://localhost:8080 python scripts/run_collect_and_push.py
 # 스케줄러 (6시간 간격)
 BACKEND_URL=http://localhost:8080 python scripts/run_scheduler.py
 
-# Mongo 초기화
+# Mongo 초기화 (rag_documents 인덱스 포함)
 python scripts/init_mongo.py
+
+# FAISS 인덱스 초기화
+python scripts/init_vectors.py
+
+# FAISS 재빌드 (인덱스 유실 시)
+python scripts/reindex_vectors.py
 
 # 테스트
 pytest -q

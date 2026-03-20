@@ -38,10 +38,12 @@ AI 요약 완료 후 전처리된 원문을 벡터화하여 저장하고, 이후
 
 | 저장소 | 역할 |
 |--------|------|
-| **MongoDB `rag_documents`** | 영구 저장 — 청크 텍스트 + 임베딩 벡터 + 메타데이터 |
-| **FAISS** (`data/vectors/`) | 검색 인덱스 (캐시) — MongoDB에서 언제든 재빌드 가능 |
+| **MongoDB `rag_documents`** | 아티클 청크 영구 저장 — 텍스트 + 임베딩 벡터 + 메타데이터 |
+| **FAISS** (`data/vectors/devpick`) | 아티클 검색 인덱스 (캐시) — MongoDB에서 언제든 재빌드 가능 |
+| **MongoDB `rag_questions`** | 질문 임베딩 영구 저장 — question_id + 텍스트 + 임베딩 (DP-234) |
+| **FAISS** (`data/vectors/questions`) | 질문 검색 인덱스 (캐시) — 유사 질문 추천용 (DP-234) |
 
-FAISS 유실 시: `python scripts/reindex_vectors.py`로 완전 복구.
+FAISS 유실 시: `python scripts/reindex_vectors.py`로 완전 복구 (아티클 인덱스).
 
 ---
 
@@ -59,7 +61,7 @@ EmbeddingOrchestrator.embed_and_store(content_id, preprocessed_text, summary)
   └─ VectorStoreManager.save() → FAISS 파일 저장
 ```
 
-### 검색 (DP-233 이후)
+### 아티클 검색 (DP-234 — /internal/answer 에서 사용)
 
 ```python
 from app.rag.retriever import RAGRetriever
@@ -68,6 +70,28 @@ retriever = RAGRetriever(openai_api_key=OPENAI_API_KEY)
 results = retriever.search("Redis TTL이란?", top_k=5)
 context = "\n\n".join(doc.text for doc, _ in results)
 ```
+
+### 질문 임베딩 저장 (DP-234 — fire-and-forget)
+
+```python
+from app.services.question_embedding_service import QuestionEmbeddingOrchestrator
+
+QuestionEmbeddingOrchestrator(
+    openai_api_key=OPENAI_API_KEY,
+    mongo_uri=MONGO_URI,
+    mongo_db="devpick",
+    index_path="data/vectors/questions",  # 아티클과 분리된 별도 인덱스
+).embed_and_store(
+    question_id="q_001",
+    text="useEffect 무한 렌더링\ndependency array를 비워두면",
+    suggested_tags=["React", "useEffect"],
+    content_id="article_001",
+)
+```
+
+- 청킹 없음 — 질문 전체를 단일 문서로 임베딩
+- `ChunkMetadata.content_id` = `question_id`, `chunk_index=0`
+- 유사 질문 추천 기능(향후)에서 `questions` 인덱스 활용
 
 ---
 

@@ -12,6 +12,20 @@ Spring Boot ↔ FastAPI 내부 통신 전용 라우터. Base URL: `/internal`
 | GET | `/internal/health` | AI 서버 내부 헬스체크 |
 | POST | `/internal/summary` | 콘텐츠 AI 요약 생성 + MongoDB 저장 (DP-217, DP-220) |
 | POST | `/internal/refine` | 질문 AI 개선 생성 (DP-231) — content_id 있으면 MongoDB 청크 컨텍스트 |
+| POST | `/internal/answer` | 질문 AI 1차 답변 생성 (DP-234) — 아티클+RAG 컨텍스트, related_contents 주입, 질문 임베딩 저장 |
+
+---
+
+## POST /internal/answer 처리 흐름 (DP-234)
+
+```
+1. content_id 있으면 → VectorRepository.find_by_content_id() → article_chunks
+2. RAG 유사 검색 (항상) → RAGRetriever.search(top_k=5), content_id 동일 청크 필터 → rag_chunks
+3. AnswerService.answer() → (AnswerResponse, references)
+4. SummaryRepository.find_by_content_ids(references) → result.related_contents 주입
+5. AnswerRepository.save(result, question_id, content_id) [fire-and-forget]
+6. QuestionEmbeddingOrchestrator.embed_and_store(...) [fire-and-forget, question_id 있을 때만]
+```
 
 ---
 
@@ -19,7 +33,6 @@ Spring Boot ↔ FastAPI 내부 통신 전용 라우터. Base URL: `/internal`
 
 | 메서드 | 경로 | 설명 | Epic |
 |--------|------|------|------|
-| POST | `/internal/answer` | 질문에 대한 AI 1차 답변 | D |
 | POST | `/internal/report` | 주간 리포트 인사이트 생성 | F |
 
 ---

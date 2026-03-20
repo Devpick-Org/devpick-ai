@@ -17,6 +17,9 @@ Pydantic 기반 데이터 계약. 수집부터 전송까지 모든 데이터 형
 | `summary.py` | `SummaryResponse` | AI 요약 출력 스키마 (LLM 응답 계약) |
 | `refine.py` | `RefineRequest` | AI 질문 개선 요청 스키마 (title, content, level, content_id?) (DP-231) |
 | `refine.py` | `RefineResponse` | AI 질문 개선 출력 스키마 (LLM 응답 계약) (DP-231) |
+| `answer.py` | `AnswerRequest` | AI 1차 답변 요청 스키마 (refined/original 질문 + content_id + question_id) (DP-234) |
+| `answer.py` | `RelatedContent` | 참고 기술 블로그 항목 (content_id + one_line_summary) (DP-234) |
+| `answer.py` | `AnswerResponse` | AI 1차 답변 출력 스키마 (answer_content, key_points, related_contents 등) (DP-234) |
 
 ---
 
@@ -31,11 +34,8 @@ Pydantic 기반 데이터 계약. 수집부터 전송까지 모든 데이터 형
 
 ## 향후 추가 예정
 
-AI 기능이 추가되면 아래 스키마가 생긴다.
-
 | 파일 | 클래스 | 역할 |
 |------|--------|------|
-| `answer.py` | `AnswerResponse` | AI 1차 답변 출력 스키마 |
 | `report.py` | `ReportResponse` | 주간 리포트 출력 스키마 |
 
 AI 출력 스키마는 반드시 먼저 정의하고 구현한다. 스키마 없는 AI 출력은 허용하지 않는다.

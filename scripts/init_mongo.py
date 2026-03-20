@@ -84,6 +84,37 @@ def main() -> None:
             name="ix_rag_content_id",
         )
 
+        ai_answers = db["ai_answers"]
+        ai_answers.create_index(
+            [("question_id", 1)],
+            unique=True,
+            sparse=True,
+            name="ux_answers_question_id",
+        )
+        ai_answers.create_index(
+            [("content_id", 1)],
+            name="ix_answers_content_id",
+        )
+        ai_answers.create_index(
+            [("updated_at", DESCENDING)],
+            name="ix_answers_updated_at_desc",
+        )
+
+        rag_questions = db["rag_questions"]
+        rag_questions.create_index(
+            [("question_id", 1)],
+            unique=True,
+            name="ux_questions_question_id",
+        )
+        rag_questions.create_index(
+            [("content_id", 1)],
+            name="ix_questions_content_id",
+        )
+        rag_questions.create_index(
+            [("updated_at", DESCENDING)],
+            name="ix_questions_updated_at_desc",
+        )
+
         now = utc_now()
 
         configs.update_one(

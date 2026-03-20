@@ -23,6 +23,7 @@
              **+ NormalizedContent 썸네일 필드 추가 및 본문 이미지 fallback 추출 완료 (DP-291)**
              **+ AI 요약 실패 시 에러 분류 + 재시도 가능 응답 구현 완료 (DP-223)**
              **+ LangChain + FAISS RAG 파이프라인 구현 완료 (DP-218)**
+             **+ AI 질문 개선 프롬프트 + RefineService + POST /internal/refine 구현 완료 (DP-231)**
 
 ---
 

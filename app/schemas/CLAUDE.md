@@ -15,6 +15,8 @@ Pydantic 기반 데이터 계약. 수집부터 전송까지 모든 데이터 형
 | `summary.py` | `SummaryRequest` | AI 요약 요청 스키마 (content_id, level, text, thumbnail_url) |
 | `summary.py` | `SectionSummary` | 소제목별 요약 항목 (heading + content) |
 | `summary.py` | `SummaryResponse` | AI 요약 출력 스키마 (LLM 응답 계약) |
+| `refine.py` | `RefineRequest` | AI 질문 개선 요청 스키마 (title, content, level, content_id?) (DP-231) |
+| `refine.py` | `RefineResponse` | AI 질문 개선 출력 스키마 (LLM 응답 계약) (DP-231) |
 
 ---
 
@@ -33,7 +35,6 @@ AI 기능이 추가되면 아래 스키마가 생긴다.
 
 | 파일 | 클래스 | 역할 |
 |------|--------|------|
-| `refine.py` | `RefineResponse` | 질문 개선 출력 스키마 |
 | `answer.py` | `AnswerResponse` | AI 1차 답변 출력 스키마 |
 | `report.py` | `ReportResponse` | 주간 리포트 출력 스키마 |
 

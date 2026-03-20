@@ -69,6 +69,26 @@ EmbeddingOrchestrator.embed_and_store(content_id, preprocessed_text, summary)
 
 ---
 
+## AI 질문 개선 흐름 (DP-231)
+
+```
+RefineRequest(title, content, level, content_id?)
+    ↓
+content_id 있으면:
+    VectorRepository.find_by_content_id(content_id)
+    → MongoDB rag_documents에서 해당 아티클 청크 text 조회 → context_chunks
+content_id 없으면:
+    context_chunks = None (Claude 기본 지식으로 개선)
+    ↓
+RefineService.refine(title, content, level, context_chunks)
+    ↓ build_user_prompt(level, title, content, context_chunks) — 레벨별 지시문 + 컨텍스트 + 원본 질문
+    ↓ Claude API (Tool Use + Prompt Caching, temperature=0)
+    ↓ tool_use 블록에서 input dict 추출
+    ↓ RefineResponse.model_validate(payload)
+```
+
+---
+
 ## 향후 추가될 구조
 
 ```text

@@ -9,9 +9,12 @@ from fastapi import APIRouter, Depends
 from app.api.deps import verify_internal_key
 from app.core.exceptions import AIBadRequestError
 from app.repositories.summary_repository import SummaryRepository
+from app.repositories.vector_repository import VectorRepository
+from app.schemas.refine import RefineRequest, RefineResponse
 from app.schemas.summary import SummaryRequest, SummaryResponse
 from app.services.embedding_service import EmbeddingOrchestrator
 from app.services.preprocess_service import PreprocessService
+from app.services.refine_service import RefineService
 from app.services.summary_service import SummaryService
 
 load_dotenv()
@@ -23,6 +26,7 @@ _OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
 logger = logging.getLogger(__name__)
 
 _LEVEL_MAP: dict[str, str] = {
+    "BEGINNER": "junior",
     "JUNIOR": "junior",
     "MIDDLE": "mid",
     "SENIOR": "senior",
@@ -91,3 +95,33 @@ def create_summary(body: SummaryRequest) -> SummaryResponse:
             logger.exception("Failed to embed content for RAG")
 
     return result
+
+
+@router.post(
+    "/refine",
+    response_model=RefineResponse,
+    dependencies=[Depends(verify_internal_key)],
+)
+def create_refine(body: RefineRequest) -> RefineResponse:
+    """질문 AI 개선 생성 (DP-231).
+
+    에러는 전역 핸들러(AIServiceError)가 처리한다.
+    라우터는 컨텍스트 조회 + 서비스 호출만 담당한다.
+    """
+    # content_id가 있으면 MongoDB에서 해당 아티클 청크 조회 (fire-and-forget)
+    context_chunks: list[str] | None = None
+    if body.content_id and _MONGO_URI:
+        try:
+            docs = VectorRepository(
+                mongo_uri=_MONGO_URI, db_name=_MONGO_DB
+            ).find_by_content_id(body.content_id)
+            if docs:
+                context_chunks = [doc["text"] for doc in docs]
+        except Exception:
+            logger.exception("Failed to fetch context chunks from MongoDB")
+
+    return RefineService(api_key=_ANTHROPIC_API_KEY).refine(
+        title=body.title,
+        content=body.content,
+        context_chunks=context_chunks,
+    )

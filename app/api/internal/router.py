@@ -14,12 +14,14 @@ from app.repositories.summary_repository import SummaryRepository
 from app.repositories.vector_repository import VectorRepository
 from app.schemas.answer import AnswerRequest, AnswerResponse, RelatedContent
 from app.schemas.refine import RefineRequest, RefineResponse
+from app.schemas.similar_question import SimilarQuestionRequest, SimilarQuestionResponse
 from app.schemas.summary import SummaryRequest, SummaryResponse
 from app.services.answer_service import AnswerService
 from app.services.embedding_service import EmbeddingOrchestrator
 from app.services.preprocess_service import PreprocessService
 from app.services.question_embedding_service import QuestionEmbeddingOrchestrator
 from app.services.refine_service import RefineService
+from app.services.similar_question_service import SimilarQuestionService
 from app.services.summary_service import SummaryService
 
 load_dotenv()
@@ -232,3 +234,28 @@ def create_answer(body: AnswerRequest) -> AnswerResponse:
             logger.exception("Failed to embed question for RAG")
 
     return result
+
+
+@router.post(
+    "/similar-questions",
+    response_model=SimilarQuestionResponse,
+    dependencies=[Depends(verify_internal_key)],
+)
+def search_similar_questions(body: SimilarQuestionRequest) -> SimilarQuestionResponse:
+    """유사 질문 검색 (DP-235).
+
+    FAISS questions 인덱스에서 유사한 질문을 검색한다.
+    에러는 전역 핸들러(AIServiceError)가 처리한다.
+    """
+    if not _OPENAI_API_KEY:
+        raise AIBadRequestError("OpenAI API 키가 설정되지 않았습니다")
+
+    results = SimilarQuestionService(
+        openai_api_key=_OPENAI_API_KEY,
+    ).search(
+        text=body.text,
+        top_k=body.top_k,
+        exclude_question_id=body.question_id,
+    )
+
+    return SimilarQuestionResponse(results=results, total=len(results))

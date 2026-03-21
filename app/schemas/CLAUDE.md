@@ -20,6 +20,9 @@ Pydantic 기반 데이터 계약. 수집부터 전송까지 모든 데이터 형
 | `answer.py` | `AnswerRequest` | AI 1차 답변 요청 스키마 (refined/original 질문 + content_id + question_id) (DP-234) |
 | `answer.py` | `RelatedContent` | 참고 기술 블로그 항목 (content_id + one_line_summary) (DP-234) |
 | `answer.py` | `AnswerResponse` | AI 1차 답변 출력 스키마 (answer_content, key_points, related_contents 등) (DP-234) |
+| `similar_question.py` | `SimilarQuestionRequest` | 유사 질문 검색 요청 스키마 (text, question_id, top_k) (DP-235) |
+| `similar_question.py` | `SimilarQuestion` | 유사 질문 개별 항목 (question_id, text, score, tags) (DP-235) |
+| `similar_question.py` | `SimilarQuestionResponse` | 유사 질문 검색 결과 (results 리스트 + total) (DP-235) |
 
 ---
 

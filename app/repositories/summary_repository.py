@@ -42,3 +42,36 @@ class SummaryRepository:
             summary.content_id,
             summary.level,
         )
+
+    def find_by_content_ids(self, content_ids: list[str]) -> list[dict]:
+        """여러 content_id의 요약을 조회한다.
+
+        related_contents 생성 시 one_line_summary를 가져오는 데 사용한다.
+        level이 여러 개일 수 있으므로 content_id당 첫 번째 결과만 반환한다.
+
+        Args:
+            content_ids: 조회할 content_id 리스트.
+
+        Returns:
+            content_id와 one_line_summary만 포함한 dict 리스트.
+        """
+        if not content_ids:
+            return []
+
+        seen: set[str] = set()
+        results = []
+        cursor = self._collection.find(
+            {"content_id": {"$in": content_ids}},
+            {"content_id": 1, "one_line_summary": 1, "_id": 0},
+        )
+        for doc in cursor:
+            cid = doc.get("content_id")
+            if cid and cid not in seen:
+                seen.add(cid)
+                results.append(
+                    {
+                        "content_id": cid,
+                        "one_line_summary": doc.get("one_line_summary", ""),
+                    }
+                )
+        return results

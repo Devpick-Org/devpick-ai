@@ -8,8 +8,10 @@ MongoDB 접근 레이어. 각 도메인별 저장/조회 로직을 서비스와 
 
 | 파일 | 클래스 | 역할 |
 |------|--------|------|
-| `summary_repository.py` | `SummaryRepository` | AI 요약 결과를 `ai_summaries` 컬렉션에 upsert 저장 (DP-220) |
+| `summary_repository.py` | `SummaryRepository` | AI 요약 결과를 `ai_summaries` 컬렉션에 upsert 저장. `find_by_content_ids()` 제공 (DP-220, DP-234) |
 | `vector_repository.py` | `VectorRepository` | RAG 청크 + 임베딩 벡터를 `rag_documents` 컬렉션에 저장 (DP-218) |
+| `answer_repository.py` | `AnswerRepository` | AI 답변 결과를 `ai_answers` 컬렉션에 저장 (DP-234) |
+| `question_vector_repository.py` | `QuestionVectorRepository` | 질문 임베딩을 `rag_questions` 컬렉션에 upsert 저장 (DP-234) |
 
 ---
 
@@ -52,9 +54,49 @@ delete_by_content_id(content_id: str) -> int
 
 ---
 
+---
+
+## SummaryRepository 확장 (DP-234)
+
+```python
+find_by_content_ids(content_ids: list[str]) -> list[dict]
+# 반환: [{"content_id": ..., "one_line_summary": ...}, ...]
+# content_id당 첫 번째 결과만 반환 (level이 여러 개일 수 있으므로)
+```
+
+related_contents 생성 시 LLM이 references로 반환한 content_id 리스트를 조회한다.
+
+---
+
+## AnswerRepository 상세 (DP-234)
+
+```python
+AnswerRepository(mongo_uri: str, db_name: str = "devpick")
+save(answer: AnswerResponse, question_id: str | None, content_id: str | None) -> None
+```
+
+- 컬렉션: `ai_answers`
+- question_id 있으면 upsert (질문 기준 단일 답변 관리), 없으면 insert
+- 인덱스: `(question_id, 1)` unique sparse, `(content_id, 1)`, `(updated_at, -1)`
+
+---
+
+## QuestionVectorRepository 상세 (DP-234)
+
+```python
+QuestionVectorRepository(mongo_uri: str, db_name: str = "devpick")
+save_question(question_id, text, embedding, suggested_tags=None, content_id=None) -> None
+find_all() -> Iterator[dict]  # FAISS 재빌드용
+```
+
+- 컬렉션: `rag_questions`
+- question_id 기준 upsert
+- 인덱스: `(question_id, 1)` unique, `(content_id, 1)`, `(updated_at, -1)`
+
+---
+
 ## 향후 추가 예정
 
 | 파일 | 역할 |
 |------|------|
-| `answer_repository.py` | AI 답변 결과 저장 (Epic D) |
 | `report_repository.py` | 주간 리포트 저장 (Epic F) |

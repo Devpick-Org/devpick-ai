@@ -11,7 +11,8 @@ core/
 ├── exceptions.py   # AI 서비스 커스텀 예외 계층 (DP-223)
 └── prompts/        # AI 기능별 프롬프트 + Tool Use 스키마
     ├── summary.py  # 요약 프롬프트 (DP-219)
-    └── refine.py   # 질문 개선 프롬프트 (DP-231)
+    ├── refine.py   # 질문 개선 프롬프트 (DP-231)
+    └── answer.py   # 1차 답변 프롬프트 (DP-234)
 ```
 
 ---
@@ -41,6 +42,7 @@ AIServiceError (base, status_code + message)
 |------|------|
 | `summary.py` | `SYSTEM_PROMPT`, `SUMMARY_TOOL` (Tool Use 스키마), `build_user_prompt()` (레벨별 지시문 생성) |
 | `refine.py` | `SYSTEM_PROMPT`, `REFINE_TOOL` (Tool Use 스키마), `build_user_prompt()` (레벨별 지시문 + 컨텍스트 청크) (DP-231) |
+| `answer.py` | `SYSTEM_PROMPT`, `ANSWER_TOOL` (Tool Use 스키마), `build_user_prompt()` (아티클 + RAG + 원본 질문 + 태그 섹션) (DP-234) |
 
 ### summary.py 구성 요소
 
@@ -60,11 +62,21 @@ AIServiceError (base, status_code + message)
 
 ---
 
+### answer.py 구성 요소 (DP-234)
+
+- `SYSTEM_PROMPT` — "DevPick 기술 질문 답변 전문가". refined 질문 기반 정확한 답변, original로 눈높이 조절
+- `ANSWER_TOOL` — `save_answer` Tool Use input_schema. 5개 필드: `answer_content`, `key_points`, `suggested_tags`, `references`, `confidence`
+  - `references`: LLM이 활용한 content_id 리스트 (내부용 — AnswerResponse에는 미포함, 라우터가 related_contents로 변환)
+- `build_user_prompt(refined_title, refined_content, original_title?, original_content?, suggested_tags?, article_chunks?, rag_chunks?)`:
+  - 섹션 순서: `## 관련 아티클` → `## 참고 문서` → `## 원본 질문` → `## 관련 기술 태그` → `## 질문`
+  - 빈 refined_title/refined_content → `ValueError`
+
+---
+
 ## 향후 추가 예정
 
 | 파일 | 역할 |
 |------|------|
-| `prompts/answer.py` | AI 1차 답변 프롬프트 (Epic D) |
 | `prompts/report.py` | 주간 리포트 프롬프트 (Epic F) |
 | `config.py` | 공통 설정 (모델명, temperature 등) |
 | `logging.py` | 로깅 설정 |

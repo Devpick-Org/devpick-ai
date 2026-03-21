@@ -16,6 +16,8 @@
 | `summary_service.py` | `SummaryService` | Claude Tool Use 기반 레벨별 AI 요약 생성 (DP-219) |
 | `refine_service.py` | `RefineService` | Claude Tool Use 기반 레벨별 질문 개선 (DP-231) |
 | `embedding_service.py` | `EmbeddingOrchestrator` | 청킹 → 임베딩 → MongoDB+FAISS 저장 오케스트레이션 (DP-218) |
+| `answer_service.py` | `AnswerService` | Claude Tool Use 기반 AI 1차 답변 생성 (DP-234) |
+| `question_embedding_service.py` | `QuestionEmbeddingOrchestrator` | 질문 임베딩 → MongoDB rag_questions + FAISS questions 저장 (DP-234) |
 
 ---
 
@@ -163,10 +165,55 @@ refine(title, content, level, context_chunks=None) -> RefineResponse
 
 ---
 
+---
+
+## AnswerService 상세 (DP-234)
+
+```python
+AnswerService(api_key: str, model: str = "claude-sonnet-4-6")
+answer(
+    refined_title, refined_content,
+    original_title=None, original_content=None,
+    suggested_tags=None, article_chunks=None, rag_chunks=None
+) -> tuple[AnswerResponse, list[str]]
+```
+
+- **반환**: `(AnswerResponse, references)` 튜플 — references는 LLM이 활용한 content_id 리스트 (내부용)
+- **Tool Use**: `tool_choice={"type": "tool", "name": "save_answer"}` — JSON 파싱 실패 0%
+- **Prompt Caching**: system 블록에 `cache_control: ephemeral`
+- **Temperature 0**, **max_tokens=4096** (코드 예시 포함 가능)
+- 프롬프트/스키마: `app/core/prompts/answer.py` (SYSTEM_PROMPT, ANSWER_TOOL, build_user_prompt)
+- `references`는 `raw_input.pop("references", [])` 로 먼저 분리 후 AnswerResponse 검증
+- `related_contents=[]` 초기값 — 라우터가 MongoDB 조회 후 채움
+- 에러 처리 패턴은 SummaryService/RefineService와 동일 (DP-223)
+
+---
+
+## QuestionEmbeddingOrchestrator 상세 (DP-234)
+
+```python
+QuestionEmbeddingOrchestrator(
+    openai_api_key: str,
+    mongo_uri: str,
+    mongo_db: str = "devpick",
+    index_path: str = "data/vectors/questions",
+)
+embed_and_store(question_id, text, suggested_tags=None, content_id=None) -> None
+```
+
+- **청킹 없음**: 질문은 짧으므로 전체 텍스트를 단일 문서로 임베딩
+- `EmbeddingService` 재사용 (OpenAI text-embedding-3-small, 1536차원)
+- `VectorStoreManager` 재사용 (다른 `index_path`: `data/vectors/questions`)
+- `QuestionVectorRepository` — MongoDB `rag_questions` upsert (question_id 기준)
+- FAISS `ChunkMetadata.content_id` = `question_id`, `chunk_index=0`
+- 빈/공백 텍스트 → 즉시 return (임베딩/저장 스킵)
+- router.py에서 fire-and-forget 패턴으로 호출
+
+---
+
 ## 향후 추가 예정
 
 | 파일 | 역할 |
 |------|------|
-| `answer_service.py` | AI 1차 답변 생성 (Epic D) |
 | `report_service.py` | 주간 리포트 인사이트 생성 (Epic F) |
 

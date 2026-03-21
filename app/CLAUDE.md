@@ -89,6 +89,37 @@ RefineService.refine(title, content, level, context_chunks)
 
 ---
 
+## AI 1차 답변 흐름 (DP-234)
+
+```
+AnswerRequest(refined_title, refined_content, original_title?, original_content?,
+              suggested_tags?, content_id?, question_id?)
+    ↓
+[Step 1] content_id 있으면:
+    VectorRepository.find_by_content_id(content_id) → article_chunks
+[Step 2] RAG 유사 검색 (content_id 유무와 무관하게 항상):
+    RAGRetriever.search(refined_title + " " + refined_content, top_k=5)
+    → content_id와 동일한 문서 제외 → rag_chunks ([출처: content_id] 라벨 포함)
+    ↓
+[Step 3] AnswerService.answer(refined_title, refined_content, original_title, original_content,
+                              suggested_tags, article_chunks, rag_chunks)
+    ↓ build_user_prompt() — 관련 아티클 → 참고 문서 → 원본 질문 → 관련 기술 태그 → 질문
+    ↓ Claude API (Tool Use + Prompt Caching, temperature=0, max_tokens=4096)
+    ↓ tool_use 블록에서 input dict 추출, references 분리
+    ↓ AnswerResponse.model_validate(payload)  (related_contents=[] 초기값)
+    ↓
+[Step 4] references 기반 related_contents 조회:
+    SummaryRepository.find_by_content_ids(references)
+    → result.related_contents에 RelatedContent 리스트 주입
+    ↓
+[Step 5] AnswerRepository.save(result, question_id, content_id) (fire-and-forget)
+    → MongoDB ai_answers 컬렉션 upsert
+[Step 6] QuestionEmbeddingOrchestrator.embed_and_store(question_id, text, ...) (fire-and-forget)
+    → MongoDB rag_questions + FAISS data/vectors/questions 인덱스
+```
+
+---
+
 ## 향후 추가될 구조
 
 ```text

@@ -24,6 +24,8 @@
              **+ AI 요약 실패 시 에러 분류 + 재시도 가능 응답 구현 완료 (DP-223)**
              **+ LangChain + FAISS RAG 파이프라인 구현 완료 (DP-218)**
              **+ AI 질문 개선 프롬프트 + RefineService + POST /internal/refine 구현 완료 (DP-231)**
+             **+ AI 1차 답변 프롬프트 + AnswerService + POST /internal/answer 구현 완료 (DP-234)**
+             **+ 질문 임베딩 저장 (rag_questions + FAISS questions 인덱스) 구현 완료 (DP-234)**
 
 ---
 

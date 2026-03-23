@@ -18,6 +18,7 @@
 | `embedding_service.py` | `EmbeddingOrchestrator` | 청킹 → 임베딩 → MongoDB+FAISS 저장 오케스트레이션 (DP-218) |
 | `answer_service.py` | `AnswerService` | Claude Tool Use 기반 AI 1차 답변 생성 (DP-234) |
 | `question_embedding_service.py` | `QuestionEmbeddingOrchestrator` | 질문 임베딩 → MongoDB rag_questions + FAISS questions 저장 (DP-234) |
+| `similar_question_service.py` | `SimilarQuestionService` | FAISS questions 인덱스 유사 질문 검색 (DP-235) |
 
 ---
 

@@ -26,6 +26,7 @@
              **+ AI 질문 개선 프롬프트 + RefineService + POST /internal/refine 구현 완료 (DP-231)**
              **+ AI 1차 답변 프롬프트 + AnswerService + POST /internal/answer 구현 완료 (DP-234)**
              **+ 질문 임베딩 저장 (rag_questions + FAISS questions 인덱스) 구현 완료 (DP-234)**
+             **+ 유사 질문 탐색 SimilarQuestionService + POST /internal/similar-questions 구현 완료 (DP-235)**
 
 ---
 

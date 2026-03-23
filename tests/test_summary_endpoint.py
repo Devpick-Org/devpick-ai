@@ -86,6 +86,19 @@ def test_summary_level_mapping_upper(
     assert kwargs["level"] == "junior"
 
 
+def test_summary_level_mapping_beginner(
+    client: TestClient, mock_summary_service: MagicMock
+) -> None:
+    client.post(
+        "/internal/summary",
+        json={**_VALID_BODY, "level": "BEGINNER"},
+        headers={"X-Internal-Key": _VALID_KEY},
+    )
+    mock_summary_service.summarize.assert_called_once()
+    _, kwargs = mock_summary_service.summarize.call_args
+    assert kwargs["level"] == "beginner"
+
+
 def test_summary_level_mapping_middle(
     client: TestClient, mock_summary_service: MagicMock
 ) -> None:

@@ -68,6 +68,18 @@ related_contents 생성 시 LLM이 references로 반환한 content_id 리스트�
 
 ---
 
+## SummaryRepository 확장 (DP-300)
+
+```python
+save_all_levels(content_id: str, response: AllLevelsSummaryResponse) -> None
+# common 필드 + level 필드 merge → 기존 ai_summaries 스키마 호환 4개 문서 bulk upsert
+
+find_all_levels(content_id: str) -> list[dict]
+# content_id에 대한 4개 레벨 문서 전부 조회
+```
+
+---
+
 ## AnswerRepository 상세 (DP-234)
 
 ```python

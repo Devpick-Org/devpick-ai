@@ -23,6 +23,10 @@ Pydantic 기반 데이터 계약. 수집부터 전송까지 모든 데이터 형
 | `similar_question.py` | `SimilarQuestionRequest` | 유사 질문 검색 요청 스키마 (text, question_id, top_k) (DP-235) |
 | `similar_question.py` | `SimilarQuestion` | 유사 질문 개별 항목 (question_id, text, score, tags) (DP-235) |
 | `similar_question.py` | `SimilarQuestionResponse` | 유사 질문 검색 결과 (results 리스트 + total) (DP-235) |
+| `summary.py` | `CommonSummary` | 레벨 무관 공통 요약 필드 (one_line_summary, keywords, tags, difficulty) (DP-300) |
+| `summary.py` | `LevelSummary` | 레벨별 요약 필드 (core_summary, key_points, study_questions, next_recommendation, confidence) (DP-300) |
+| `summary.py` | `AllLevelsSummaryRequest` | 4레벨 동시 요약 요청 스키마 (content_id, text, thumbnail_url) (DP-300) |
+| `summary.py` | `AllLevelsSummaryResponse` | 4레벨 동시 요약 응답 스키마 (common + beginner/junior/mid/senior) (DP-300) |
 
 ---
 

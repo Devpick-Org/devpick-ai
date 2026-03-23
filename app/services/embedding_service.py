@@ -10,7 +10,7 @@ from app.rag.chunker import DocumentChunker
 from app.rag.embeddings import EmbeddingService
 from app.rag.vector_store import VectorStoreManager
 from app.repositories.vector_repository import VectorRepository
-from app.schemas.summary import SummaryResponse
+from app.schemas.summary import AllLevelsSummaryResponse, SummaryResponse
 
 logger = logging.getLogger(__name__)
 
@@ -51,20 +51,27 @@ class EmbeddingOrchestrator:
         self,
         content_id: str,
         preprocessed_text: str,
-        summary: SummaryResponse,
+        summary: SummaryResponse | AllLevelsSummaryResponse,
     ) -> None:
         """원문을 청킹하고 임베딩하여 MongoDB와 FAISS에 저장한다.
 
         Args:
             content_id: 콘텐츠 식별자
             preprocessed_text: PreprocessService 출력 텍스트
-            summary: 메타데이터(keywords, tags) 추출용 SummaryResponse
+            summary: 메타데이터(keywords, tags) 추출용 요약 응답 객체
         """
+        if isinstance(summary, AllLevelsSummaryResponse):
+            keywords = summary.common.keywords
+            tags = summary.common.tags
+        else:
+            keywords = summary.keywords
+            tags = summary.tags
+
         docs = self._chunker.chunk(
             content_id=content_id,
             text=preprocessed_text,
-            keywords=summary.keywords,
-            tags=summary.tags,
+            keywords=keywords,
+            tags=tags,
         )
 
         if not docs:

@@ -15,7 +15,13 @@ from app.repositories.vector_repository import VectorRepository
 from app.schemas.answer import AnswerRequest, AnswerResponse, RelatedContent
 from app.schemas.refine import RefineRequest, RefineResponse
 from app.schemas.similar_question import SimilarQuestionRequest, SimilarQuestionResponse
-from app.schemas.summary import SummaryRequest, SummaryResponse
+from app.schemas.summary import (
+    AllLevelsSummaryRequest,
+    AllLevelsSummaryResponse,
+    SummaryRequest,
+    SummaryResponse,
+)
+from app.services.all_levels_summary_service import AllLevelsSummaryService
 from app.services.answer_service import AnswerService
 from app.services.embedding_service import EmbeddingOrchestrator
 from app.services.preprocess_service import PreprocessService
@@ -33,10 +39,11 @@ _OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
 logger = logging.getLogger(__name__)
 
 _LEVEL_MAP: dict[str, str] = {
-    "BEGINNER": "junior",
+    "BEGINNER": "beginner",
     "JUNIOR": "junior",
     "MIDDLE": "mid",
     "SENIOR": "senior",
+    "beginner": "beginner",
     "junior": "junior",
     "mid": "mid",
     "senior": "senior",
@@ -87,6 +94,58 @@ def create_summary(body: SummaryRequest) -> SummaryResponse:
             logger.exception("Failed to save summary to MongoDB")
 
     # 임베딩 + RAG 저장 (fire-and-forget: 실패해도 응답은 반환)
+    if _OPENAI_API_KEY and _MONGO_URI:
+        try:
+            EmbeddingOrchestrator(
+                openai_api_key=_OPENAI_API_KEY,
+                mongo_uri=_MONGO_URI,
+                mongo_db=_MONGO_DB,
+            ).embed_and_store(
+                content_id=body.content_id,
+                preprocessed_text=preprocessed,
+                summary=result,
+            )
+        except Exception:
+            logger.exception("Failed to embed content for RAG")
+
+    return result
+
+
+@router.post(
+    "/summaries",
+    response_model=AllLevelsSummaryResponse,
+    dependencies=[Depends(verify_internal_key)],
+)
+def create_all_levels_summary(
+    body: AllLevelsSummaryRequest,
+) -> AllLevelsSummaryResponse:
+    """콘텐츠 4레벨 동시 AI 요약 생성 (DP-300).
+
+    Backend가 콘텐츠 저장 직후 호출한다.
+    에러는 전역 핸들러(AIServiceError)가 처리한다.
+    """
+    try:
+        preprocessed = PreprocessService().preprocess(body.text)
+    except ValueError as exc:
+        raise AIBadRequestError(str(exc)) from exc
+
+    result = AllLevelsSummaryService(api_key=_ANTHROPIC_API_KEY).summarize_all(
+        content_id=body.content_id,
+        text=preprocessed,
+        thumbnail_url=body.thumbnail_url,
+    )
+
+    # MongoDB 저장 (fire-and-forget)
+    if _MONGO_URI:
+        try:
+            SummaryRepository(mongo_uri=_MONGO_URI, db_name=_MONGO_DB).save_all_levels(
+                content_id=body.content_id,
+                response=result,
+            )
+        except Exception:
+            logger.exception("Failed to save all-levels summary to MongoDB")
+
+    # 임베딩 + RAG 저장 (fire-and-forget)
     if _OPENAI_API_KEY and _MONGO_URI:
         try:
             EmbeddingOrchestrator(

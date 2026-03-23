@@ -14,6 +14,7 @@ Spring Boot ↔ FastAPI 내부 통신 전용 라우터. Base URL: `/internal`
 | POST | `/internal/refine` | 질문 AI 개선 생성 (DP-231) — content_id 있으면 MongoDB 청크 컨텍스트 |
 | POST | `/internal/answer` | 질문 AI 1차 답변 생성 (DP-234) — 아티클+RAG 컨텍스트, related_contents 주입, 질문 임베딩 저장 |
 | POST | `/internal/similar-questions` | 유사 질문 검색 (DP-235) — FAISS questions 인덱스 검색, 자기 자신 제외, 유사도 임계값 필터 |
+| POST | `/internal/summaries` | 4레벨 동시 요약 생성 (DP-300) — Backend 콘텐츠 저장 후 자동 호출, Claude 1회 호출, MongoDB + RAG 임베딩 |
 
 ---
 

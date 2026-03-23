@@ -5,9 +5,9 @@ from __future__ import annotations
 import logging
 from datetime import datetime, timezone
 
-from pymongo import MongoClient
+from pymongo import MongoClient, UpdateOne
 
-from app.schemas.summary import SummaryResponse
+from app.schemas.summary import AllLevelsSummaryResponse, SummaryResponse
 
 logger = logging.getLogger(__name__)
 
@@ -42,6 +42,55 @@ class SummaryRepository:
             summary.content_id,
             summary.level,
         )
+
+    def save_all_levels(
+        self, content_id: str, response: AllLevelsSummaryResponse
+    ) -> None:
+        """4레벨 요약을 ai_summaries에 bulk upsert한다. (content_id, level) 기준.
+
+        common 필드와 레벨별 필드를 병합하여 기존 ai_summaries 스키마와 호환되는
+        문서 4개(beginner/junior/mid/senior)를 생성한다.
+
+        Args:
+            content_id: 콘텐츠 식별자
+            response: AllLevelsSummaryResponse 객체
+        """
+        now = datetime.now(tz=timezone.utc)
+        common = response.common.model_dump()
+
+        ops = []
+        for level in ("beginner", "junior", "mid", "senior"):
+            level_data = getattr(response, level).model_dump()
+            doc = {
+                "content_id": content_id,
+                "level": level,
+                "generated_at": response.generated_at,
+                "thumbnail_url": response.thumbnail_url,
+                "updated_at": now,
+                **common,
+                **level_data,
+            }
+            ops.append(
+                UpdateOne(
+                    {"content_id": content_id, "level": level},
+                    {"$set": doc, "$setOnInsert": {"created_at": now}},
+                    upsert=True,
+                )
+            )
+
+        self._collection.bulk_write(ops, ordered=False)
+        logger.info("Saved all-levels summary to MongoDB: content_id=%s", content_id)
+
+    def find_all_levels(self, content_id: str) -> list[dict]:
+        """content_id에 대한 4개 레벨 문서 전부 조회한다.
+
+        Args:
+            content_id: 조회할 콘텐츠 식별자
+
+        Returns:
+            4개 레벨 문서 리스트 (없으면 빈 리스트)
+        """
+        return list(self._collection.find({"content_id": content_id}, {"_id": 0}))
 
     def find_by_content_ids(self, content_ids: list[str]) -> list[dict]:
         """여러 content_id의 요약을 조회한다.

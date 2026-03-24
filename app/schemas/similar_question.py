@@ -13,6 +13,7 @@ class SimilarQuestionRequest(BaseModel):
     )  # 검색 텍스트 (refined_title + " " + refined_content)
     question_id: str | None = None  # 자기 자신 제외용
     top_k: int = Field(default=5, ge=1, le=20)  # 반환할 최대 유사 질문 수
+    user_id: str | None = None  # 이벤트 로그용 (DP-252) — 없으면 로깅 스킵
 
 
 class SimilarQuestion(BaseModel):

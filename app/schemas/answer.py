@@ -21,6 +21,7 @@ class AnswerRequest(BaseModel):
     )
     content_id: str | None = None  # 관련 아티클 ID (MongoDB 청크 조회용)
     question_id: str | None = None  # 질문 식별자 — MongoDB 저장 키
+    user_id: str | None = None  # 이벤트 로그용 (DP-252) — 없으면 로깅 스킵
 
 
 class RelatedContent(BaseModel):

@@ -28,6 +28,7 @@
              **+ 질문 임베딩 저장 (rag_questions + FAISS questions 인덱스) 구현 완료 (DP-234)**
              **+ 유사 질문 탐색 SimilarQuestionService + POST /internal/similar-questions 구현 완료 (DP-235)**
              **+ 4레벨 동시 요약 AllLevelsSummaryService + POST /internal/summaries 구현 완료 (DP-300)**
+             **+ AI 처리 이벤트 로그 MongoDB 저장 (event_logs) + 일별 중복 제거 구현 완료 (DP-252)**
 
 ---
 

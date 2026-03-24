@@ -11,6 +11,7 @@ class RefineRequest(BaseModel):
     title: str = Field(min_length=1)  # 질문 제목 (Post.title)
     content: str = Field(min_length=1)  # 질문 본문 (Post.content)
     content_id: str | None = None  # optional — 관련 아티클 ID (MongoDB 청크 조회용)
+    user_id: str | None = None  # 이벤트 로그용 (DP-252) — 없으면 로깅 스킵
 
 
 class RefineResponse(BaseModel):

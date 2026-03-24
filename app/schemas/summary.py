@@ -14,7 +14,6 @@ class SummaryRequest(BaseModel):
     level: str  # JUNIOR/MIDDLE/SENIOR 또는 junior/mid/senior
     text: str = Field(min_length=1)  # HTML 본문 (빈 문자열 → 422 자동 거부)
     thumbnail_url: str | None = None
-    user_id: str | None = None  # 이벤트 로그용 (DP-252) — 없으면 로깅 스킵
 
 
 class SectionSummary(BaseModel):
@@ -70,7 +69,6 @@ class AllLevelsSummaryRequest(BaseModel):
     content_id: str
     text: str = Field(min_length=1)  # HTML 본문
     thumbnail_url: str | None = None
-    user_id: str | None = None  # 이벤트 로그용 (DP-252) — 없으면 로깅 스킵
 
 
 class AllLevelsSummaryResponse(BaseModel):

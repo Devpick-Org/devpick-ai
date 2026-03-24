@@ -110,18 +110,6 @@ def create_summary(body: SummaryRequest) -> SummaryResponse:
         except Exception:
             logger.exception("Failed to embed content for RAG")
 
-    # 이벤트 로그 저장 (fire-and-forget, DP-252)
-    if body.user_id and _MONGO_URI:
-        try:
-            EventRepository(mongo_uri=_MONGO_URI, db_name=_MONGO_DB).save_event(
-                user_id=body.user_id,
-                event_type=EventType.SUMMARY_GENERATED,
-                content_id=body.content_id,
-                metadata={"level": level},
-            )
-        except Exception:
-            logger.exception("Failed to save event log")
-
     return result
 
 
@@ -173,17 +161,6 @@ def create_all_levels_summary(
             )
         except Exception:
             logger.exception("Failed to embed content for RAG")
-
-    # 이벤트 로그 저장 (fire-and-forget, DP-252)
-    if body.user_id and _MONGO_URI:
-        try:
-            EventRepository(mongo_uri=_MONGO_URI, db_name=_MONGO_DB).save_event(
-                user_id=body.user_id,
-                event_type=EventType.ALL_LEVELS_SUMMARY_GENERATED,
-                content_id=body.content_id,
-            )
-        except Exception:
-            logger.exception("Failed to save event log")
 
     return result
 

@@ -10,9 +10,11 @@ from app.api.deps import verify_internal_key
 from app.core.exceptions import AIBadRequestError
 from app.rag.retriever import RAGRetriever
 from app.repositories.answer_repository import AnswerRepository
+from app.repositories.event_repository import EventRepository
 from app.repositories.summary_repository import SummaryRepository
 from app.repositories.vector_repository import VectorRepository
 from app.schemas.answer import AnswerRequest, AnswerResponse, RelatedContent
+from app.schemas.event import EventType
 from app.schemas.refine import RefineRequest, RefineResponse
 from app.schemas.similar_question import SimilarQuestionRequest, SimilarQuestionResponse
 from app.schemas.summary import (
@@ -108,6 +110,18 @@ def create_summary(body: SummaryRequest) -> SummaryResponse:
         except Exception:
             logger.exception("Failed to embed content for RAG")
 
+    # 이벤트 로그 저장 (fire-and-forget, DP-252)
+    if body.user_id and _MONGO_URI:
+        try:
+            EventRepository(mongo_uri=_MONGO_URI, db_name=_MONGO_DB).save_event(
+                user_id=body.user_id,
+                event_type=EventType.SUMMARY_GENERATED,
+                content_id=body.content_id,
+                metadata={"level": level},
+            )
+        except Exception:
+            logger.exception("Failed to save event log")
+
     return result
 
 
@@ -160,6 +174,17 @@ def create_all_levels_summary(
         except Exception:
             logger.exception("Failed to embed content for RAG")
 
+    # 이벤트 로그 저장 (fire-and-forget, DP-252)
+    if body.user_id and _MONGO_URI:
+        try:
+            EventRepository(mongo_uri=_MONGO_URI, db_name=_MONGO_DB).save_event(
+                user_id=body.user_id,
+                event_type=EventType.ALL_LEVELS_SUMMARY_GENERATED,
+                content_id=body.content_id,
+            )
+        except Exception:
+            logger.exception("Failed to save event log")
+
     return result
 
 
@@ -186,11 +211,24 @@ def create_refine(body: RefineRequest) -> RefineResponse:
         except Exception:
             logger.exception("Failed to fetch context chunks from MongoDB")
 
-    return RefineService(api_key=_ANTHROPIC_API_KEY).refine(
+    result = RefineService(api_key=_ANTHROPIC_API_KEY).refine(
         title=body.title,
         content=body.content,
         context_chunks=context_chunks,
     )
+
+    # 이벤트 로그 저장 (fire-and-forget, DP-252)
+    if body.user_id and _MONGO_URI:
+        try:
+            EventRepository(mongo_uri=_MONGO_URI, db_name=_MONGO_DB).save_event(
+                user_id=body.user_id,
+                event_type=EventType.QUESTION_REFINED,
+                content_id=body.content_id,
+            )
+        except Exception:
+            logger.exception("Failed to save event log")
+
+    return result
 
 
 @router.post(
@@ -292,6 +330,18 @@ def create_answer(body: AnswerRequest) -> AnswerResponse:
         except Exception:
             logger.exception("Failed to embed question for RAG")
 
+    # Step 7. 이벤트 로그 저장 (fire-and-forget, DP-252)
+    if body.user_id and _MONGO_URI:
+        try:
+            EventRepository(mongo_uri=_MONGO_URI, db_name=_MONGO_DB).save_event(
+                user_id=body.user_id,
+                event_type=EventType.ANSWER_GENERATED,
+                content_id=body.content_id,
+                question_id=body.question_id,
+            )
+        except Exception:
+            logger.exception("Failed to save event log")
+
     return result
 
 
@@ -316,5 +366,16 @@ def search_similar_questions(body: SimilarQuestionRequest) -> SimilarQuestionRes
         top_k=body.top_k,
         exclude_question_id=body.question_id,
     )
+
+    # 이벤트 로그 저장 (fire-and-forget, DP-252)
+    if body.user_id and _MONGO_URI:
+        try:
+            EventRepository(mongo_uri=_MONGO_URI, db_name=_MONGO_DB).save_event(
+                user_id=body.user_id,
+                event_type=EventType.SIMILAR_QUESTIONS_SEARCHED,
+                question_id=body.question_id,
+            )
+        except Exception:
+            logger.exception("Failed to save event log")
 
     return SimilarQuestionResponse(results=results, total=len(results))

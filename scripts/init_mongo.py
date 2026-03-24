@@ -115,13 +115,28 @@ def main() -> None:
             name="ix_questions_updated_at_desc",
         )
 
+        event_logs = db["event_logs"]
+        event_logs.create_index(
+            [("user_id", 1), ("event_type", 1), ("content_id", 1), ("question_id", 1)],
+            name="ix_events_dedup",
+        )
+        event_logs.create_index(
+            [("user_id", 1), ("timestamp", DESCENDING)],
+            name="ix_events_user_timestamp_desc",
+        )
+        event_logs.create_index(
+            [("created_at", 1)],
+            name="ix_events_created_at_ttl",
+            expireAfterSeconds=7776000,  # 90일
+        )
+
         now = utc_now()
 
         configs.update_one(
             {"key": "schema_version"},
             {
                 "$set": {
-                    "value": 2,
+                    "value": 3,
                     "updated_at": now,
                 },
                 "$setOnInsert": {

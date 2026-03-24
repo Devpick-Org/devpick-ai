@@ -107,6 +107,21 @@ find_all() -> Iterator[dict]  # FAISS 재빌드용
 
 ---
 
+## EventRepository 상세 (DP-252)
+
+```python
+EventRepository(mongo_uri: str, db_name: str = "devpick")
+save_event(user_id, event_type, content_id?, question_id?, metadata?) -> None
+find_by_user(user_id, start?, end?, event_type?) -> list[dict]
+```
+
+- 컬렉션: `event_logs`
+- `save_event`: 저장 전 오늘 UTC 기준 `(user_id, event_type, content_id, question_id)` 중복 확인 → 있으면 스킵
+- `find_by_user`: 유저별 시간순 이벤트 조회 (Epic F 주간 리포트용)
+- 인덱스: `(user_id, event_type, content_id, question_id)` dedup, `(user_id, timestamp -1)`, `(created_at)` TTL 90일
+
+---
+
 ## 향후 추가 예정
 
 | 파일 | 역할 |

@@ -130,13 +130,24 @@ def main() -> None:
             expireAfterSeconds=7776000,  # 90일
         )
 
+        weekly_report_insights = db["weekly_report_insights"]
+        weekly_report_insights.create_index(
+            [("report_id", 1)],
+            unique=True,
+            name="ux_insights_report_id",
+        )
+        weekly_report_insights.create_index(
+            [("user_id", 1)],
+            name="ix_insights_user_id",
+        )
+
         now = utc_now()
 
         configs.update_one(
             {"key": "schema_version"},
             {
                 "$set": {
-                    "value": 3,
+                    "value": 4,
                     "updated_at": now,
                 },
                 "$setOnInsert": {

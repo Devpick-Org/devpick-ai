@@ -12,7 +12,8 @@ core/
 └── prompts/        # AI 기능별 프롬프트 + Tool Use 스키마
     ├── summary.py  # 요약 프롬프트 (DP-219)
     ├── refine.py   # 질문 개선 프롬프트 (DP-231)
-    └── answer.py   # 1차 답변 프롬프트 (DP-234)
+    ├── answer.py   # 1차 답변 프롬프트 (DP-234)
+    └── insight.py  # 주간 인사이트 프롬프트 (DP-260)
 ```
 
 ---
@@ -43,6 +44,7 @@ AIServiceError (base, status_code + message)
 | `summary.py` | `SYSTEM_PROMPT`, `SUMMARY_TOOL` (Tool Use 스키마), `build_user_prompt()` (레벨별 지시문 생성) |
 | `refine.py` | `SYSTEM_PROMPT`, `REFINE_TOOL` (Tool Use 스키마), `build_user_prompt()` (레벨별 지시문 + 컨텍스트 청크) (DP-231) |
 | `answer.py` | `SYSTEM_PROMPT`, `ANSWER_TOOL` (Tool Use 스키마), `build_user_prompt()` (아티클 + RAG + 원본 질문 + 태그 섹션) (DP-234) |
+| `insight.py` | `SYSTEM_PROMPT`, `INSIGHT_TOOL` (Tool Use 스키마), `build_user_prompt()` (활동/읽은글/스크랩/질문/태그/AI이벤트 섹션) (DP-260) |
 
 ### summary.py 구성 요소
 
@@ -73,10 +75,19 @@ AIServiceError (base, status_code + message)
 
 ---
 
+### insight.py 구성 요소 (DP-260)
+
+- `SYSTEM_PROMPT` — DevPick 주간 학습 인사이트 분석가 역할. 스크랩한 글 > 읽은 글 가중치. Prompt Caching 대상
+- `INSIGHT_TOOL` — `save_insight` Tool Use input_schema. 3개 필드: `well_done`, `lacking`, `next_week`
+- `build_user_prompt(activities, ai_events, read_summaries, scrapped_summaries, question_texts, week_start, week_end)`:
+  - 섹션: 기간 → 기본활동 → 읽은 글 → 스크랩한 글(별도 강조) → 작성한 질문 → 요일별 활동 → 관심 태그 → AI 기능 활용
+  - 스크랩 섹션은 "유저가 중요하다고 판단한 글" 명시
+
+---
+
 ## 향후 추가 예정
 
 | 파일 | 역할 |
 |------|------|
-| `prompts/report.py` | 주간 리포트 프롬프트 (Epic F) |
 | `config.py` | 공통 설정 (모델명, temperature 등) |
 | `logging.py` | 로깅 설정 |

@@ -20,6 +20,7 @@
 | `question_embedding_service.py` | `QuestionEmbeddingOrchestrator` | 질문 임베딩 → MongoDB rag_questions + FAISS questions 저장 (DP-234) |
 | `similar_question_service.py` | `SimilarQuestionService` | FAISS questions 인덱스 유사 질문 검색 (DP-235) |
 | `all_levels_summary_service.py` | `AllLevelsSummaryService` | Claude Tool Use 기반 4레벨 동시 AI 요약 생성 (DP-300) |
+| `insight_service.py` | `InsightService` | Claude Tool Use 기반 주간 학습 인사이트 생성 (DP-259) |
 
 ---
 
@@ -213,9 +214,25 @@ embed_and_store(question_id, text, suggested_tags=None, content_id=None) -> None
 
 ---
 
-## 향후 추가 예정
+## InsightService 상세 (DP-259)
 
-| 파일 | 역할 |
-|------|------|
-| `report_service.py` | 주간 리포트 인사이트 생성 (Epic F) |
+```python
+InsightService(api_key: str, model: str = "claude-sonnet-4-6")
+generate(
+    activities: ActivityData,
+    ai_events: dict,              # {"refine": int, "answer": int, "similar": int}
+    read_summaries: list[dict],   # [{"one_line_summary": "..."}]
+    scrapped_summaries: list[dict],
+    question_texts: list[str],
+    week_start: str,
+    week_end: str,
+) -> InsightResponse
+```
+
+- **Tool Use**: `tool_choice={"type": "tool", "name": "save_insight"}` — JSON 파싱 실패 0%
+- **Prompt Caching**: system 블록에 `cache_control: ephemeral`
+- **Temperature 0.3** (요약보다 표현 다양성 필요), **max_tokens=1024** (3개 필드 각 2~4문장)
+- 프롬프트/스키마: `app/core/prompts/insight.py` (SYSTEM_PROMPT, INSIGHT_TOOL, build_user_prompt)
+- `report_id = ""` 초기값 — 라우터가 `body.report_id` 주입
+- 에러 처리 패턴은 SummaryService와 동일 (DP-223)
 

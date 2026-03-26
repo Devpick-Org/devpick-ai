@@ -59,3 +59,20 @@ class QuestionVectorRepository:
     def find_all(self) -> Iterator[dict]:
         """모든 질문 임베딩을 반환한다. FAISS 재빌드용."""
         return self._collection.find({})
+
+    def find_texts_by_ids(self, question_ids: list[str]) -> list[str]:
+        """question_id 목록으로 질문 텍스트를 조회한다. 주간 인사이트 생성용 (DP-259).
+
+        Args:
+            question_ids: 조회할 question_id 리스트.
+
+        Returns:
+            질문 텍스트 리스트 (순서 보장 없음, 없는 ID 무시).
+        """
+        if not question_ids:
+            return []
+        cursor = self._collection.find(
+            {"question_id": {"$in": question_ids}},
+            {"text": 1, "_id": 0},
+        )
+        return [doc["text"] for doc in cursor if doc.get("text")]

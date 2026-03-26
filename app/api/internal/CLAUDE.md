@@ -15,6 +15,21 @@ Spring Boot ↔ FastAPI 내부 통신 전용 라우터. Base URL: `/internal`
 | POST | `/internal/answer` | 질문 AI 1차 답변 생성 (DP-234) — 아티클+RAG 컨텍스트, related_contents 주입, 질문 임베딩 저장 |
 | POST | `/internal/similar-questions` | 유사 질문 검색 (DP-235) — FAISS questions 인덱스 검색, 자기 자신 제외, 유사도 임계값 필터 |
 | POST | `/internal/summaries` | 4레벨 동시 요약 생성 (DP-300) — Backend 콘텐츠 저장 후 자동 호출, Claude 1회 호출, MongoDB + RAG 임베딩 |
+| POST | `/internal/report` | 주간 리포트 AI 인사이트 생성 (DP-259) — Backend 주간 리포트 생성 후 호출, InsightService + InsightRepository 저장 |
+
+---
+
+## POST /internal/report 처리 흐름 (DP-259)
+
+```
+1. event_logs 조회 → 주간 AI 이벤트 카운트 (refine/answer/similar)
+2. ai_summaries 조회 → 읽은 글/스크랩한 글 one_line_summary (SummaryRepository.find_by_content_ids)
+3. rag_questions 조회 → 작성한 질문 텍스트 (QuestionVectorRepository.find_texts_by_ids)
+4. InsightService.generate() → InsightResponse (report_id="" 초기값)
+5. result.report_id = body.report_id 주입
+6. InsightRepository.save(report_id, user_id, result) [fire-and-forget]
+7. EventRepository.save_event(INSIGHT_GENERATED) [fire-and-forget]
+```
 
 ---
 
@@ -28,14 +43,6 @@ Spring Boot ↔ FastAPI 내부 통신 전용 라우터. Base URL: `/internal`
 5. AnswerRepository.save(result, question_id, content_id) [fire-and-forget]
 6. QuestionEmbeddingOrchestrator.embed_and_store(...) [fire-and-forget, question_id 있을 때만]
 ```
-
----
-
-## 향후 추가 예정
-
-| 메서드 | 경로 | 설명 | Epic |
-|--------|------|------|------|
-| POST | `/internal/report` | 주간 리포트 인사이트 생성 | F |
 
 ---
 

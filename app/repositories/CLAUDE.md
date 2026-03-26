@@ -122,8 +122,27 @@ find_by_user(user_id, start?, end?, event_type?) -> list[dict]
 
 ---
 
-## 향후 추가 예정
+## InsightRepository 상세 (DP-259)
 
-| 파일 | 역할 |
-|------|------|
-| `report_repository.py` | 주간 리포트 저장 (Epic F) |
+```python
+InsightRepository(mongo_uri: str, db_name: str = "devpick")
+save(report_id: str, user_id: str, response: InsightResponse) -> None
+find_by_report_id(report_id: str) -> dict | None
+```
+
+- 컬렉션: `weekly_report_insights`
+- report_id 기준 upsert
+- MongoDB 필드명이 백엔드 Java `ReportInsightDocument`와 1:1 대응 (snake_case):
+  `report_id`, `user_id`, `well_done`, `lacking`, `next_week`, `generated_at`
+- 인덱스: `(report_id, 1)` unique, `(user_id, 1)`
+
+---
+
+## QuestionVectorRepository 확장 (DP-259)
+
+```python
+find_texts_by_ids(question_ids: list[str]) -> list[str]
+# 반환: 질문 텍스트 목록 (순서 보장 없음, 없는 ID 무시)
+```
+
+주간 인사이트 생성 시 question_ids → rag_questions 컬렉션에서 텍스트 조회.

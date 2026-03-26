@@ -39,7 +39,8 @@ Pydantic 기반 데이터 계약. 수집부터 전송까지 모든 데이터 형
 
 ---
 
-| `event.py` | `EventType` | AI 처리 이벤트 유형 enum (SUMMARY_GENERATED 등 5종) (DP-252) |
+| `event.py` | `EventType` | AI 처리 이벤트 유형 enum (SUMMARY_GENERATED 등 6종) (DP-252) |
+| `insight.py` | `ActivityData`, `InsightRequest`, `InsightResponse` | 주간 인사이트 요청/응답 스키마 (DP-259) |
 
 ## 향후 추가 예정
 

@@ -17,3 +17,4 @@ class EventType(str, Enum):
     SIMILAR_QUESTIONS_SEARCHED = (
         "SIMILAR_QUESTIONS_SEARCHED"  # POST /internal/similar-questions
     )
+    INSIGHT_GENERATED = "INSIGHT_GENERATED"  # POST /internal/report

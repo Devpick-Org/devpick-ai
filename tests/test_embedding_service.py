@@ -4,31 +4,32 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock, patch
 
-import pytest
-
-from app.schemas.summary import SummaryResponse
+from app.schemas.summary import AllLevelsSummaryResponse
 from app.services.embedding_service import EmbeddingOrchestrator
 
-_VALID_SUMMARY = {
-    "content_id": "cid-001",
-    "level": "junior",
-    "one_line_summary": "테스트 요약",
+_LEVEL_PAYLOAD = {
     "core_summary": [{"heading": "주제", "content": "내용"}],
     "key_points": ["포인트1"],
-    "keywords": ["Python", "FastAPI"],
-    "tags": ["백엔드"],
-    "difficulty": "easy",
-    "next_recommendation": "다음 학습",
     "study_questions": ["질문1"],
+    "next_recommendation": "다음 학습",
     "confidence": 0.9,
+}
+
+_VALID_ALL_LEVELS = {
+    "content_id": "cid-001",
+    "common": {
+        "one_line_summary": "테스트 요약",
+        "keywords": ["Python", "FastAPI"],
+        "tags": ["백엔드"],
+        "difficulty": "easy",
+    },
+    "beginner": _LEVEL_PAYLOAD,
+    "junior": _LEVEL_PAYLOAD,
+    "mid": _LEVEL_PAYLOAD,
+    "senior": _LEVEL_PAYLOAD,
     "generated_at": "2026-03-18T00:00:00+00:00",
     "thumbnail_url": None,
 }
-
-
-@pytest.fixture()
-def summary() -> SummaryResponse:
-    return SummaryResponse.model_validate(_VALID_SUMMARY)
 
 
 def _make_orchestrator() -> EmbeddingOrchestrator:
@@ -51,8 +52,9 @@ def _make_orchestrator() -> EmbeddingOrchestrator:
 # ── embed_and_store ────────────────────────────────────────────────────────
 
 
-def test_embed_and_store_calls_chunker(summary: SummaryResponse) -> None:
+def test_embed_and_store_calls_chunker() -> None:
     orchestrator = _make_orchestrator()
+    summary = AllLevelsSummaryResponse.model_validate(_VALID_ALL_LEVELS)
 
     mock_doc = MagicMock()
     mock_doc.text = "청크 텍스트"
@@ -64,13 +66,14 @@ def test_embed_and_store_calls_chunker(summary: SummaryResponse) -> None:
     orchestrator._chunker.chunk.assert_called_once_with(
         content_id="cid-001",
         text="원문 텍스트",
-        keywords=summary.keywords,
-        tags=summary.tags,
+        keywords=summary.common.keywords,
+        tags=summary.common.tags,
     )
 
 
-def test_embed_and_store_calls_embed_with_texts(summary: SummaryResponse) -> None:
+def test_embed_and_store_calls_embed_with_texts() -> None:
     orchestrator = _make_orchestrator()
+    summary = AllLevelsSummaryResponse.model_validate(_VALID_ALL_LEVELS)
 
     mock_doc = MagicMock()
     mock_doc.text = "청크 텍스트"
@@ -82,8 +85,9 @@ def test_embed_and_store_calls_embed_with_texts(summary: SummaryResponse) -> Non
     orchestrator._embedding_svc.embed.assert_called_once_with(["청크 텍스트"])
 
 
-def test_embed_and_store_saves_to_mongo(summary: SummaryResponse) -> None:
+def test_embed_and_store_saves_to_mongo() -> None:
     orchestrator = _make_orchestrator()
+    summary = AllLevelsSummaryResponse.model_validate(_VALID_ALL_LEVELS)
 
     mock_doc = MagicMock()
     mock_doc.text = "청크 텍스트"
@@ -99,8 +103,9 @@ def test_embed_and_store_saves_to_mongo(summary: SummaryResponse) -> None:
     orchestrator._vector_repo.save_chunks.assert_called_once()
 
 
-def test_embed_and_store_adds_to_faiss(summary: SummaryResponse) -> None:
+def test_embed_and_store_adds_to_faiss() -> None:
     orchestrator = _make_orchestrator()
+    summary = AllLevelsSummaryResponse.model_validate(_VALID_ALL_LEVELS)
 
     mock_doc = MagicMock()
     mock_doc.text = "청크 텍스트"
@@ -117,9 +122,10 @@ def test_embed_and_store_adds_to_faiss(summary: SummaryResponse) -> None:
     orchestrator._vector_store.save.assert_called_once()
 
 
-def test_embed_and_store_skips_when_no_chunks(summary: SummaryResponse) -> None:
+def test_embed_and_store_skips_when_no_chunks() -> None:
     """청킹 결과가 없으면 임베딩 및 저장을 건너뛴다."""
     orchestrator = _make_orchestrator()
+    summary = AllLevelsSummaryResponse.model_validate(_VALID_ALL_LEVELS)
     orchestrator._chunker.chunk.return_value = []
 
     orchestrator.embed_and_store("cid-001", "", summary)

@@ -93,7 +93,9 @@ def test_no_tool_use_block_raises_ai_internal_error() -> None:
 
 
 def test_validation_error_raises_ai_internal_error() -> None:
-    svc, _ = _make_service_with_mock({"well_done": "잘했어요"})  # lacking, next_week 누락
+    svc, _ = _make_service_with_mock(
+        {"well_done": "잘했어요"}
+    )  # lacking, next_week 누락
 
     with pytest.raises(AIInternalError, match="파싱"):
         svc.generate(

@@ -32,7 +32,9 @@ def test_period_appears_in_prompt() -> None:
 
 def test_basic_activity_counts_appear() -> None:
     prompt = build_user_prompt(
-        activities=_base_activities(contents_read=5, questions_created=2, scraps_count=3),
+        activities=_base_activities(
+            contents_read=5, questions_created=2, scraps_count=3
+        ),
         ai_events={},
         read_summaries=[],
         scrapped_summaries=[],

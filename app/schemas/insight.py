@@ -38,9 +38,9 @@ class ActivityData(BaseModel):
     top_tags: list[TagCount] = []
     daily_activities: list[DailyActivity] = []
     tag_activities: list[TagActivity] = []
-    read_content_ids: list[str] = []       # 조회한 글 ID 목록
-    scrapped_content_ids: list[str] = []   # 스크랩한 글 ID 목록 (가중치 높음)
-    question_ids: list[str] = []           # 작성한 질문 ID 목록
+    read_content_ids: list[str] = []  # 조회한 글 ID 목록
+    scrapped_content_ids: list[str] = []  # 스크랩한 글 ID 목록 (가중치 높음)
+    question_ids: list[str] = []  # 작성한 질문 ID 목록
 
 
 class InsightRequest(BaseModel):
@@ -49,7 +49,7 @@ class InsightRequest(BaseModel):
     report_id: str
     user_id: str
     week_start: str  # ISO date (2026-03-17)
-    week_end: str    # ISO date (2026-03-23)
+    week_end: str  # ISO date (2026-03-23)
     activities: ActivityData
 
 
@@ -61,7 +61,7 @@ class InsightResponse(BaseModel):
     """
 
     report_id: str
-    well_done: str     # 이번 주 잘한 점
-    lacking: str       # 아쉬운 점
-    next_week: str     # 다음 주 추천 방향
+    well_done: str  # 이번 주 잘한 점
+    lacking: str  # 아쉬운 점
+    next_week: str  # 다음 주 추천 방향
     generated_at: str  # ISO 8601

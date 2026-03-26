@@ -394,10 +394,14 @@ def create_insight(body: InsightRequest) -> InsightResponse:
             )
             ai_events = {
                 "refine": sum(
-                    1 for e in events if e["event_type"] == EventType.QUESTION_REFINED.value
+                    1
+                    for e in events
+                    if e["event_type"] == EventType.QUESTION_REFINED.value
                 ),
                 "answer": sum(
-                    1 for e in events if e["event_type"] == EventType.ANSWER_GENERATED.value
+                    1
+                    for e in events
+                    if e["event_type"] == EventType.ANSWER_GENERATED.value
                 ),
                 "similar": sum(
                     1
@@ -415,7 +419,9 @@ def create_insight(body: InsightRequest) -> InsightResponse:
         try:
             repo = SummaryRepository(mongo_uri=_MONGO_URI, db_name=_MONGO_DB)
             if body.activities.read_content_ids:
-                read_summaries = repo.find_by_content_ids(body.activities.read_content_ids)
+                read_summaries = repo.find_by_content_ids(
+                    body.activities.read_content_ids
+                )
             if body.activities.scrapped_content_ids:
                 scrapped_summaries = repo.find_by_content_ids(
                     body.activities.scrapped_content_ids

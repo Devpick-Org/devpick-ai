@@ -93,7 +93,9 @@ def test_report_returns_ok_even_if_mongo_fails(
     mock_insight_service: MagicMock,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr("app.api.internal.router._MONGO_URI", "mongodb://localhost:27017")
+    monkeypatch.setattr(
+        "app.api.internal.router._MONGO_URI", "mongodb://localhost:27017"
+    )
 
     with patch("app.api.internal.router.InsightRepository") as mock_repo_cls:
         mock_repo = MagicMock()
@@ -115,7 +117,9 @@ def test_report_saves_to_mongo(
     mock_insight_service: MagicMock,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr("app.api.internal.router._MONGO_URI", "mongodb://localhost:27017")
+    monkeypatch.setattr(
+        "app.api.internal.router._MONGO_URI", "mongodb://localhost:27017"
+    )
 
     with (
         patch("app.api.internal.router.InsightRepository") as mock_insight_repo,

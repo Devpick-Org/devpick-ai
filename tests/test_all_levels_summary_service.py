@@ -30,6 +30,7 @@ _VALID_LLM_PAYLOAD = {
     "common": {
         "one_line_summary": "Redis 캐시를 활용한 TTL 설정 전략",
         "keywords": ["캐시 무효화", "TTL", "EXPIRE"],
+        "category": "Backend",
         "tags": ["Redis", "백엔드", "캐시"],
         "difficulty": "easy",
     },

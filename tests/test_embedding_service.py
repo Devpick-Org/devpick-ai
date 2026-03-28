@@ -20,6 +20,7 @@ _VALID_ALL_LEVELS = {
     "common": {
         "one_line_summary": "테스트 요약",
         "keywords": ["Python", "FastAPI"],
+        "category": "Backend",
         "tags": ["백엔드"],
         "difficulty": "easy",
     },

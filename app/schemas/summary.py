@@ -22,6 +22,7 @@ class CommonSummary(BaseModel):
 
     one_line_summary: str
     keywords: list[str]
+    category: str
     tags: list[str]
     difficulty: Literal["easy", "medium", "hard"]
 

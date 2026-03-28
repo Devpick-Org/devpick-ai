@@ -24,6 +24,7 @@ _VALID_ALL_LEVELS_RESPONSE = {
     "common": {
         "one_line_summary": "Redis TTL 설정 전략",
         "keywords": ["TTL", "캐시 무효화"],
+        "category": "Backend",
         "tags": ["Redis", "백엔드"],
         "difficulty": "easy",
     },

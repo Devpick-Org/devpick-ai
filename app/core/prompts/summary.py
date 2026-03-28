@@ -12,7 +12,20 @@ SYSTEM_PROMPT_ALL_LEVELS = """\
 ### common (공통 필드 — 레벨 무관)
 - one_line_summary: 글의 핵심을 한 문장(50자 이내)으로 요약. "~하는 방법", "~의 원리" 같은 명사형 종결
 - keywords: 본문에 실제 등장하는 핵심 용어/개념 3~7개. 예: "캐시 무효화", "TTL". tags와 겹치지 않게 (keywords=개념, tags=기술 스택)
-- tags: 글의 기술 스택/주제 카테고리 2~5개. 예: "Java", "Spring Boot", "백엔드". 버전 번호 제외
+- category: 글의 대분류. 반드시 다음 중 하나 선택:
+  Frontend, Backend, Mobile, DevOps, Database, AI/ML, Security, Architecture, Language, CS Fundamentals
+- tags: 기술 스택 태그 2~5개. 아래 목록을 우선 사용하되, 목록에 없는 기술은 자유롭게 추가 가능:
+  [React, Vue, Angular, Next.js, TypeScript, CSS, Svelte,
+   Spring, Django, FastAPI, Express, NestJS, Node.js, GraphQL,
+   React Native, Flutter, Swift, Kotlin, Android, iOS,
+   Docker, Kubernetes, AWS, GCP, Azure, CI/CD, Terraform, Linux,
+   PostgreSQL, MongoDB, Redis, MySQL, Elasticsearch,
+   LLM, NLP, Computer Vision, PyTorch, TensorFlow, RAG,
+   OAuth, JWT, Encryption,
+   MSA, DDD, Clean Architecture, Event-Driven, REST, gRPC,
+   Java, Python, JavaScript, Go, Rust, C++, C#,
+   Algorithm, Data Structure, OS, Network, Design Pattern]
+  버전 번호 제외. tags와 keywords가 겹치지 않게 (tags=기술 스택, keywords=개념)
 - difficulty: easy(입문자도 이해 가능) / medium(실무 경험 필요) / hard(깊은 도메인 지식 필요)
 
 ### beginner / junior / mid / senior (레벨별 필드)
@@ -93,17 +106,39 @@ SUMMARY_ALL_LEVELS_TOOL = {
                         "items": {"type": "string"},
                         "description": "본문 핵심 용어 3~7개",
                     },
+                    "category": {
+                        "type": "string",
+                        "enum": [
+                            "Frontend",
+                            "Backend",
+                            "Mobile",
+                            "DevOps",
+                            "Database",
+                            "AI/ML",
+                            "Security",
+                            "Architecture",
+                            "Language",
+                            "CS Fundamentals",
+                        ],
+                        "description": "글의 기술 대분류",
+                    },
                     "tags": {
                         "type": "array",
                         "items": {"type": "string"},
-                        "description": "기술 스택/카테고리 2~5개",
+                        "description": "기술 스택 태그 2~5개 (우선 목록 참고, 새 기술은 자유 추가)",
                     },
                     "difficulty": {
                         "type": "string",
                         "enum": ["easy", "medium", "hard"],
                     },
                 },
-                "required": ["one_line_summary", "keywords", "tags", "difficulty"],
+                "required": [
+                    "one_line_summary",
+                    "keywords",
+                    "category",
+                    "tags",
+                    "difficulty",
+                ],
             },
             "beginner": _LEVEL_SUMMARY_SCHEMA,
             "junior": _LEVEL_SUMMARY_SCHEMA,

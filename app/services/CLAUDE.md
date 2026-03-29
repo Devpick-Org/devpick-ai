@@ -9,7 +9,6 @@
 
 | 파일 | 클래스 | 역할 |
 |------|--------|------|
-| `ingest_service.py` | `IngestService` | Collector 실행 + FileRawStore 저장 오케스트레이션 |
 | `normalize_service.py` | `NormalizeService` | `RawEntry` → `NormalizedContent` 변환 |
 | `push_service.py` | `PushService` | 정규화된 콘텐츠를 Backend ingest API로 HTTP POST |
 | `preprocess_service.py` | `PreprocessService` | HTML → 구조 보존 텍스트 변환 (LLM 입력 전처리) |
@@ -30,7 +29,6 @@
 
 ```
 Collector.collect(source)
-    → FileRawStore (data/raw/ JSONL 저장)
     → SentIdStore.load(source.name) → 이미 전송된 ID 필터 (RawEntry 기준)
     → NormalizeService.normalize_entry() → list[NormalizedContent]
     → PushService.push(new_items) → POST /internal/contents
@@ -39,6 +37,16 @@ Collector.collect(source)
 
 새 항목이 없으면 PushService 호출 없이 skip한다.
 
+### run_collect_and_save.py 기준 로컬 저장 파이프라인
+
+```
+Collector.collect(source)
+    → SentIdStore.load(source.name) → 이미 저장된 ID 필터
+    → NormalizeService.normalize_entry() → list[NormalizedContent]
+    → data/raw/normalized/{source_name}.jsonl 로컬 JSONL 저장
+    → SentIdStore.add(source.name, saved_ids)
+```
+
 ### 전처리 흐름 (DP-216)
 
 ```
@@ -46,17 +54,6 @@ NormalizedContent.body_candidate (HTML)
     → PreprocessService.preprocess() → 구조 보존 텍스트
     → SummaryService.summarize(content_id, level, text) → SummaryResponse
 ```
-
-### IngestService (독립 사용 가능)
-
-```
-IngestService.run_source(source)
-    → Collector.collect()
-    → FileRawStore.save_feed() + save_entries()
-    → {"source": ..., "saved_entries": ..., "status": "ok"}
-```
-
-`IngestService`는 수집+저장만 담당한다. 정규화/dedup/push는 포함하지 않는다.
 
 ---
 

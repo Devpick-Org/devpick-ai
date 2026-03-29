@@ -30,17 +30,16 @@ app/
 ```
 SourceConfig (app/configs/sources.py)
     ↓
-Collector.collect() → (RawFeedMeta, list[RawEntry], raw_xml)
-    ↓
-FileRawStore.save_feed() + save_entries() → data/raw/ JSONL
+Collector.collect() → (_, list[RawEntry], _)
     ↓
 NormalizeService.normalize_entry() → list[NormalizedContent]
     ↓
-SentIdStore.load() → 이미 전송된 ID 필터링
+SentIdStore.load() → 이미 처리된 ID 필터링
     ↓
-PushService.push(new_items) → POST /internal/contents → Backend
+[로컬 저장] data/raw/normalized/{source}.jsonl  (run_collect_and_save.py)
+[백서버 push] POST /internal/contents → Backend  (run_collect_and_push.py)
     ↓
-SentIdStore.add() → 전송 완료 ID 기록
+SentIdStore.add() → 처리 완료 ID 기록
 ```
 
 전체 파이프라인 실행 진입점: `scripts/run_collect_and_push.py`

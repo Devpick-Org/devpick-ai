@@ -34,16 +34,28 @@
 | 파일 | 설명 |
 |------|------|
 | `init_mongo.py` | Mongo ping 확인, 최소 컬렉션/인덱스 생성, seed upsert |
+| `run_collect_and_save.py` | 수집 → 정규화 → dedup → 로컬 JSONL 저장 (백서버 미연동 환경) |
 | `run_collect_and_push.py` | 수집 → 정규화 → dedup → Backend push 통합 파이프라인 (DP-199) |
 | `run_scheduler.py` | 6시간 간격으로 `run_collect_and_push.main()` 반복 실행 |
-| `run_rss_collect.py` | RSS/Atom 수집만 실행 (push 없음) |
-| `run_rss_crawl_collect.py` | Kakao RSS + HTML 본문 보강 수집만 실행 |
-| `inspect_raw_data.py` | `data/raw/` JSONL 내용 점검 |
-| `inspect_preprocess.py` | URL 또는 raw 피드 JSON 기반 전처리 출력 확인 |
+| `inspect_preprocess.py` | URL 기반 전처리 출력 확인 |
+
+### `run_collect_and_save.py` (DP-199)
+
+백서버 미연동 환경에서 수집 결과를 로컬에 저장한다.
+
+```bash
+python scripts/run_collect_and_save.py
+```
+
+- 환경변수 불필요
+- Level-2 소스(RSS/Atom) → `RSSCollector`, Level-1 소스(Crawl) → `RSSCrawlCollector` 순으로 실행
+- `SentIdStore(data/raw/sent_ids)` — `run_collect_and_push.py`와 dedup 상태 공유
+- 출력: `data/raw/normalized/{source_name}.jsonl` (append)
+- 소스별 실패는 개별 catch — 전체 파이프라인이 중단되지 않는다
 
 ### `run_collect_and_push.py` (DP-199)
 
-수집 파이프라인 전체를 한 번에 실행한다.
+수집 파이프라인 전체를 한 번에 실행한다. 백서버 연동 시 사용.
 
 ```bash
 BACKEND_URL=http://localhost:8080 python scripts/run_collect_and_push.py
@@ -72,11 +84,7 @@ BACKEND_URL=http://localhost:8080 python scripts/run_scheduler.py
 전처리 출력을 확인하는 디버그용 스크립트다.
 
 ```bash
-# URL 직접 전처리
 python scripts/inspect_preprocess.py --url https://d2.naver.com/...
-
-# 저장된 raw 피드 JSON으로 전처리
-python scripts/inspect_preprocess.py --raw data/raw/feeds/NAVER_D2/20260307T145414Z_d52125d89072.json
 ```
 
 ### 앞으로 추가 가능

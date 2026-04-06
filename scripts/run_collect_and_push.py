@@ -124,17 +124,22 @@ def main() -> None:
         content_level=1,
     )
 
-    # Stack Overflow (API 기반)
+    # Stack Overflow (API 기반, sort=hot, score≥5, view_count≥500)
     so_tags_raw = os.environ.get("STACKOVERFLOW_TAGS", "java,spring-boot,kotlin,python")
     so_tags = [t.strip() for t in so_tags_raw.split(",") if t.strip()]
     so_collector = StackOverflowCollector(
         api_key=os.environ.get("STACKOVERFLOW_API_KEY"),
+        min_score=int(os.environ.get("STACKOVERFLOW_MIN_SCORE", "5")),
+        min_views=int(os.environ.get("STACKOVERFLOW_MIN_VIEWS", "500")),
+        days_back=int(os.environ.get("STACKOVERFLOW_DAYS_BACK", "7")),
     )
     so_contents = so_collector.fetch(tags=so_tags)
     collect_and_push_direct(push_service, sent_id_store, "stackoverflow", so_contents)
 
-    # Velog (GraphQL 기반, ADR-006: SUMMARY_ONLY)
-    velog_collector = VelogCollector()
+    # Velog (GraphQL 기반, ADR-006: SUMMARY_ONLY, 2026-01-01 이후만)
+    velog_collector = VelogCollector(
+        min_date=os.environ.get("VELOG_MIN_DATE", "2026-01-01"),
+    )
     velog_contents = velog_collector.fetch()
     collect_and_push_direct(push_service, sent_id_store, "velog", velog_contents)
 

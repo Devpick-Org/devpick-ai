@@ -23,6 +23,8 @@ def make_question(
     is_answered: bool = True,
     creation_date: int = 1_700_000_000,
     owner_display_name: str = "devuser",
+    score: int = 15,
+    view_count: int = 1200,
 ) -> dict:
     return {
         "question_id": question_id,
@@ -33,8 +35,8 @@ def make_question(
         "is_answered": is_answered,
         "creation_date": creation_date,
         "owner": {"display_name": owner_display_name},
-        "score": 42,
-        "view_count": 1000,
+        "score": score,
+        "view_count": view_count,
     }
 
 
@@ -63,8 +65,8 @@ def mock_get_response(json_data: dict) -> MagicMock:
 
 
 def test_fetch_returns_normalized_contents() -> None:
-    collector = StackOverflowCollector()
-    question = make_question()
+    collector = StackOverflowCollector(min_score=5, min_views=500)
+    question = make_question(score=15, view_count=1200)
     answer = make_answer()
 
     q_resp = mock_get_response({"items": [question], "quota_remaining": 290})
@@ -83,6 +85,34 @@ def test_fetch_returns_normalized_contents() -> None:
     assert content.is_original_visible is True
     assert content.license_type == "CC BY-SA 4.0"
     assert "java" in content.tags
+    assert content.view_count == 1200
+    assert content.likes == 15  # SO score → likes
+
+
+def test_fetch_filters_out_low_view_count() -> None:
+    """Questions with view_count < min_views must be filtered out."""
+    collector = StackOverflowCollector(min_score=5, min_views=500)
+    question = make_question(score=15, view_count=100)  # below min_views=500
+
+    q_resp = mock_get_response({"items": [question], "quota_remaining": 290})
+
+    with patch.object(collector.session, "get", return_value=q_resp):
+        results = collector.fetch(tags=["java"])
+
+    assert results == []
+
+
+def test_fetch_keeps_question_with_exact_min_views() -> None:
+    """view_count == min_views should pass the filter."""
+    collector = StackOverflowCollector(min_score=5, min_views=500)
+    question = make_question(score=10, view_count=500, is_answered=False)
+
+    q_resp = mock_get_response({"items": [question], "quota_remaining": 290})
+
+    with patch.object(collector.session, "get", return_value=q_resp):
+        results = collector.fetch(tags=["java"])
+
+    assert len(results) == 1
 
 
 def test_fetch_returns_empty_on_empty_api_response() -> None:
@@ -107,10 +137,10 @@ def test_fetch_returns_empty_on_exception() -> None:
 
 
 def test_fetch_skips_question_without_link() -> None:
-    collector = StackOverflowCollector()
+    collector = StackOverflowCollector(min_views=0)
     question = make_question()
     question.pop("link")
-    question["is_answered"] = False  # no answers needed
+    question["is_answered"] = False
 
     q_resp = mock_get_response({"items": [question]})
 
@@ -121,7 +151,7 @@ def test_fetch_skips_question_without_link() -> None:
 
 
 def test_fetch_continues_when_answer_fetch_fails() -> None:
-    collector = StackOverflowCollector()
+    collector = StackOverflowCollector(min_views=0)
     question = make_question(is_answered=True)
 
     q_resp = mock_get_response({"items": [question], "quota_remaining": 100})
@@ -131,12 +161,49 @@ def test_fetch_continues_when_answer_fetch_fails() -> None:
     with patch.object(collector.session, "get", side_effect=[q_resp, a_resp]):
         results = collector.fetch(tags=["java"])
 
-    # Question is still returned; answers just missing
     assert len(results) == 1
     assert results[0].canonical_url == question["link"]
 
 
-# ── _fetch_questions ──────────────────────────────────────────────────────────
+# ── _fetch_questions — parameter checks ──────────────────────────────────────
+
+
+def test_fetch_questions_uses_hot_sort() -> None:
+    """sort parameter must be 'hot' (not 'votes')."""
+    collector = StackOverflowCollector()
+    q_resp = mock_get_response({"items": []})
+
+    with patch.object(collector.session, "get", return_value=q_resp) as mock_get:
+        collector._fetch_questions(tags=["python"])
+
+    call_params = mock_get.call_args.kwargs["params"]
+    assert call_params["sort"] == "hot"
+
+
+def test_fetch_questions_uses_default_days_back_7() -> None:
+    """Default fromdate should be ~7 days ago."""
+    from datetime import datetime, timezone, timedelta
+
+    collector = StackOverflowCollector(days_back=7)
+    q_resp = mock_get_response({"items": []})
+
+    with patch.object(collector.session, "get", return_value=q_resp) as mock_get:
+        collector._fetch_questions(tags=["python"])
+
+    call_params = mock_get.call_args.kwargs["params"]
+    expected_approx = int((datetime.now(timezone.utc) - timedelta(days=7)).timestamp())
+    assert abs(call_params["fromdate"] - expected_approx) < 5  # within 5 seconds
+
+
+def test_fetch_questions_sends_min_score() -> None:
+    collector = StackOverflowCollector(min_score=5)
+    q_resp = mock_get_response({"items": []})
+
+    with patch.object(collector.session, "get", return_value=q_resp) as mock_get:
+        collector._fetch_questions(tags=["python"])
+
+    call_params = mock_get.call_args.kwargs["params"]
+    assert call_params["min"] == 5
 
 
 def test_fetch_questions_includes_api_key_when_set() -> None:
@@ -144,7 +211,7 @@ def test_fetch_questions_includes_api_key_when_set() -> None:
     q_resp = mock_get_response({"items": []})
 
     with patch.object(collector.session, "get", return_value=q_resp) as mock_get:
-        collector._fetch_questions(tags=["python"], days_back=30)
+        collector._fetch_questions(tags=["python"])
 
     call_params = mock_get.call_args.kwargs["params"]
     assert call_params["key"] == "mykey123"
@@ -155,7 +222,7 @@ def test_fetch_questions_omits_api_key_when_not_set() -> None:
     q_resp = mock_get_response({"items": []})
 
     with patch.object(collector.session, "get", return_value=q_resp) as mock_get:
-        collector._fetch_questions(tags=["python"], days_back=30)
+        collector._fetch_questions(tags=["python"])
 
     call_params = mock_get.call_args.kwargs["params"]
     assert "key" not in call_params
@@ -166,7 +233,7 @@ def test_fetch_questions_joins_tags_with_semicolon() -> None:
     q_resp = mock_get_response({"items": []})
 
     with patch.object(collector.session, "get", return_value=q_resp) as mock_get:
-        collector._fetch_questions(tags=["java", "spring-boot"], days_back=30)
+        collector._fetch_questions(tags=["java", "spring-boot"])
 
     call_params = mock_get.call_args.kwargs["params"]
     assert call_params["tagged"] == "java;spring-boot"
@@ -177,7 +244,7 @@ def test_fetch_questions_omits_tagged_when_empty() -> None:
     q_resp = mock_get_response({"items": []})
 
     with patch.object(collector.session, "get", return_value=q_resp) as mock_get:
-        collector._fetch_questions(tags=[], days_back=30)
+        collector._fetch_questions(tags=[])
 
     call_params = mock_get.call_args.kwargs["params"]
     assert "tagged" not in call_params
@@ -213,6 +280,17 @@ def test_fetch_answers_batch_returns_empty_dict_on_error() -> None:
 
 
 # ── _to_normalized_content ────────────────────────────────────────────────────
+
+
+def test_to_normalized_content_includes_view_count_and_likes() -> None:
+    collector = StackOverflowCollector()
+    q = make_question(score=42, view_count=3000)
+
+    result = collector._to_normalized_content(q, [])
+
+    assert result is not None
+    assert result.view_count == 3000
+    assert result.likes == 42
 
 
 def test_to_normalized_content_missing_link_returns_none() -> None:

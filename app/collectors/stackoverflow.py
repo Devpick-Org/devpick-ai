@@ -1,8 +1,11 @@
 """Stack Overflow API v2.3 collector for Q&A content.
 
 수집 전략:
-- sort=votes — 추천수 기준 정렬
-- fromdate=30일 전 — 최근 1달 이내 게시물만
+- sort=hot — 최신 + 높은 점수 가중 (score / (age_hours+1)^1.5)
+- fromdate=7일 전 — 최근 1주 이내 게시물만 (트렌딩 포커스)
+- pagesize=30 — 후보 풀 확보 후 임계값 필터링
+- min=5 — 추천수(score) 5 이상인 질문만
+- view_count >= 500 — 조회수 500 이상 (수집 후 필터링)
 - answered 질문에 한해 배치로 답변 수집 (1회 API 호출)
 - acceptedAnswer + score 상위 2개 topAnswers를 body_candidate에 통합
 - License: CC BY-SA 4.0 (저자명 + 원문 링크 표시 조건으로 원문 표시 허용)
@@ -25,27 +28,41 @@ logger = logging.getLogger(__name__)
 _BASE_URL = "https://api.stackexchange.com/2.3"
 _SITE = "stackoverflow"
 _LICENSE_TYPE = "CC BY-SA 4.0"
-_PAGE_SIZE = 20
+_PAGE_SIZE = 30
 _TOP_ANSWER_LIMIT = 2
 _PREVIEW_MAX_LENGTH = 300
+_DEFAULT_DAYS_BACK = 7
+_DEFAULT_MIN_SCORE = 5
+_DEFAULT_MIN_VIEWS = 500
 
 
 class StackOverflowCollector:
-    """Collects Q&A content from Stack Overflow API v2.3.
+    """Collects trending Q&A content from Stack Overflow API v2.3.
+
+    수집 기준:
+    - sort=hot (시간 가중 인기도), 7일 이내
+    - score >= min_score (기본 5)
+    - view_count >= min_views (기본 500, 수집 후 필터링)
 
     Usage:
-        collector = StackOverflowCollector(api_key="...", tags=["java", "python"])
-        contents = collector.fetch()
+        collector = StackOverflowCollector(api_key="...", min_score=5, min_views=500)
+        contents = collector.fetch(tags=["java", "python"])
         # contents: list[NormalizedContent]
     """
 
     def __init__(
         self,
         api_key: str | None = None,
+        min_score: int = _DEFAULT_MIN_SCORE,
+        min_views: int = _DEFAULT_MIN_VIEWS,
+        days_back: int = _DEFAULT_DAYS_BACK,
         timeout: float = 15.0,
         max_retries: int = 2,
     ) -> None:
         self.api_key = api_key or ""
+        self.min_score = min_score
+        self.min_views = min_views
+        self.days_back = days_back
         self.timeout = timeout
         self.session = requests.Session()
 
@@ -63,29 +80,44 @@ class StackOverflowCollector:
         self.session.mount("http://", adapter)
         self.session.mount("https://", adapter)
 
-    def fetch(self, tags: list[str], days_back: int = 30) -> list[NormalizedContent]:
-        """Fetch questions with answers from Stack Overflow API.
+    def fetch(self, tags: list[str]) -> list[NormalizedContent]:
+        """Fetch trending questions with answers from Stack Overflow API.
 
         Args:
             tags: Tag filters (e.g. ["java", "spring-boot"]).
-            days_back: Collect questions published within this many days.
 
         Returns:
-            List of NormalizedContent for each collected question.
+            List of NormalizedContent after applying score/view thresholds.
         """
         try:
-            questions = self._fetch_questions(tags, days_back)
+            questions = self._fetch_questions(tags)
             if not questions:
                 logger.info("StackOverflow returned no questions for tags=%s", tags)
                 return []
 
-            answered_ids = [q["question_id"] for q in questions if q.get("is_answered")]
+            # view_count 임계값 필터링 (API 파라미터 미지원)
+            filtered = [q for q in questions if (q.get("view_count") or 0) >= self.min_views]
+            if not filtered:
+                logger.info(
+                    "StackOverflow all %d questions filtered out (view_count<%d)",
+                    len(questions),
+                    self.min_views,
+                )
+                return []
+
+            logger.info(
+                "StackOverflow questions: fetched=%d, after_view_filter=%d",
+                len(questions),
+                len(filtered),
+            )
+
+            answered_ids = [q["question_id"] for q in filtered if q.get("is_answered")]
             answers_map: dict[int, list[dict]] = {}
             if answered_ids:
                 answers_map = self._fetch_answers_batch(answered_ids)
 
             results: list[NormalizedContent] = []
-            for q in questions:
+            for q in filtered:
                 content = self._to_normalized_content(
                     q, answers_map.get(q.get("question_id", 0), [])
                 )
@@ -93,7 +125,11 @@ class StackOverflowCollector:
                     results.append(content)
 
             logger.info(
-                "StackOverflow collected=%d questions tags=%s", len(results), tags
+                "StackOverflow collected=%d tags=%s score>=%d views>=%d",
+                len(results),
+                tags,
+                self.min_score,
+                self.min_views,
             )
             return results
 
@@ -101,17 +137,18 @@ class StackOverflowCollector:
             logger.exception("StackOverflow collection failed tags=%s", tags)
             return []
 
-    def _fetch_questions(self, tags: list[str], days_back: int) -> list[dict]:
+    def _fetch_questions(self, tags: list[str]) -> list[dict]:
         from_date = int(
-            (datetime.now(timezone.utc) - timedelta(days=days_back)).timestamp()
+            (datetime.now(timezone.utc) - timedelta(days=self.days_back)).timestamp()
         )
         params: dict = {
             "order": "desc",
-            "sort": "votes",
+            "sort": "hot",           # 변경: votes → hot (시간 가중 인기도)
             "site": _SITE,
             "filter": "withbody",
             "fromdate": from_date,
             "pagesize": _PAGE_SIZE,
+            "min": self.min_score,   # score 최솟값 서버측 필터링
         }
         if tags:
             params["tagged"] = ";".join(tags)
@@ -214,6 +251,8 @@ class StackOverflowCollector:
             is_original_visible=True,
             license_type=_LICENSE_TYPE,
             tags=q.get("tags") or [],
+            view_count=q.get("view_count"),
+            likes=q.get("score"),
         )
 
 

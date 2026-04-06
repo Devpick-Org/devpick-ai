@@ -25,8 +25,6 @@ class EmbeddingOrchestrator:
     def __init__(
         self,
         aws_region: str = "ap-northeast-2",
-        mongo_uri: str = "",
-        mongo_db: str = "devpick",
         index_path: str = _DEFAULT_INDEX_PATH,
         chunk_size: int = 1000,
         chunk_overlap: int = 200,
@@ -40,7 +38,7 @@ class EmbeddingOrchestrator:
             embedding_model=BedrockEmbeddingsAdapter(service=embedding_svc),
             index_path=index_path,
         )
-        self._vector_repo = VectorRepository(mongo_uri=mongo_uri, db_name=mongo_db)
+        self._vector_repo = VectorRepository(aws_region=aws_region)
         self._vector_store.load_or_create()
 
     def embed_and_store(

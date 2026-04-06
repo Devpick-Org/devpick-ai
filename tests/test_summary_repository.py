@@ -1,4 +1,4 @@
-"""SummaryRepository 단위 테스트 — pymongo mock 기반, 실제 DB 호출 없음 (DP-300)."""
+"""SummaryRepository 단위 테스트 — DynamoDB mock 기반, 실제 DB 호출 없음 (DP-300)."""
 
 from __future__ import annotations
 
@@ -9,26 +9,6 @@ import pytest
 from app.repositories.summary_repository import SummaryRepository
 from app.schemas.summary import AllLevelsSummaryResponse
 
-
-@pytest.fixture()
-def mock_collection() -> MagicMock:
-    return MagicMock()
-
-
-@pytest.fixture()
-def repo(mock_collection: MagicMock) -> SummaryRepository:
-    with patch("app.repositories.summary_repository.MongoClient") as mock_cls:
-        mock_client = MagicMock()
-        mock_cls.return_value = mock_client
-        mock_client.__getitem__.return_value.__getitem__.return_value = mock_collection
-        instance = SummaryRepository(
-            mongo_uri="mongodb://localhost:27017", db_name="devpick"
-        )
-    instance._collection = mock_collection
-    return instance
-
-
-# ─── DP-300: save_all_levels 테스트 ──────────────────────────────────────────
 
 _LEVEL_PAYLOAD = {
     "core_summary": [{"heading": "소제목", "content": "요약 내용"}],
@@ -56,46 +36,80 @@ _VALID_ALL_LEVELS = {
 }
 
 
-def test_save_all_levels_calls_bulk_write(
-    repo: SummaryRepository, mock_collection: MagicMock
+@pytest.fixture()
+def mock_table() -> MagicMock:
+    return MagicMock()
+
+
+@pytest.fixture()
+def repo(mock_table: MagicMock) -> SummaryRepository:
+    with patch("boto3.resource") as mock_resource:
+        mock_resource.return_value.Table.return_value = mock_table
+        instance = SummaryRepository(aws_region="us-east-1")
+    instance._table = mock_table
+    return instance
+
+
+# ─── DP-300: save_all_levels 테스트 ──────────────────────────────────────────
+
+
+def test_save_all_levels_calls_update_item_4_times(
+    repo: SummaryRepository, mock_table: MagicMock
 ) -> None:
     response = AllLevelsSummaryResponse.model_validate(_VALID_ALL_LEVELS)
     repo.save_all_levels("test-all-001", response)
 
-    mock_collection.bulk_write.assert_called_once()
-
-
-def test_save_all_levels_creates_4_ops(
-    repo: SummaryRepository, mock_collection: MagicMock
-) -> None:
-    response = AllLevelsSummaryResponse.model_validate(_VALID_ALL_LEVELS)
-    repo.save_all_levels("test-all-001", response)
-
-    ops = mock_collection.bulk_write.call_args[0][0]
-    assert len(ops) == 4
+    assert mock_table.update_item.call_count == 4
 
 
 def test_save_all_levels_includes_all_level_names(
-    repo: SummaryRepository, mock_collection: MagicMock
+    repo: SummaryRepository, mock_table: MagicMock
 ) -> None:
     response = AllLevelsSummaryResponse.model_validate(_VALID_ALL_LEVELS)
     repo.save_all_levels("test-all-001", response)
 
-    ops = mock_collection.bulk_write.call_args[0][0]
-    # 각 UpdateOne에서 filter의 level 값 추출
-    levels = {op._filter["level"] for op in ops}
+    levels = {
+        call.kwargs["Key"]["level"]
+        for call in mock_table.update_item.call_args_list
+    }
     assert levels == {"beginner", "junior", "mid", "senior"}
 
 
-def test_save_all_levels_includes_common_fields_in_each_doc(
-    repo: SummaryRepository, mock_collection: MagicMock
+def test_save_all_levels_includes_common_fields(
+    repo: SummaryRepository, mock_table: MagicMock
 ) -> None:
     response = AllLevelsSummaryResponse.model_validate(_VALID_ALL_LEVELS)
     repo.save_all_levels("test-all-001", response)
 
-    ops = mock_collection.bulk_write.call_args[0][0]
-    for op in ops:
-        doc = op._doc["$set"]
-        assert doc["one_line_summary"] == "Redis TTL 설정 전략"
-        assert "TTL" in doc["keywords"]
-        assert doc["difficulty"] == "easy"
+    for call in mock_table.update_item.call_args_list:
+        expr_values = call.kwargs["ExpressionAttributeValues"]
+        # one_line_summary は common フィールド
+        assert any(
+            v == "Redis TTL 설정 전략"
+            for v in expr_values.values()
+        )
+        assert any(
+            v == "easy"
+            for v in expr_values.values()
+        )
+
+
+def test_save_all_levels_sets_content_id_key(
+    repo: SummaryRepository, mock_table: MagicMock
+) -> None:
+    response = AllLevelsSummaryResponse.model_validate(_VALID_ALL_LEVELS)
+    repo.save_all_levels("test-all-001", response)
+
+    for call in mock_table.update_item.call_args_list:
+        assert call.kwargs["Key"]["content_id"] == "test-all-001"
+
+
+def test_save_all_levels_includes_created_at_if_not_exists(
+    repo: SummaryRepository, mock_table: MagicMock
+) -> None:
+    response = AllLevelsSummaryResponse.model_validate(_VALID_ALL_LEVELS)
+    repo.save_all_levels("test-all-001", response)
+
+    for call in mock_table.update_item.call_args_list:
+        expr = call.kwargs["UpdateExpression"]
+        assert "if_not_exists(created_at" in expr

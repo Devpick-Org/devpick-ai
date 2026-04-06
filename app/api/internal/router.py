@@ -37,8 +37,6 @@ from app.services.similar_question_service import SimilarQuestionService
 load_dotenv()
 _AWS_REGION = os.getenv("AWS_REGION", "ap-northeast-2")
 _BEDROCK_MODEL = os.getenv("BEDROCK_MODEL", "anthropic.claude-sonnet-4-5")
-_MONGO_URI = os.getenv("MONGO_URI", "")
-_MONGO_DB = os.getenv("MONGO_DB", "devpick")
 
 logger = logging.getLogger(__name__)
 
@@ -74,30 +72,24 @@ def create_all_levels_summary(
         thumbnail_url=body.thumbnail_url,
     )
 
-    # MongoDB 저장 (fire-and-forget)
-    if _MONGO_URI:
-        try:
-            SummaryRepository(mongo_uri=_MONGO_URI, db_name=_MONGO_DB).save_all_levels(
-                content_id=body.content_id,
-                response=result,
-            )
-        except Exception:
-            logger.exception("Failed to save all-levels summary to MongoDB")
+    # DynamoDB 저장 (fire-and-forget)
+    try:
+        SummaryRepository(aws_region=_AWS_REGION).save_all_levels(
+            content_id=body.content_id,
+            response=result,
+        )
+    except Exception:
+        logger.exception("Failed to save all-levels summary to DynamoDB")
 
     # 임베딩 + RAG 저장 (fire-and-forget)
-    if _MONGO_URI:
-        try:
-            EmbeddingOrchestrator(
-                aws_region=_AWS_REGION,
-                mongo_uri=_MONGO_URI,
-                mongo_db=_MONGO_DB,
-            ).embed_and_store(
-                content_id=body.content_id,
-                preprocessed_text=preprocessed,
-                summary=result,
-            )
-        except Exception:
-            logger.exception("Failed to embed content for RAG")
+    try:
+        EmbeddingOrchestrator(aws_region=_AWS_REGION).embed_and_store(
+            content_id=body.content_id,
+            preprocessed_text=preprocessed,
+            summary=result,
+        )
+    except Exception:
+        logger.exception("Failed to embed content for RAG")
 
     return result
 
@@ -113,17 +105,15 @@ def create_refine(body: RefineRequest) -> RefineResponse:
     에러는 전역 핸들러(AIServiceError)가 처리한다.
     라우터는 컨텍스트 조회 + 서비스 호출만 담당한다.
     """
-    # content_id가 있으면 MongoDB에서 해당 아티클 청크 조회 (fire-and-forget)
+    # content_id가 있으면 DynamoDB에서 해당 아티클 청크 조회
     context_chunks: list[str] | None = None
-    if body.content_id and _MONGO_URI:
+    if body.content_id:
         try:
-            docs = VectorRepository(
-                mongo_uri=_MONGO_URI, db_name=_MONGO_DB
-            ).find_by_content_id(body.content_id)
+            docs = VectorRepository(aws_region=_AWS_REGION).find_by_content_id(body.content_id)
             if docs:
                 context_chunks = [doc["text"] for doc in docs]
         except Exception:
-            logger.exception("Failed to fetch context chunks from MongoDB")
+            logger.exception("Failed to fetch context chunks from DynamoDB")
 
     result = RefineService(aws_region=_AWS_REGION, model=_BEDROCK_MODEL).refine(
         title=body.title,
@@ -132,9 +122,9 @@ def create_refine(body: RefineRequest) -> RefineResponse:
     )
 
     # 이벤트 로그 저장 (fire-and-forget, DP-252)
-    if body.user_id and _MONGO_URI:
+    if body.user_id:
         try:
-            EventRepository(mongo_uri=_MONGO_URI, db_name=_MONGO_DB).save_event(
+            EventRepository(aws_region=_AWS_REGION).save_event(
                 user_id=body.user_id,
                 event_type=EventType.QUESTION_REFINED,
                 content_id=body.content_id,
@@ -158,15 +148,13 @@ def create_answer(body: AnswerRequest) -> AnswerResponse:
     """
     # Step 1. content_id 있으면 해당 아티클 청크 조회
     article_chunks: list[str] | None = None
-    if body.content_id and _MONGO_URI:
+    if body.content_id:
         try:
-            docs = VectorRepository(
-                mongo_uri=_MONGO_URI, db_name=_MONGO_DB
-            ).find_by_content_id(body.content_id)
+            docs = VectorRepository(aws_region=_AWS_REGION).find_by_content_id(body.content_id)
             if docs:
                 article_chunks = [doc["text"] for doc in docs]
         except Exception:
-            logger.exception("Failed to fetch article chunks from MongoDB")
+            logger.exception("Failed to fetch article chunks from DynamoDB")
 
     # Step 2. RAG 유사 문서 검색 (항상 시도)
     rag_chunks: list[str] | None = None
@@ -198,11 +186,9 @@ def create_answer(body: AnswerRequest) -> AnswerResponse:
     )
 
     # Step 4. references 기반 related_contents 주입
-    if references and _MONGO_URI:
+    if references:
         try:
-            summaries = SummaryRepository(
-                mongo_uri=_MONGO_URI, db_name=_MONGO_DB
-            ).find_by_content_ids(references)
+            summaries = SummaryRepository(aws_region=_AWS_REGION).find_by_content_ids(references)
             result.related_contents = [
                 RelatedContent(
                     content_id=s["content_id"],
@@ -211,28 +197,23 @@ def create_answer(body: AnswerRequest) -> AnswerResponse:
                 for s in summaries
             ]
         except Exception:
-            logger.exception("Failed to fetch related contents from MongoDB")
+            logger.exception("Failed to fetch related contents from DynamoDB")
 
-    # Step 5. 답변 MongoDB 저장 (fire-and-forget)
-    if _MONGO_URI:
-        try:
-            AnswerRepository(mongo_uri=_MONGO_URI, db_name=_MONGO_DB).save(
-                result,
-                question_id=body.question_id,
-                content_id=body.content_id,
-            )
-        except Exception:
-            logger.exception("Failed to save answer to MongoDB")
+    # Step 5. 답변 DynamoDB 저장 (fire-and-forget)
+    try:
+        AnswerRepository(aws_region=_AWS_REGION).save(
+            result,
+            question_id=body.question_id,
+            content_id=body.content_id,
+        )
+    except Exception:
+        logger.exception("Failed to save answer to DynamoDB")
 
     # Step 6. 질문 임베딩 저장 (fire-and-forget)
-    if body.question_id and _MONGO_URI:
+    if body.question_id:
         try:
             question_text = f"{body.refined_title}\n{body.refined_content}"
-            QuestionEmbeddingOrchestrator(
-                aws_region=_AWS_REGION,
-                mongo_uri=_MONGO_URI,
-                mongo_db=_MONGO_DB,
-            ).embed_and_store(
+            QuestionEmbeddingOrchestrator(aws_region=_AWS_REGION).embed_and_store(
                 question_id=body.question_id,
                 text=question_text,
                 suggested_tags=body.suggested_tags,
@@ -242,9 +223,9 @@ def create_answer(body: AnswerRequest) -> AnswerResponse:
             logger.exception("Failed to embed question for RAG")
 
     # Step 7. 이벤트 로그 저장 (fire-and-forget, DP-252)
-    if body.user_id and _MONGO_URI:
+    if body.user_id:
         try:
-            EventRepository(mongo_uri=_MONGO_URI, db_name=_MONGO_DB).save_event(
+            EventRepository(aws_region=_AWS_REGION).save_event(
                 user_id=body.user_id,
                 event_type=EventType.ANSWER_GENERATED,
                 content_id=body.content_id,
@@ -276,9 +257,9 @@ def search_similar_questions(body: SimilarQuestionRequest) -> SimilarQuestionRes
     )
 
     # 이벤트 로그 저장 (fire-and-forget, DP-252)
-    if body.user_id and _MONGO_URI:
+    if body.user_id:
         try:
-            EventRepository(mongo_uri=_MONGO_URI, db_name=_MONGO_DB).save_event(
+            EventRepository(aws_region=_AWS_REGION).save_event(
                 user_id=body.user_id,
                 event_type=EventType.SIMILAR_QUESTIONS_SEARCHED,
                 question_id=body.question_id,
@@ -299,71 +280,63 @@ def create_insight(body: InsightRequest) -> InsightResponse:
 
     백엔드가 주간 리포트 생성 후 호출한다.
     에러는 전역 핸들러(AIServiceError)가 처리한다.
-    MongoDB 저장 실패는 무시하고 InsightResponse를 반환한다.
+    DynamoDB 저장 실패는 무시하고 InsightResponse를 반환한다.
     """
     # Step 1. 주간 AI 이벤트 카운트 (event_logs 조회)
     ai_events: dict = {"refine": 0, "answer": 0, "similar": 0}
-    if _MONGO_URI:
-        try:
-            week_start_dt = datetime.fromisoformat(body.week_start).replace(
-                tzinfo=timezone.utc
-            )
-            week_end_dt = datetime.fromisoformat(body.week_end).replace(
-                tzinfo=timezone.utc
-            ) + timedelta(days=1)
-            events = EventRepository(
-                mongo_uri=_MONGO_URI, db_name=_MONGO_DB
-            ).find_by_user(
-                user_id=body.user_id,
-                start=week_start_dt,
-                end=week_end_dt,
-            )
-            ai_events = {
-                "refine": sum(
-                    1
-                    for e in events
-                    if e["event_type"] == EventType.QUESTION_REFINED.value
-                ),
-                "answer": sum(
-                    1
-                    for e in events
-                    if e["event_type"] == EventType.ANSWER_GENERATED.value
-                ),
-                "similar": sum(
-                    1
-                    for e in events
-                    if e["event_type"] == EventType.SIMILAR_QUESTIONS_SEARCHED.value
-                ),
-            }
-        except Exception:
-            logger.exception("Failed to fetch AI event counts from MongoDB")
+    try:
+        week_start_dt = datetime.fromisoformat(body.week_start).replace(
+            tzinfo=timezone.utc
+        )
+        week_end_dt = datetime.fromisoformat(body.week_end).replace(
+            tzinfo=timezone.utc
+        ) + timedelta(days=1)
+        events = EventRepository(aws_region=_AWS_REGION).find_by_user(
+            user_id=body.user_id,
+            start=week_start_dt,
+            end=week_end_dt,
+        )
+        ai_events = {
+            "refine": sum(
+                1
+                for e in events
+                if e["event_type"] == EventType.QUESTION_REFINED.value
+            ),
+            "answer": sum(
+                1
+                for e in events
+                if e["event_type"] == EventType.ANSWER_GENERATED.value
+            ),
+            "similar": sum(
+                1
+                for e in events
+                if e["event_type"] == EventType.SIMILAR_QUESTIONS_SEARCHED.value
+            ),
+        }
+    except Exception:
+        logger.exception("Failed to fetch AI event counts from DynamoDB")
 
     # Step 2. 읽은 글 / 스크랩한 글 one_line_summary 조회
     read_summaries: list[dict] = []
     scrapped_summaries: list[dict] = []
-    if _MONGO_URI:
-        try:
-            repo = SummaryRepository(mongo_uri=_MONGO_URI, db_name=_MONGO_DB)
-            if body.activities.read_content_ids:
-                read_summaries = repo.find_by_content_ids(
-                    body.activities.read_content_ids
-                )
-            if body.activities.scrapped_content_ids:
-                scrapped_summaries = repo.find_by_content_ids(
-                    body.activities.scrapped_content_ids
-                )
-        except Exception:
-            logger.exception("Failed to fetch article summaries from MongoDB")
+    try:
+        repo = SummaryRepository(aws_region=_AWS_REGION)
+        if body.activities.read_content_ids:
+            read_summaries = repo.find_by_content_ids(body.activities.read_content_ids)
+        if body.activities.scrapped_content_ids:
+            scrapped_summaries = repo.find_by_content_ids(body.activities.scrapped_content_ids)
+    except Exception:
+        logger.exception("Failed to fetch article summaries from DynamoDB")
 
     # Step 3. 작성한 질문 텍스트 조회
     question_texts: list[str] = []
-    if _MONGO_URI and body.activities.question_ids:
+    if body.activities.question_ids:
         try:
-            question_texts = QuestionVectorRepository(
-                mongo_uri=_MONGO_URI, db_name=_MONGO_DB
-            ).find_texts_by_ids(body.activities.question_ids)
+            question_texts = QuestionVectorRepository(aws_region=_AWS_REGION).find_texts_by_ids(
+                body.activities.question_ids
+            )
         except Exception:
-            logger.exception("Failed to fetch question texts from MongoDB")
+            logger.exception("Failed to fetch question texts from DynamoDB")
 
     # Step 4. 인사이트 생성
     result = InsightService(aws_region=_AWS_REGION, model=_BEDROCK_MODEL).generate(
@@ -377,25 +350,23 @@ def create_insight(body: InsightRequest) -> InsightResponse:
     )
     result.report_id = body.report_id
 
-    # Step 5. 인사이트 MongoDB 저장 (fire-and-forget)
-    if _MONGO_URI:
-        try:
-            InsightRepository(mongo_uri=_MONGO_URI, db_name=_MONGO_DB).save(
-                report_id=body.report_id,
-                user_id=body.user_id,
-                response=result,
-            )
-        except Exception:
-            logger.exception("Failed to save insight to MongoDB")
+    # Step 5. 인사이트 DynamoDB 저장 (fire-and-forget)
+    try:
+        InsightRepository(aws_region=_AWS_REGION).save(
+            report_id=body.report_id,
+            user_id=body.user_id,
+            response=result,
+        )
+    except Exception:
+        logger.exception("Failed to save insight to DynamoDB")
 
     # Step 6. 이벤트 로그 저장 (fire-and-forget)
-    if _MONGO_URI:
-        try:
-            EventRepository(mongo_uri=_MONGO_URI, db_name=_MONGO_DB).save_event(
-                user_id=body.user_id,
-                event_type=EventType.INSIGHT_GENERATED,
-            )
-        except Exception:
-            logger.exception("Failed to save insight event log")
+    try:
+        EventRepository(aws_region=_AWS_REGION).save_event(
+            user_id=body.user_id,
+            event_type=EventType.INSIGHT_GENERATED,
+        )
+    except Exception:
+        logger.exception("Failed to save insight event log")
 
     return result

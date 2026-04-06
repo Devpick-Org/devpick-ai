@@ -31,10 +31,7 @@ def _make_orchestrator() -> tuple[QuestionEmbeddingOrchestrator, MagicMock, Magi
         mock_repo = MagicMock()
         mock_repo_cls.return_value = mock_repo
 
-        orch = QuestionEmbeddingOrchestrator(
-            aws_region="us-east-1",
-            mongo_uri="mongodb://localhost:27017",
-        )
+        orch = QuestionEmbeddingOrchestrator(aws_region="us-east-1")
         orch._embedding_svc = mock_emb
         orch._vector_store = mock_store
         orch._question_repo = mock_repo

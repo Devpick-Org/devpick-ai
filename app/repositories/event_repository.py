@@ -1,23 +1,44 @@
-"""AI 처리 이벤트 MongoDB 저장 레이어 (DP-252)."""
+"""AI 처리 이벤트 DynamoDB 저장 레이어 (DP-252)."""
 
 from __future__ import annotations
 
 import logging
 from datetime import datetime, timezone
 
-from pymongo import DESCENDING, MongoClient
+import boto3
+from boto3.dynamodb.conditions import Key
 
 from app.schemas.event import EventType
 
 logger = logging.getLogger(__name__)
 
 
-class EventRepository:
-    """event_logs 컬렉션에 AI 처리 이벤트를 저장한다."""
+def _dedup_sk(date_str: str, event_type: str, content_id: str | None, question_id: str | None) -> str:
+    """일별 중복 제거용 Sort Key를 생성한다.
 
-    def __init__(self, mongo_uri: str, db_name: str = "devpick") -> None:
-        self._client: MongoClient = MongoClient(mongo_uri)
-        self._collection = self._client[db_name]["event_logs"]
+    형식: {YYYY-MM-DD}#{event_type}#{content_id or ''}#{question_id or ''}
+    """
+    return f"{date_str}#{event_type}#{content_id or ''}#{question_id or ''}"
+
+
+class EventRepository:
+    """event_logs DynamoDB 테이블에 AI 처리 이벤트를 저장한다.
+
+    테이블 스키마:
+        PK: user_id (S)
+        SK: {YYYY-MM-DD}#{event_type}#{content_id}#{question_id} (S)
+
+    이 SK 설계를 통해 일별 중복 제거와 날짜 범위 조회 모두 지원한다.
+    """
+
+    def __init__(
+        self,
+        aws_region: str = "ap-northeast-2",
+        table_name: str = "event_logs",
+    ) -> None:
+        self._table = boto3.resource("dynamodb", region_name=aws_region).Table(
+            table_name
+        )
 
     def save_event(
         self,
@@ -40,18 +61,12 @@ class EventRepository:
             metadata: 추가 컨텍스트 데이터 (optional).
         """
         now = datetime.now(tz=timezone.utc)
-        today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+        today_str = now.strftime("%Y-%m-%d")
+        sk = _dedup_sk(today_str, event_type.value, content_id, question_id)
 
-        existing = self._collection.find_one(
-            {
-                "user_id": user_id,
-                "event_type": event_type.value,
-                "content_id": content_id,
-                "question_id": question_id,
-                "timestamp": {"$gte": today_start},
-            }
-        )
-        if existing:
+        # 이미 존재하면 스킵 (conditional_expression 대신 get_item으로 확인)
+        existing = self._table.get_item(Key={"user_id": user_id, "sk": sk})
+        if existing.get("Item"):
             logger.debug(
                 "Skipping duplicate event: user_id=%s, event_type=%s, content_id=%s",
                 user_id,
@@ -60,16 +75,18 @@ class EventRepository:
             )
             return
 
-        doc: dict = {
+        now_iso = now.isoformat()
+        item: dict = {
             "user_id": user_id,
+            "sk": sk,
             "event_type": event_type.value,
             "content_id": content_id,
             "question_id": question_id,
             "metadata": metadata,
-            "timestamp": now,
-            "created_at": now,
+            "timestamp": now_iso,
+            "created_at": now_iso,
         }
-        self._collection.insert_one(doc)
+        self._table.put_item(Item=item)
         logger.info(
             "Saved event log: user_id=%s, event_type=%s, content_id=%s",
             user_id,
@@ -95,17 +112,27 @@ class EventRepository:
         Returns:
             이벤트 문서 리스트 (최신순).
         """
-        query: dict = {"user_id": user_id}
-        if start or end:
-            ts_filter: dict = {}
-            if start:
-                ts_filter["$gte"] = start
-            if end:
-                ts_filter["$lt"] = end
-            query["timestamp"] = ts_filter
-        if event_type:
-            query["event_type"] = event_type.value
+        key_cond = Key("user_id").eq(user_id)
 
-        return list(
-            self._collection.find(query, {"_id": 0}).sort("timestamp", DESCENDING)
+        # SK는 날짜 prefix로 시작하므로 범위 필터를 begins_with / between으로 처리
+        if start and end:
+            start_str = start.strftime("%Y-%m-%d")
+            end_str = end.strftime("%Y-%m-%d")
+            key_cond = key_cond & Key("sk").between(start_str, end_str + "\uffff")
+        elif start:
+            start_str = start.strftime("%Y-%m-%d")
+            key_cond = key_cond & Key("sk").gte(start_str)
+        elif end:
+            end_str = end.strftime("%Y-%m-%d")
+            key_cond = key_cond & Key("sk").lt(end_str)
+
+        resp = self._table.query(
+            KeyConditionExpression=key_cond,
+            ScanIndexForward=False,  # 최신순
         )
+        items = resp.get("Items", [])
+
+        if event_type:
+            items = [i for i in items if i.get("event_type") == event_type.value]
+
+        return items

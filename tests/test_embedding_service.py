@@ -42,11 +42,7 @@ def _make_orchestrator() -> EmbeddingOrchestrator:
         patch("app.services.embedding_service.VectorRepository"),
         patch("boto3.client"),
     ):
-        orchestrator = EmbeddingOrchestrator(
-            aws_region="us-east-1",
-            mongo_uri="mongodb://localhost:27017",
-            mongo_db="devpick",
-        )
+        orchestrator = EmbeddingOrchestrator(aws_region="us-east-1")
     return orchestrator
 
 

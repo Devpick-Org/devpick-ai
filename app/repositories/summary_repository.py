@@ -1,11 +1,12 @@
-"""AI 요약 결과 MongoDB 저장 레이어 (DP-220)."""
+"""AI 요약 결과 DynamoDB 저장 레이어 (DP-220, DP-300)."""
 
 from __future__ import annotations
 
 import logging
 from datetime import datetime, timezone
 
-from pymongo import MongoClient, UpdateOne
+import boto3
+from boto3.dynamodb.conditions import Key
 
 from app.schemas.summary import AllLevelsSummaryResponse
 
@@ -13,85 +14,90 @@ logger = logging.getLogger(__name__)
 
 
 class SummaryRepository:
-    """ai_summaries 컬렉션에 AI 요약 결과를 저장한다."""
+    """ai_summaries DynamoDB 테이블에 AI 요약 결과를 저장한다.
 
-    def __init__(self, mongo_uri: str, db_name: str = "devpick") -> None:
-        self._client: MongoClient = MongoClient(mongo_uri)
-        self._collection = self._client[db_name]["ai_summaries"]
+    테이블 스키마:
+        PK: content_id (S)
+        SK: level (S)  — beginner / junior / mid / senior
+    """
+
+    def __init__(
+        self,
+        aws_region: str = "ap-northeast-2",
+        table_name: str = "ai_summaries",
+    ) -> None:
+        self._table = boto3.resource("dynamodb", region_name=aws_region).Table(
+            table_name
+        )
 
     def save_all_levels(
         self, content_id: str, response: AllLevelsSummaryResponse
     ) -> None:
-        """4레벨 요약을 ai_summaries에 bulk upsert한다. (content_id, level) 기준.
-
-        common 필드와 레벨별 필드를 병합하여 기존 ai_summaries 스키마와 호환되는
-        문서 4개(beginner/junior/mid/senior)를 생성한다.
+        """4레벨 요약을 ai_summaries에 upsert한다. (content_id, level) 기준.
 
         Args:
             content_id: 콘텐츠 식별자
             response: AllLevelsSummaryResponse 객체
         """
-        now = datetime.now(tz=timezone.utc)
+        now = datetime.now(tz=timezone.utc).isoformat()
         common = response.common.model_dump()
 
-        ops = []
         for level in ("beginner", "junior", "mid", "senior"):
             level_data = getattr(response, level).model_dump()
-            doc = {
+            item = {
                 "content_id": content_id,
                 "level": level,
-                "generated_at": response.generated_at,
+                "generated_at": response.generated_at or now,
                 "thumbnail_url": response.thumbnail_url,
                 "updated_at": now,
                 **common,
                 **level_data,
             }
-            ops.append(
-                UpdateOne(
-                    {"content_id": content_id, "level": level},
-                    {"$set": doc, "$setOnInsert": {"created_at": now}},
-                    upsert=True,
-                )
+            # if_not_exists(created_at, :now) — 최초 삽입 시에만 created_at 설정
+            self._table.update_item(
+                Key={"content_id": content_id, "level": level},
+                UpdateExpression=(
+                    "SET "
+                    + ", ".join(f"#{k} = :{k}" for k in item if k not in ("content_id", "level"))
+                    + ", created_at = if_not_exists(created_at, :created_at)"
+                ),
+                ExpressionAttributeNames={f"#{k}": k for k in item if k not in ("content_id", "level")},
+                ExpressionAttributeValues={
+                    **{f":{k}": v for k, v in item.items() if k not in ("content_id", "level")},
+                    ":created_at": now,
+                },
             )
 
-        self._collection.bulk_write(ops, ordered=False)
-        logger.info("Saved all-levels summary to MongoDB: content_id=%s", content_id)
+        logger.info("Saved all-levels summary to DynamoDB: content_id=%s", content_id)
 
     def find_all_levels(self, content_id: str) -> list[dict]:
-        """content_id에 대한 4개 레벨 문서 전부 조회한다.
-
-        Args:
-            content_id: 조회할 콘텐츠 식별자
-
-        Returns:
-            4개 레벨 문서 리스트 (없으면 빈 리스트)
-        """
-        return list(self._collection.find({"content_id": content_id}, {"_id": 0}))
+        """content_id에 대한 4개 레벨 문서 전부 조회한다."""
+        resp = self._table.query(
+            KeyConditionExpression=Key("content_id").eq(content_id)
+        )
+        return resp.get("Items", [])
 
     def find_by_content_ids(self, content_ids: list[str]) -> list[dict]:
         """여러 content_id의 요약을 조회한다.
 
         related_contents 생성 시 one_line_summary를 가져오는 데 사용한다.
-        level이 여러 개일 수 있으므로 content_id당 첫 번째 결과만 반환한다.
-
-        Args:
-            content_ids: 조회할 content_id 리스트.
-
-        Returns:
-            content_id와 one_line_summary만 포함한 dict 리스트.
+        content_id당 첫 번째 레벨(junior 우선) 결과만 반환한다.
         """
         if not content_ids:
             return []
 
-        seen: set[str] = set()
         results = []
-        cursor = self._collection.find(
-            {"content_id": {"$in": content_ids}},
-            {"content_id": 1, "one_line_summary": 1, "_id": 0},
-        )
-        for doc in cursor:
-            cid = doc.get("content_id")
-            if cid and cid not in seen:
+        seen: set[str] = set()
+        for cid in content_ids:
+            if cid in seen:
+                continue
+            resp = self._table.query(
+                KeyConditionExpression=Key("content_id").eq(cid),
+                Limit=1,
+            )
+            items = resp.get("Items", [])
+            if items:
+                doc = items[0]
                 seen.add(cid)
                 results.append(
                     {

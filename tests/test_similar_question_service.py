@@ -32,7 +32,7 @@ def service():
     with patch("app.services.similar_question_service.RAGRetriever") as mock_cls:
         mock_retriever = MagicMock()
         mock_cls.return_value = mock_retriever
-        svc = SimilarQuestionService(openai_api_key="test-key")
+        svc = SimilarQuestionService(aws_region="us-east-1")
     svc._retriever = mock_retriever
     return svc
 

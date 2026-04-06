@@ -22,11 +22,11 @@ class SimilarQuestionService:
 
     def __init__(
         self,
-        openai_api_key: str,
+        aws_region: str = "ap-northeast-2",
         index_path: str = _DEFAULT_INDEX_PATH,
     ) -> None:
         self._retriever = RAGRetriever(
-            openai_api_key=openai_api_key,
+            aws_region=aws_region,
             index_path=index_path,
         )
 

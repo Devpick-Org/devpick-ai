@@ -29,8 +29,8 @@ def patch_internal_key(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 @pytest.fixture(autouse=True)
-def patch_openai_key(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr("app.api.internal.router._OPENAI_API_KEY", "test-openai-key")
+def patch_aws_region(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr("app.api.internal.router._AWS_REGION", "ap-northeast-2")
 
 
 @pytest.fixture()
@@ -135,16 +135,16 @@ def test_similar_questions_returns_empty_results(
     assert data["total"] == 0
 
 
-def test_similar_questions_no_openai_key(
+def test_similar_questions_uses_configured_aws_region(
     client: TestClient,
     mock_similar_service: MagicMock,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr("app.api.internal.router._OPENAI_API_KEY", "")
+    monkeypatch.setattr("app.api.internal.router._AWS_REGION", "us-east-1")
 
     resp = client.post(
         "/internal/similar-questions",
         json=_VALID_BODY,
         headers={"X-Internal-Key": _VALID_KEY},
     )
-    assert resp.status_code == 400
+    assert resp.status_code == 200

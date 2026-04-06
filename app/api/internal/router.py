@@ -35,10 +35,10 @@ from app.services.refine_service import RefineService
 from app.services.similar_question_service import SimilarQuestionService
 
 load_dotenv()
-_ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
+_AWS_REGION = os.getenv("AWS_REGION", "ap-northeast-2")
+_BEDROCK_MODEL = os.getenv("BEDROCK_MODEL", "anthropic.claude-sonnet-4-5")
 _MONGO_URI = os.getenv("MONGO_URI", "")
 _MONGO_DB = os.getenv("MONGO_DB", "devpick")
-_OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
 
 logger = logging.getLogger(__name__)
 
@@ -68,7 +68,7 @@ def create_all_levels_summary(
     except ValueError as exc:
         raise AIBadRequestError(str(exc)) from exc
 
-    result = AllLevelsSummaryService(api_key=_ANTHROPIC_API_KEY).summarize_all(
+    result = AllLevelsSummaryService(aws_region=_AWS_REGION, model=_BEDROCK_MODEL).summarize_all(
         content_id=body.content_id,
         text=preprocessed,
         thumbnail_url=body.thumbnail_url,
@@ -85,10 +85,10 @@ def create_all_levels_summary(
             logger.exception("Failed to save all-levels summary to MongoDB")
 
     # 임베딩 + RAG 저장 (fire-and-forget)
-    if _OPENAI_API_KEY and _MONGO_URI:
+    if _MONGO_URI:
         try:
             EmbeddingOrchestrator(
-                openai_api_key=_OPENAI_API_KEY,
+                aws_region=_AWS_REGION,
                 mongo_uri=_MONGO_URI,
                 mongo_db=_MONGO_DB,
             ).embed_and_store(
@@ -125,7 +125,7 @@ def create_refine(body: RefineRequest) -> RefineResponse:
         except Exception:
             logger.exception("Failed to fetch context chunks from MongoDB")
 
-    result = RefineService(api_key=_ANTHROPIC_API_KEY).refine(
+    result = RefineService(aws_region=_AWS_REGION, model=_BEDROCK_MODEL).refine(
         title=body.title,
         content=body.content,
         context_chunks=context_chunks,
@@ -170,27 +170,24 @@ def create_answer(body: AnswerRequest) -> AnswerResponse:
 
     # Step 2. RAG 유사 문서 검색 (항상 시도)
     rag_chunks: list[str] | None = None
-    if _OPENAI_API_KEY:
-        try:
-            query = f"{body.refined_title} {body.refined_content}"
-            results = RAGRetriever(openai_api_key=_OPENAI_API_KEY).search(
-                query, top_k=5
-            )
-            filtered = [
-                (doc, score)
-                for doc, score in results
-                if doc.metadata.content_id != body.content_id
+    try:
+        query = f"{body.refined_title} {body.refined_content}"
+        results = RAGRetriever(aws_region=_AWS_REGION).search(query, top_k=5)
+        filtered = [
+            (doc, score)
+            for doc, score in results
+            if doc.metadata.content_id != body.content_id
+        ]
+        if filtered:
+            rag_chunks = [
+                f"[출처: {doc.metadata.content_id}]\n{doc.text}"
+                for doc, _ in filtered
             ]
-            if filtered:
-                rag_chunks = [
-                    f"[출처: {doc.metadata.content_id}]\n{doc.text}"
-                    for doc, _ in filtered
-                ]
-        except Exception:
-            logger.exception("Failed to perform RAG search")
+    except Exception:
+        logger.exception("Failed to perform RAG search")
 
     # Step 3. 답변 생성
-    result, references = AnswerService(api_key=_ANTHROPIC_API_KEY).answer(
+    result, references = AnswerService(aws_region=_AWS_REGION, model=_BEDROCK_MODEL).answer(
         refined_title=body.refined_title,
         refined_content=body.refined_content,
         original_title=body.original_title,
@@ -228,11 +225,11 @@ def create_answer(body: AnswerRequest) -> AnswerResponse:
             logger.exception("Failed to save answer to MongoDB")
 
     # Step 6. 질문 임베딩 저장 (fire-and-forget)
-    if body.question_id and _OPENAI_API_KEY and _MONGO_URI:
+    if body.question_id and _MONGO_URI:
         try:
             question_text = f"{body.refined_title}\n{body.refined_content}"
             QuestionEmbeddingOrchestrator(
-                openai_api_key=_OPENAI_API_KEY,
+                aws_region=_AWS_REGION,
                 mongo_uri=_MONGO_URI,
                 mongo_db=_MONGO_DB,
             ).embed_and_store(
@@ -270,11 +267,8 @@ def search_similar_questions(body: SimilarQuestionRequest) -> SimilarQuestionRes
     FAISS questions 인덱스에서 유사한 질문을 검색한다.
     에러는 전역 핸들러(AIServiceError)가 처리한다.
     """
-    if not _OPENAI_API_KEY:
-        raise AIBadRequestError("OpenAI API 키가 설정되지 않았습니다")
-
     results = SimilarQuestionService(
-        openai_api_key=_OPENAI_API_KEY,
+        aws_region=_AWS_REGION,
     ).search(
         text=body.text,
         top_k=body.top_k,
@@ -372,7 +366,7 @@ def create_insight(body: InsightRequest) -> InsightResponse:
             logger.exception("Failed to fetch question texts from MongoDB")
 
     # Step 4. 인사이트 생성
-    result = InsightService(api_key=_ANTHROPIC_API_KEY).generate(
+    result = InsightService(aws_region=_AWS_REGION, model=_BEDROCK_MODEL).generate(
         activities=body.activities,
         ai_events=ai_events,
         read_summaries=read_summaries,

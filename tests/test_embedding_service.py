@@ -40,10 +40,10 @@ def _make_orchestrator() -> EmbeddingOrchestrator:
         patch("app.services.embedding_service.DocumentChunker"),
         patch("app.services.embedding_service.VectorStoreManager"),
         patch("app.services.embedding_service.VectorRepository"),
-        patch("app.services.embedding_service.OpenAIEmbeddings"),
+        patch("boto3.client"),
     ):
         orchestrator = EmbeddingOrchestrator(
-            openai_api_key="test-key",
+            aws_region="us-east-1",
             mongo_uri="mongodb://localhost:27017",
             mongo_db="devpick",
         )

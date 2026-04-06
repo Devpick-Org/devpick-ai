@@ -4,9 +4,7 @@ from __future__ import annotations
 
 import logging
 
-from langchain_openai import OpenAIEmbeddings
-
-from app.rag.embeddings import EmbeddingService
+from app.rag.embeddings import BedrockEmbeddingsAdapter, EmbeddingService
 from app.rag.vector_store import VectorStoreManager
 from app.rag.schemas import ChunkMetadata, RAGDocument
 from app.repositories.question_vector_repository import QuestionVectorRepository
@@ -28,17 +26,15 @@ class QuestionEmbeddingOrchestrator:
 
     def __init__(
         self,
-        openai_api_key: str,
-        mongo_uri: str,
+        aws_region: str = "ap-northeast-2",
+        mongo_uri: str = "",
         mongo_db: str = "devpick",
         index_path: str = _DEFAULT_INDEX_PATH,
     ) -> None:
-        self._embedding_svc = EmbeddingService(api_key=openai_api_key)
+        embedding_svc = EmbeddingService(aws_region=aws_region)
+        self._embedding_svc = embedding_svc
         self._vector_store = VectorStoreManager(
-            embedding_model=OpenAIEmbeddings(
-                api_key=openai_api_key,
-                model="text-embedding-3-small",
-            ),
+            embedding_model=BedrockEmbeddingsAdapter(service=embedding_svc),
             index_path=index_path,
         )
         self._question_repo = QuestionVectorRepository(

@@ -1,13 +1,15 @@
-"""4레벨 동시 AI 요약 서비스 — Claude Tool Use + Prompt Caching (DP-300)."""
+"""4레벨 동시 AI 요약 서비스 — Bedrock Converse API + Tool Use (DP-300)."""
 
 from __future__ import annotations
 
 import logging
 from datetime import datetime, timezone
 
-import anthropic
+import boto3
 import pydantic
+from botocore.exceptions import ClientError, EndpointConnectionError, ReadTimeoutError
 
+from app.core.bedrock import to_tool_config
 from app.core.exceptions import (
     AIBadRequestError,
     AIInternalError,
@@ -23,16 +25,18 @@ from app.schemas.summary import AllLevelsSummaryResponse
 
 logger = logging.getLogger(__name__)
 
+_TOOL_NAME = "save_all_summaries"
+
 
 class AllLevelsSummaryService:
-    """beginner/junior/mid/senior 4레벨 요약을 Claude API 1회 호출로 생성한다."""
+    """beginner/junior/mid/senior 4레벨 요약을 Bedrock Claude 1회 호출로 생성한다."""
 
     def __init__(
         self,
-        api_key: str,
-        model: str = "claude-sonnet-4-6",
+        aws_region: str = "ap-northeast-2",
+        model: str = "anthropic.claude-sonnet-4-5",
     ) -> None:
-        self._client = anthropic.Anthropic(api_key=api_key)
+        self._client = boto3.client("bedrock-runtime", region_name=aws_region)
         self._model = model
 
     def summarize_all(
@@ -55,7 +59,7 @@ class AllLevelsSummaryService:
             AIBadRequestError: 빈 text
             AITimeoutError: LLM 타임아웃
             AIUpstreamError: LLM 연결 실패 / API 에러 / Rate Limit
-            AIInternalError: 인증 실패 / 파싱 실패 / tool_use 블록 없음
+            AIInternalError: 파싱 실패 / tool_use 블록 없음
         """
         try:
             user_prompt = build_user_prompt_all_levels(text)
@@ -63,48 +67,39 @@ class AllLevelsSummaryService:
             raise AIBadRequestError(str(exc)) from exc
 
         try:
-            response = self._client.messages.create(
-                model=self._model,
-                max_tokens=8192,
-                temperature=0,
+            response = self._client.converse(
+                modelId=self._model,
                 system=[
-                    {
-                        "type": "text",
-                        "text": SYSTEM_PROMPT_ALL_LEVELS,
-                        "cache_control": {"type": "ephemeral"},
-                    }
+                    {"text": SYSTEM_PROMPT_ALL_LEVELS},
+                    {"cachePoint": {"type": "default"}},
                 ],
-                messages=[{"role": "user", "content": user_prompt}],
-                tools=[SUMMARY_ALL_LEVELS_TOOL],
-                tool_choice={"type": "tool", "name": "save_all_summaries"},
+                messages=[{"role": "user", "content": [{"text": user_prompt}]}],
+                toolConfig=to_tool_config(SUMMARY_ALL_LEVELS_TOOL, _TOOL_NAME),
+                inferenceConfig={"maxTokens": 8192, "temperature": 0.0},
             )
-        except anthropic.APITimeoutError as exc:
+        except ReadTimeoutError as exc:
             logger.warning("LLM 타임아웃: %s", exc)
             raise AITimeoutError() from exc
-        except anthropic.RateLimitError as exc:
-            logger.warning("LLM Rate Limit: %s", exc)
-            raise AIUpstreamError("LLM Rate Limit 초과입니다") from exc
-        except anthropic.APIConnectionError as exc:
+        except ClientError as exc:
+            code = exc.response["Error"]["Code"]
+            if code == "ThrottlingException":
+                logger.warning("LLM Rate Limit: %s", exc)
+                raise AIUpstreamError("LLM Rate Limit 초과입니다") from exc
+            logger.error("LLM API 오류 (code=%s): %s", code, exc)
+            raise AIUpstreamError(f"LLM API 오류: {code}") from exc
+        except EndpointConnectionError as exc:
             logger.error("LLM 연결 실패: %s", exc)
             raise AIUpstreamError("LLM 연결에 실패했습니다") from exc
-        except anthropic.AuthenticationError as exc:
-            logger.error("LLM 인증 실패: %s", exc)
-            raise AIInternalError("LLM 인증에 실패했습니다") from exc
-        except anthropic.APIStatusError as exc:
-            logger.error("LLM API 상태 에러 (status=%s): %s", exc.status_code, exc)
-            raise AIUpstreamError(f"LLM API 오류: {exc.status_code}") from exc
 
-        # Tool Use 응답에서 input dict 추출
-        tool_blocks = [b for b in response.content if b.type == "tool_use"]
-        if not tool_blocks:
-            logger.error(
-                "LLM 응답에 tool_use 블록이 없습니다. content=%s", response.content
-            )
+        content = response["output"]["message"]["content"]
+        tool_use_block = next((b for b in content if "toolUse" in b), None)
+        if not tool_use_block:
+            logger.error("LLM 응답에 toolUse 블록이 없습니다. content=%s", content)
             raise AIInternalError("LLM 응답에 tool_use 블록이 없습니다")
 
         try:
             payload = {
-                **tool_blocks[0].input,
+                **tool_use_block["toolUse"]["input"],
                 "content_id": content_id,
                 "generated_at": datetime.now(tz=timezone.utc).isoformat(),
                 "thumbnail_url": thumbnail_url,

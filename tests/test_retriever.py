@@ -23,12 +23,12 @@ _MOCK_DOC = RAGDocument(
 @pytest.fixture()
 def retriever() -> RAGRetriever:
     with (
-        patch("app.rag.retriever.OpenAIEmbeddings"),
+        patch("boto3.client"),
         patch("app.rag.retriever.VectorStoreManager") as mock_mgr_cls,
     ):
         mock_mgr = MagicMock()
         mock_mgr_cls.return_value = mock_mgr
-        instance = RAGRetriever(openai_api_key="test-key")
+        instance = RAGRetriever(aws_region="us-east-1")
     instance._store = mock_mgr
     return instance
 

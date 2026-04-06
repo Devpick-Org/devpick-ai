@@ -36,7 +36,7 @@ from app.services.similar_question_service import SimilarQuestionService
 
 load_dotenv()
 _AWS_REGION = os.getenv("AWS_REGION", "ap-northeast-2")
-_BEDROCK_MODEL = os.getenv("BEDROCK_MODEL", "anthropic.claude-sonnet-4-5")
+_BEDROCK_MODEL = os.getenv("BEDROCK_MODEL", "anthropic.claude-3-5-sonnet-20241022-v2:0")
 
 logger = logging.getLogger(__name__)
 

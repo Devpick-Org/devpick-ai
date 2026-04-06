@@ -30,7 +30,7 @@ class AnswerService:
     def __init__(
         self,
         aws_region: str = "ap-northeast-2",
-        model: str = "anthropic.claude-sonnet-4-5",
+        model: str = "anthropic.claude-3-5-sonnet-20241022-v2:0",
     ) -> None:
         self._client = boto3.client("bedrock-runtime", region_name=aws_region)
         self._model = model

@@ -5,8 +5,8 @@ from __future__ import annotations
 import copy
 from unittest.mock import MagicMock, patch
 
-import anthropic
 import pytest
+from botocore.exceptions import ClientError, EndpointConnectionError, ReadTimeoutError
 
 from app.core.exceptions import (
     AIBadRequestError,
@@ -27,16 +27,25 @@ _VALID_LLM_PAYLOAD = {
 }
 
 
+def _bedrock_response(payload: dict, tool_name: str = "save_refined_question") -> dict:
+    return {
+        "output": {
+            "message": {
+                "content": [
+                    {"toolUse": {"toolUseId": "tool-1", "name": tool_name, "input": payload}}
+                ]
+            }
+        }
+    }
+
+
 def _make_service_with_mock(payload: dict) -> tuple[RefineService, MagicMock]:
-    """mock Anthropic 클라이언트를 주입한 RefineService를 반환한다."""
-    with patch("anthropic.Anthropic"):
-        svc = RefineService(api_key="test-key")
+    """mock boto3 클라이언트를 주입한 RefineService를 반환한다."""
+    with patch("boto3.client"):
+        svc = RefineService(aws_region="us-east-1")
 
     mock_client = MagicMock()
-    tool_block = MagicMock()
-    tool_block.type = "tool_use"
-    tool_block.input = payload
-    mock_client.messages.create.return_value.content = [tool_block]
+    mock_client.converse.return_value = _bedrock_response(payload)
     svc._client = mock_client
     return svc, mock_client
 
@@ -67,9 +76,9 @@ def test_refine_with_context_chunks() -> None:
     )
 
     assert result.refined_title == _VALID_LLM_PAYLOAD["refined_title"]
-    # Claude API 호출 시 context_chunks가 user prompt에 포함되었는지 확인
-    call_kwargs = mock_client.messages.create.call_args[1]
-    user_content = call_kwargs["messages"][0]["content"]
+    # Bedrock Converse API 호출 시 context_chunks가 user prompt에 포함되었는지 확인
+    call_kwargs = mock_client.converse.call_args[1]
+    user_content = call_kwargs["messages"][0]["content"][0]["text"]
     assert "참고 문서" in user_content
     assert "EXPIRE" in user_content
 
@@ -82,19 +91,19 @@ def test_refine_without_context_chunks() -> None:
         content="redis ttl이 뭔가요",
     )
 
-    call_kwargs = mock_client.messages.create.call_args[1]
-    user_content = call_kwargs["messages"][0]["content"]
+    call_kwargs = mock_client.converse.call_args[1]
+    user_content = call_kwargs["messages"][0]["content"][0]["text"]
     assert "참고 문서" not in user_content
 
 
 def test_invalid_tool_response_raises() -> None:
-    with patch("anthropic.Anthropic"):
-        svc = RefineService(api_key="test-key")
+    with patch("boto3.client"):
+        svc = RefineService(aws_region="us-east-1")
 
     mock_client = MagicMock()
-    text_block = MagicMock()
-    text_block.type = "text"
-    mock_client.messages.create.return_value.content = [text_block]
+    mock_client.converse.return_value = {
+        "output": {"message": {"content": [{"text": "텍스트 응답"}]}}
+    }
     svc._client = mock_client
 
     with pytest.raises(AIInternalError, match="tool_use 블록이 없습니다"):
@@ -117,35 +126,34 @@ def test_empty_content_raises() -> None:
 
 def test_validation_error_raises_ai_internal_error() -> None:
     """RefineResponse 파싱 실패 → AIInternalError."""
-    with patch("anthropic.Anthropic"):
-        svc = RefineService(api_key="test-key")
+    with patch("boto3.client"):
+        svc = RefineService(aws_region="us-east-1")
 
     mock_client = MagicMock()
-    tool_block = MagicMock()
-    tool_block.type = "tool_use"
-    tool_block.input = {"refined_title": "제목만"}  # 필수 필드 대부분 누락
-    mock_client.messages.create.return_value.content = [tool_block]
+    mock_client.converse.return_value = _bedrock_response(
+        {"refined_title": "제목만"}  # 필수 필드 대부분 누락
+    )
     svc._client = mock_client
 
     with pytest.raises(AIInternalError, match="파싱"):
         svc.refine(title="질문", content="본문")
 
 
-# ─── SDK 예외 → 커스텀 예외 변환 단위 테스트 ───────────────────────
+# ─── Bedrock 예외 → 커스텀 예외 변환 ──────────────────────────────────────────
 
 
 def _make_service_with_api_error(side_effect: Exception) -> RefineService:
-    """messages.create가 지정된 예외를 raise하는 RefineService를 반환한다."""
-    with patch("anthropic.Anthropic"):
-        svc = RefineService(api_key="test-key")
+    """converse가 지정된 예외를 raise하는 RefineService를 반환한다."""
+    with patch("boto3.client"):
+        svc = RefineService(aws_region="us-east-1")
     mock_client = MagicMock()
-    mock_client.messages.create.side_effect = side_effect
+    mock_client.converse.side_effect = side_effect
     svc._client = mock_client
     return svc
 
 
 def test_api_timeout_raises_ai_timeout_error() -> None:
-    svc = _make_service_with_api_error(anthropic.APITimeoutError(request=MagicMock()))
+    svc = _make_service_with_api_error(ReadTimeoutError(endpoint_url="test"))
 
     with pytest.raises(AITimeoutError):
         svc.refine(title="질문", content="본문")
@@ -153,10 +161,9 @@ def test_api_timeout_raises_ai_timeout_error() -> None:
 
 def test_rate_limit_raises_ai_upstream_error() -> None:
     svc = _make_service_with_api_error(
-        anthropic.RateLimitError(
-            message="rate limit",
-            response=MagicMock(status_code=429),
-            body={},
+        ClientError(
+            error_response={"Error": {"Code": "ThrottlingException", "Message": ""}},
+            operation_name="Converse",
         )
     )
 
@@ -166,7 +173,7 @@ def test_rate_limit_raises_ai_upstream_error() -> None:
 
 def test_api_connection_error_raises_ai_upstream_error() -> None:
     svc = _make_service_with_api_error(
-        anthropic.APIConnectionError(request=MagicMock())
+        EndpointConnectionError(endpoint_url="test")
     )
 
     with pytest.raises(AIUpstreamError):

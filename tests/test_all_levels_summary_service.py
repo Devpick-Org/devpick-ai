@@ -5,8 +5,8 @@ from __future__ import annotations
 import copy
 from unittest.mock import MagicMock, patch
 
-import anthropic
 import pytest
+from botocore.exceptions import ClientError, EndpointConnectionError, ReadTimeoutError
 
 from app.core.exceptions import (
     AIBadRequestError,
@@ -41,16 +41,26 @@ _VALID_LLM_PAYLOAD = {
 }
 
 
+def _bedrock_response(payload: dict, tool_name: str = "save_all_summaries") -> dict:
+    """Bedrock Converse API 응답 형식을 흉내 낸 dict을 반환한다."""
+    return {
+        "output": {
+            "message": {
+                "content": [
+                    {"toolUse": {"toolUseId": "tool-1", "name": tool_name, "input": payload}}
+                ]
+            }
+        }
+    }
+
+
 def _make_service_with_mock(payload: dict) -> tuple[AllLevelsSummaryService, MagicMock]:
-    """mock Anthropic 클라이언트를 주입한 AllLevelsSummaryService를 반환한다."""
-    with patch("anthropic.Anthropic"):
-        svc = AllLevelsSummaryService(api_key="test-key")
+    """mock boto3 클라이언트를 주입한 AllLevelsSummaryService를 반환한다."""
+    with patch("boto3.client"):
+        svc = AllLevelsSummaryService(aws_region="us-east-1")
 
     mock_client = MagicMock()
-    tool_block = MagicMock()
-    tool_block.type = "tool_use"
-    tool_block.input = payload
-    mock_client.messages.create.return_value.content = [tool_block]
+    mock_client.converse.return_value = _bedrock_response(payload)
     svc._client = mock_client
     return svc, mock_client
 
@@ -101,50 +111,47 @@ def test_empty_text_raises() -> None:
 
 
 def test_no_tool_use_block_raises() -> None:
-    with patch("anthropic.Anthropic") as mock_cls:
-        mock_client = MagicMock()
-        mock_cls.return_value = mock_client
+    with patch("boto3.client"):
+        svc = AllLevelsSummaryService(aws_region="us-east-1")
 
-        text_block = MagicMock()
-        text_block.type = "text"
-        mock_client.messages.create.return_value.content = [text_block]
+    mock_client = MagicMock()
+    mock_client.converse.return_value = {
+        "output": {"message": {"content": [{"text": "텍스트 응답"}]}}
+    }
+    svc._client = mock_client
 
-        svc = AllLevelsSummaryService(api_key="test-key")
-        svc._client = mock_client
-
-        with pytest.raises(AIInternalError, match="tool_use 블록이 없습니다"):
-            svc.summarize_all(content_id="art-005", text="유효한 텍스트.")
+    with pytest.raises(AIInternalError, match="tool_use 블록이 없습니다"):
+        svc.summarize_all(content_id="art-005", text="유효한 텍스트.")
 
 
 def test_validation_error_raises_ai_internal_error() -> None:
-    with patch("anthropic.Anthropic"):
-        svc = AllLevelsSummaryService(api_key="test-key")
+    with patch("boto3.client"):
+        svc = AllLevelsSummaryService(aws_region="us-east-1")
 
     mock_client = MagicMock()
-    tool_block = MagicMock()
-    tool_block.type = "tool_use"
-    tool_block.input = {"common": {"one_line_summary": "요약"}}  # 필수 필드 대부분 누락
-    mock_client.messages.create.return_value.content = [tool_block]
+    mock_client.converse.return_value = _bedrock_response(
+        {"common": {"one_line_summary": "요약"}}  # 필수 필드 대부분 누락
+    )
     svc._client = mock_client
 
     with pytest.raises(AIInternalError, match="파싱"):
         svc.summarize_all(content_id="art-006", text="텍스트.")
 
 
-# ─── SDK 예외 → 커스텀 예외 변환 ─────────────────────────────────────────────
+# ─── Bedrock 예외 → 커스텀 예외 변환 ─────────────────────────────────────────
 
 
 def _make_service_with_api_error(side_effect: Exception) -> AllLevelsSummaryService:
-    with patch("anthropic.Anthropic"):
-        svc = AllLevelsSummaryService(api_key="test-key")
+    with patch("boto3.client"):
+        svc = AllLevelsSummaryService(aws_region="us-east-1")
     mock_client = MagicMock()
-    mock_client.messages.create.side_effect = side_effect
+    mock_client.converse.side_effect = side_effect
     svc._client = mock_client
     return svc
 
 
 def test_api_timeout_raises_ai_timeout_error() -> None:
-    svc = _make_service_with_api_error(anthropic.APITimeoutError(request=MagicMock()))
+    svc = _make_service_with_api_error(ReadTimeoutError(endpoint_url="test"))
 
     with pytest.raises(AITimeoutError):
         svc.summarize_all(content_id="art-t1", text="텍스트.")
@@ -152,10 +159,9 @@ def test_api_timeout_raises_ai_timeout_error() -> None:
 
 def test_rate_limit_raises_ai_upstream_error() -> None:
     svc = _make_service_with_api_error(
-        anthropic.RateLimitError(
-            message="rate limit",
-            response=MagicMock(status_code=429),
-            body={},
+        ClientError(
+            error_response={"Error": {"Code": "ThrottlingException", "Message": ""}},
+            operation_name="Converse",
         )
     )
 
@@ -165,7 +171,7 @@ def test_rate_limit_raises_ai_upstream_error() -> None:
 
 def test_api_connection_error_raises_ai_upstream_error() -> None:
     svc = _make_service_with_api_error(
-        anthropic.APIConnectionError(request=MagicMock())
+        EndpointConnectionError(endpoint_url="test")
     )
 
     with pytest.raises(AIUpstreamError):

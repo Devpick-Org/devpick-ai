@@ -4,10 +4,8 @@ from __future__ import annotations
 
 import logging
 
-from langchain_openai import OpenAIEmbeddings
-
 from app.rag.chunker import DocumentChunker
-from app.rag.embeddings import EmbeddingService
+from app.rag.embeddings import BedrockEmbeddingsAdapter, EmbeddingService
 from app.rag.vector_store import VectorStoreManager
 from app.repositories.vector_repository import VectorRepository
 from app.schemas.summary import AllLevelsSummaryResponse
@@ -26,25 +24,21 @@ class EmbeddingOrchestrator:
 
     def __init__(
         self,
-        openai_api_key: str,
-        mongo_uri: str,
-        mongo_db: str = "devpick",
+        aws_region: str = "ap-northeast-2",
         index_path: str = _DEFAULT_INDEX_PATH,
         chunk_size: int = 1000,
         chunk_overlap: int = 200,
     ) -> None:
-        self._embedding_svc = EmbeddingService(api_key=openai_api_key)
+        embedding_svc = EmbeddingService(aws_region=aws_region)
+        self._embedding_svc = embedding_svc
         self._chunker = DocumentChunker(
             chunk_size=chunk_size, chunk_overlap=chunk_overlap
         )
         self._vector_store = VectorStoreManager(
-            embedding_model=OpenAIEmbeddings(
-                api_key=openai_api_key,
-                model="text-embedding-3-small",
-            ),
+            embedding_model=BedrockEmbeddingsAdapter(service=embedding_svc),
             index_path=index_path,
         )
-        self._vector_repo = VectorRepository(mongo_uri=mongo_uri, db_name=mongo_db)
+        self._vector_repo = VectorRepository(aws_region=aws_region)
         self._vector_store.load_or_create()
 
     def embed_and_store(

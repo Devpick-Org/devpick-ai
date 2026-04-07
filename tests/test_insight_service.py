@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock, patch
 
-import anthropic
 import pytest
+from botocore.exceptions import ClientError, EndpointConnectionError, ReadTimeoutError
 
 from app.core.exceptions import AIInternalError, AITimeoutError, AIUpstreamError
 from app.schemas.insight import ActivityData
@@ -19,15 +19,26 @@ _VALID_LLM_PAYLOAD = {
 
 
 def _make_service_with_mock(payload: dict) -> tuple[InsightService, MagicMock]:
-    """mock Anthropic 클라이언트를 주입한 InsightService를 반환한다."""
-    with patch("anthropic.Anthropic"):
-        svc = InsightService(api_key="test-key")
+    """mock Bedrock 클라이언트를 주입한 InsightService를 반환한다."""
+    with patch("boto3.client"):
+        svc = InsightService(aws_region="us-east-1")
 
     mock_client = MagicMock()
-    tool_block = MagicMock()
-    tool_block.type = "tool_use"
-    tool_block.input = payload
-    mock_client.messages.create.return_value.content = [tool_block]
+    mock_client.converse.return_value = {
+        "output": {
+            "message": {
+                "content": [
+                    {
+                        "toolUse": {
+                            "toolUseId": "tool-1",
+                            "name": "save_insight",
+                            "input": payload,
+                        }
+                    }
+                ]
+            }
+        }
+    }
     svc._client = mock_client
     return svc, mock_client
 
@@ -69,15 +80,15 @@ def test_generate_sets_generated_at() -> None:
 
 
 def test_no_tool_use_block_raises_ai_internal_error() -> None:
-    with patch("anthropic.Anthropic") as mock_cls:
+    with patch("boto3.client") as mock_boto3:
         mock_client = MagicMock()
-        mock_cls.return_value = mock_client
+        mock_boto3.return_value = mock_client
 
-        text_block = MagicMock()
-        text_block.type = "text"
-        mock_client.messages.create.return_value.content = [text_block]
+        mock_client.converse.return_value = {
+            "output": {"message": {"content": [{"text": "일반 텍스트 응답"}]}}
+        }
 
-        svc = InsightService(api_key="test-key")
+        svc = InsightService(aws_region="us-east-1")
         svc._client = mock_client
 
         with pytest.raises(AIInternalError, match="tool_use 블록이 없습니다"):
@@ -113,16 +124,16 @@ def test_validation_error_raises_ai_internal_error() -> None:
 
 
 def _make_service_with_api_error(side_effect: Exception) -> InsightService:
-    with patch("anthropic.Anthropic"):
-        svc = InsightService(api_key="test-key")
+    with patch("boto3.client"):
+        svc = InsightService(aws_region="us-east-1")
     mock_client = MagicMock()
-    mock_client.messages.create.side_effect = side_effect
+    mock_client.converse.side_effect = side_effect
     svc._client = mock_client
     return svc
 
 
 def test_api_timeout_raises_ai_timeout_error() -> None:
-    svc = _make_service_with_api_error(anthropic.APITimeoutError(request=MagicMock()))
+    svc = _make_service_with_api_error(ReadTimeoutError(endpoint_url="test"))
 
     with pytest.raises(AITimeoutError):
         svc.generate(
@@ -138,10 +149,9 @@ def test_api_timeout_raises_ai_timeout_error() -> None:
 
 def test_rate_limit_raises_ai_upstream_error() -> None:
     svc = _make_service_with_api_error(
-        anthropic.RateLimitError(
-            message="rate limit",
-            response=MagicMock(status_code=429),
-            body={},
+        ClientError(
+            error_response={"Error": {"Code": "ThrottlingException", "Message": ""}},
+            operation_name="Converse",
         )
     )
 
@@ -158,9 +168,7 @@ def test_rate_limit_raises_ai_upstream_error() -> None:
 
 
 def test_api_connection_error_raises_ai_upstream_error() -> None:
-    svc = _make_service_with_api_error(
-        anthropic.APIConnectionError(request=MagicMock())
-    )
+    svc = _make_service_with_api_error(EndpointConnectionError(endpoint_url="test"))
 
     with pytest.raises(AIUpstreamError):
         svc.generate(

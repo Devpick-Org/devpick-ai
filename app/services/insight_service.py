@@ -1,13 +1,15 @@
-"""주간 인사이트 생성 서비스 — Claude Tool Use + Prompt Caching (DP-259)."""
+"""주간 인사이트 생성 서비스 — Bedrock Converse API + Tool Use (DP-259)."""
 
 from __future__ import annotations
 
 import logging
 from datetime import datetime, timezone
 
-import anthropic
+import boto3
 import pydantic
+from botocore.exceptions import ClientError, EndpointConnectionError, ReadTimeoutError
 
+from app.core.bedrock import to_tool_config
 from app.core.exceptions import (
     AIInternalError,
     AITimeoutError,
@@ -18,16 +20,18 @@ from app.schemas.insight import ActivityData, InsightResponse
 
 logger = logging.getLogger(__name__)
 
+_TOOL_NAME = "save_insight"
+
 
 class InsightService:
     """유저 주간 활동 데이터를 분석해 학습 인사이트를 생성한다."""
 
     def __init__(
         self,
-        api_key: str,
-        model: str = "claude-sonnet-4-6",
+        aws_region: str = "ap-northeast-2",
+        model: str = "anthropic.claude-3-5-sonnet-20241022-v2:0",
     ) -> None:
-        self._client = anthropic.Anthropic(api_key=api_key)
+        self._client = boto3.client("bedrock-runtime", region_name=aws_region)
         self._model = model
 
     def generate(
@@ -57,7 +61,7 @@ class InsightService:
         Raises:
             AITimeoutError: LLM 타임아웃
             AIUpstreamError: LLM 연결 실패 / API 에러 / Rate Limit
-            AIInternalError: 인증 실패 / 파싱 실패 / tool_use 블록 없음
+            AIInternalError: 파싱 실패 / tool_use 블록 없음
         """
         user_prompt = build_user_prompt(
             activities=activities,
@@ -70,47 +74,41 @@ class InsightService:
         )
 
         try:
-            response = self._client.messages.create(
-                model=self._model,
-                max_tokens=1024,
-                temperature=0.3,
+            response = self._client.converse(
+                modelId=self._model,
                 system=[
-                    {
-                        "type": "text",
-                        "text": SYSTEM_PROMPT,
-                        "cache_control": {"type": "ephemeral"},
-                    }
+                    {"text": SYSTEM_PROMPT},
+                    {"cachePoint": {"type": "default"}},
                 ],
-                messages=[{"role": "user", "content": user_prompt}],
-                tools=[INSIGHT_TOOL],
-                tool_choice={"type": "tool", "name": "save_insight"},
+                messages=[{"role": "user", "content": [{"text": user_prompt}]}],
+                toolConfig=to_tool_config(INSIGHT_TOOL, _TOOL_NAME),
+                inferenceConfig={"maxTokens": 1024, "temperature": 0.3},
             )
-        except anthropic.APITimeoutError as exc:
+        except ReadTimeoutError as exc:
             logger.warning("LLM 타임아웃: %s", exc)
             raise AITimeoutError() from exc
-        except anthropic.RateLimitError as exc:
-            logger.warning("LLM Rate Limit: %s", exc)
-            raise AIUpstreamError("LLM Rate Limit 초과입니다") from exc
-        except anthropic.APIConnectionError as exc:
+        except ClientError as exc:
+            code = exc.response["Error"]["Code"]
+            if code == "ThrottlingException":
+                logger.warning("LLM Rate Limit: %s", exc)
+                raise AIUpstreamError("LLM Rate Limit 초과입니다") from exc
+            logger.error("LLM API 오류 (code=%s): %s", code, exc)
+            raise AIUpstreamError(f"LLM API 오류: {code}") from exc
+        except EndpointConnectionError as exc:
             logger.error("LLM 연결 실패: %s", exc)
             raise AIUpstreamError("LLM 연결에 실패했습니다") from exc
-        except anthropic.AuthenticationError as exc:
-            logger.error("LLM 인증 실패: %s", exc)
-            raise AIInternalError("LLM 인증에 실패했습니다") from exc
-        except anthropic.APIStatusError as exc:
-            logger.error("LLM API 상태 에러 (status=%s): %s", exc.status_code, exc)
-            raise AIUpstreamError(f"LLM API 오류: {exc.status_code}") from exc
 
-        tool_blocks = [b for b in response.content if b.type == "tool_use"]
-        if not tool_blocks:
+        content_blocks = response["output"]["message"]["content"]
+        tool_use_block = next((b for b in content_blocks if "toolUse" in b), None)
+        if not tool_use_block:
             logger.error(
-                "LLM 응답에 tool_use 블록이 없습니다. content=%s", response.content
+                "LLM 응답에 toolUse 블록이 없습니다. content=%s", content_blocks
             )
             raise AIInternalError("LLM 응답에 tool_use 블록이 없습니다")
 
         try:
             payload = {
-                **tool_blocks[0].input,
+                **tool_use_block["toolUse"]["input"],
                 "report_id": "",  # 라우터에서 주입
                 "generated_at": datetime.now(tz=timezone.utc).isoformat(),
             }

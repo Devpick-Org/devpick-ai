@@ -6,8 +6,9 @@ import logging
 import os
 import threading
 
+from typing import Any
+
 from langchain_community.vectorstores import FAISS
-from langchain_openai import OpenAIEmbeddings
 
 from app.rag.schemas import ChunkMetadata, RAGDocument
 
@@ -25,7 +26,7 @@ class VectorStoreManager:
 
     def __init__(
         self,
-        embedding_model: OpenAIEmbeddings,
+        embedding_model: Any,  # langchain_core.embeddings.Embeddings 호환
         index_path: str = "data/vectors/devpick",
     ) -> None:
         self._embedding_model = embedding_model

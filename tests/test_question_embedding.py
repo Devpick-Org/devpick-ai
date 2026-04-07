@@ -19,10 +19,10 @@ def _make_orchestrator() -> tuple[QuestionEmbeddingOrchestrator, MagicMock, Magi
         patch(
             "app.services.question_embedding_service.QuestionVectorRepository"
         ) as mock_repo_cls,
-        patch("app.services.question_embedding_service.OpenAIEmbeddings"),
+        patch("boto3.client"),
     ):
         mock_emb = MagicMock()
-        mock_emb.embed.return_value = [[0.1] * 1536]
+        mock_emb.embed.return_value = [[0.1] * 1024]
         mock_emb_cls.return_value = mock_emb
 
         mock_store = MagicMock()
@@ -31,10 +31,7 @@ def _make_orchestrator() -> tuple[QuestionEmbeddingOrchestrator, MagicMock, Magi
         mock_repo = MagicMock()
         mock_repo_cls.return_value = mock_repo
 
-        orch = QuestionEmbeddingOrchestrator(
-            openai_api_key="test-key",
-            mongo_uri="mongodb://localhost:27017",
-        )
+        orch = QuestionEmbeddingOrchestrator(aws_region="us-east-1")
         orch._embedding_svc = mock_emb
         orch._vector_store = mock_store
         orch._question_repo = mock_repo
@@ -57,7 +54,7 @@ def test_embed_and_store_calls_embedding() -> None:
 
 def test_embed_and_store_saves_to_mongo() -> None:
     orch, mock_emb, mock_repo = _make_orchestrator()
-    mock_emb.embed.return_value = [[0.5] * 1536]
+    mock_emb.embed.return_value = [[0.5] * 1024]
 
     orch.embed_and_store(
         question_id="q_001",
@@ -69,7 +66,7 @@ def test_embed_and_store_saves_to_mongo() -> None:
     mock_repo.save_question.assert_called_once_with(
         question_id="q_001",
         text="질문 텍스트",
-        embedding=[0.5] * 1536,
+        embedding=[0.5] * 1024,
         suggested_tags=["React", "useEffect"],
         content_id="article_001",
     )
@@ -87,7 +84,7 @@ def test_embed_and_store_updates_faiss() -> None:
 def test_embed_and_store_upserts_on_same_question_id() -> None:
     """같은 question_id로 두 번 호출하면 save_question이 두 번 호출된다 (upsert는 repo 레이어 책임)."""
     orch, mock_emb, mock_repo = _make_orchestrator()
-    mock_emb.embed.return_value = [[0.1] * 1536]
+    mock_emb.embed.return_value = [[0.1] * 1024]
 
     orch.embed_and_store(question_id="q_001", text="첫 번째 텍스트")
     orch.embed_and_store(question_id="q_001", text="두 번째 텍스트")

@@ -88,18 +88,13 @@ def test_report_wrong_auth(client: TestClient) -> None:
     assert resp.status_code == 401
 
 
-def test_report_returns_ok_even_if_mongo_fails(
+def test_report_returns_ok_even_if_dynamo_fails(
     client: TestClient,
     mock_insight_service: MagicMock,
-    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr(
-        "app.api.internal.router._MONGO_URI", "mongodb://localhost:27017"
-    )
-
     with patch("app.api.internal.router.InsightRepository") as mock_repo_cls:
         mock_repo = MagicMock()
-        mock_repo.save.side_effect = Exception("MongoDB 연결 실패")
+        mock_repo.save.side_effect = Exception("DynamoDB 연결 실패")
         mock_repo_cls.return_value = mock_repo
 
         resp = client.post(
@@ -112,15 +107,10 @@ def test_report_returns_ok_even_if_mongo_fails(
     assert resp.json()["report_id"] == "report-001"
 
 
-def test_report_saves_to_mongo(
+def test_report_saves_to_dynamo(
     client: TestClient,
     mock_insight_service: MagicMock,
-    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr(
-        "app.api.internal.router._MONGO_URI", "mongodb://localhost:27017"
-    )
-
     with (
         patch("app.api.internal.router.InsightRepository") as mock_insight_repo,
         patch("app.api.internal.router.EventRepository"),
@@ -138,24 +128,6 @@ def test_report_saves_to_mongo(
 
     assert resp.status_code == 200
     mock_repo.save.assert_called_once()
-
-
-def test_report_skips_mongo_when_uri_empty(
-    client: TestClient,
-    mock_insight_service: MagicMock,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    monkeypatch.setattr("app.api.internal.router._MONGO_URI", "")
-
-    with patch("app.api.internal.router.InsightRepository") as mock_repo_cls:
-        resp = client.post(
-            "/internal/report",
-            json=_VALID_BODY,
-            headers={"X-Internal-Key": _VALID_KEY},
-        )
-
-    assert resp.status_code == 200
-    mock_repo_cls.assert_not_called()
 
 
 def test_report_injects_report_id(

@@ -99,12 +99,7 @@ def test_refine_empty_content(client: TestClient) -> None:
 def test_refine_with_content_id_fetches_chunks(
     client: TestClient,
     mock_refine_service: MagicMock,
-    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr(
-        "app.api.internal.router._MONGO_URI", "mongodb://localhost:27017"
-    )
-
     mock_chunks = [
         {"text": "Redis EXPIRE 명령으로 키에 TTL을 설정한다.", "chunk_index": 0},
         {"text": "TTL이 지나면 자동 삭제된다.", "chunk_index": 1},
@@ -130,15 +125,10 @@ def test_refine_with_content_id_fetches_chunks(
     ]
 
 
-def test_refine_without_content_id_skips_mongo(
+def test_refine_without_content_id_skips_dynamo(
     client: TestClient,
     mock_refine_service: MagicMock,
-    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr(
-        "app.api.internal.router._MONGO_URI", "mongodb://localhost:27017"
-    )
-
     with patch("app.api.internal.router.VectorRepository") as mock_repo_cls:
         resp = client.post(
             "/internal/refine",
@@ -152,15 +142,10 @@ def test_refine_without_content_id_skips_mongo(
     assert kwargs["context_chunks"] is None
 
 
-def test_refine_returns_ok_even_if_mongo_fails(
+def test_refine_returns_ok_even_if_dynamo_fails(
     client: TestClient,
     mock_refine_service: MagicMock,
-    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr(
-        "app.api.internal.router._MONGO_URI", "mongodb://localhost:27017"
-    )
-
     with patch("app.api.internal.router.VectorRepository") as mock_repo_cls:
         mock_repo = MagicMock()
         mock_repo.find_by_content_id.side_effect = Exception(
@@ -179,14 +164,16 @@ def test_refine_returns_ok_even_if_mongo_fails(
     assert kwargs["context_chunks"] is None
 
 
-def test_refine_skips_mongo_when_uri_empty(
+def test_refine_with_content_id_always_queries_dynamo(
     client: TestClient,
     mock_refine_service: MagicMock,
-    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr("app.api.internal.router._MONGO_URI", "")
-
+    """content_id가 있으면 항상 DynamoDB에서 청크를 조회한다."""
     with patch("app.api.internal.router.VectorRepository") as mock_repo_cls:
+        mock_repo = MagicMock()
+        mock_repo.find_by_content_id.return_value = []
+        mock_repo_cls.return_value = mock_repo
+
         resp = client.post(
             "/internal/refine",
             json={**_VALID_BODY, "content_id": "cid-001"},
@@ -194,4 +181,4 @@ def test_refine_skips_mongo_when_uri_empty(
         )
 
     assert resp.status_code == 200
-    mock_repo_cls.assert_not_called()
+    mock_repo.find_by_content_id.assert_called_once_with("cid-001")

@@ -1,14 +1,10 @@
-"""RAG 검색 인터페이스 (DP-218).
-
-후속 티켓(DP-233 AI 답변 생성, DP-231 질문 개선)에서 사용한다.
-"""
+"""RAG 검색 인터페이스 (DP-218)."""
 
 from __future__ import annotations
 
 import logging
 
-from langchain_openai import OpenAIEmbeddings
-
+from app.rag.embeddings import BedrockEmbeddingsAdapter, EmbeddingService
 from app.rag.schemas import RAGDocument
 from app.rag.vector_store import VectorStoreManager
 
@@ -22,20 +18,20 @@ class RAGRetriever:
 
     DP-233(AI 답변), DP-231(질문 개선) 등에서 다음과 같이 사용한다::
 
-        retriever = RAGRetriever(openai_api_key=OPENAI_API_KEY)
+        retriever = RAGRetriever(aws_region="ap-northeast-2")
         results = retriever.search("Redis TTL이란?", top_k=5)
         context = "\\n\\n".join(doc.text for doc, _ in results)
     """
 
     def __init__(
         self,
-        openai_api_key: str,
+        aws_region: str = "ap-northeast-2",
         index_path: str = _DEFAULT_INDEX_PATH,
-        model: str = "text-embedding-3-small",
     ) -> None:
-        embedding_model = OpenAIEmbeddings(api_key=openai_api_key, model=model)
+        embedding_svc = EmbeddingService(aws_region=aws_region)
+        adapter = BedrockEmbeddingsAdapter(service=embedding_svc)
         self._store = VectorStoreManager(
-            embedding_model=embedding_model,
+            embedding_model=adapter,
             index_path=index_path,
         )
         self._store.load_or_create()

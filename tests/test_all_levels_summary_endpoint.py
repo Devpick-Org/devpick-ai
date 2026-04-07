@@ -107,15 +107,10 @@ def test_summaries_empty_text(client: TestClient) -> None:
     assert resp.status_code == 422
 
 
-def test_summaries_saves_to_mongo(
+def test_summaries_saves_to_dynamo(
     client: TestClient,
     mock_all_levels_service: MagicMock,
-    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr(
-        "app.api.internal.router._MONGO_URI", "mongodb://localhost:27017"
-    )
-
     with patch("app.api.internal.router.SummaryRepository") as mock_repo_cls:
         mock_repo = MagicMock()
         mock_repo_cls.return_value = mock_repo
@@ -130,18 +125,13 @@ def test_summaries_saves_to_mongo(
     mock_repo.save_all_levels.assert_called_once()
 
 
-def test_summaries_returns_ok_even_if_mongo_fails(
+def test_summaries_returns_ok_even_if_dynamo_fails(
     client: TestClient,
     mock_all_levels_service: MagicMock,
-    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr(
-        "app.api.internal.router._MONGO_URI", "mongodb://localhost:27017"
-    )
-
     with patch("app.api.internal.router.SummaryRepository") as mock_repo_cls:
         mock_repo = MagicMock()
-        mock_repo.save_all_levels.side_effect = Exception("MongoDB 연결 실패")
+        mock_repo.save_all_levels.side_effect = Exception("DynamoDB 연결 실패")
         mock_repo_cls.return_value = mock_repo
 
         resp = client.post(
@@ -152,21 +142,3 @@ def test_summaries_returns_ok_even_if_mongo_fails(
 
     assert resp.status_code == 200
     assert resp.json()["content_id"] == "test-001"
-
-
-def test_summaries_skips_mongo_when_uri_empty(
-    client: TestClient,
-    mock_all_levels_service: MagicMock,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    monkeypatch.setattr("app.api.internal.router._MONGO_URI", "")
-
-    with patch("app.api.internal.router.SummaryRepository") as mock_repo_cls:
-        resp = client.post(
-            "/internal/summaries",
-            json=_VALID_BODY,
-            headers={"X-Internal-Key": _VALID_KEY},
-        )
-
-    assert resp.status_code == 200
-    mock_repo_cls.assert_not_called()

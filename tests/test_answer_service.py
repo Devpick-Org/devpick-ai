@@ -5,8 +5,8 @@ from __future__ import annotations
 import copy
 from unittest.mock import MagicMock, patch
 
-import anthropic
 import pytest
+from botocore.exceptions import ClientError, EndpointConnectionError, ReadTimeoutError
 
 from app.core.exceptions import (
     AIBadRequestError,
@@ -29,15 +29,26 @@ _VALID_LLM_PAYLOAD = {
 
 
 def _make_service_with_mock(payload: dict) -> tuple[AnswerService, MagicMock]:
-    """mock Anthropic 클라이언트를 주입한 AnswerService를 반환한다."""
-    with patch("anthropic.Anthropic"):
-        svc = AnswerService(api_key="test-key")
+    """mock Bedrock 클라이언트를 주입한 AnswerService를 반환한다."""
+    with patch("boto3.client"):
+        svc = AnswerService(aws_region="us-east-1")
 
     mock_client = MagicMock()
-    tool_block = MagicMock()
-    tool_block.type = "tool_use"
-    tool_block.input = payload
-    mock_client.messages.create.return_value.content = [tool_block]
+    mock_client.converse.return_value = {
+        "output": {
+            "message": {
+                "content": [
+                    {
+                        "toolUse": {
+                            "toolUseId": "tool-1",
+                            "name": "save_answer",
+                            "input": payload,
+                        }
+                    }
+                ]
+            }
+        }
+    }
     svc._client = mock_client
     return svc, mock_client
 
@@ -68,8 +79,8 @@ def test_answer_with_article_chunks() -> None:
         article_chunks=["React 렌더링 사이클은...", "useEffect는..."],
     )
 
-    call_kwargs = mock_client.messages.create.call_args[1]
-    user_content = call_kwargs["messages"][0]["content"]
+    call_kwargs = mock_client.converse.call_args[1]
+    user_content = call_kwargs["messages"][0]["content"][0]["text"]
     assert "관련 아티클" in user_content
     assert "React 렌더링 사이클은" in user_content
 
@@ -79,8 +90,8 @@ def test_answer_without_article_chunks() -> None:
 
     svc.answer(refined_title="제목", refined_content="본문")
 
-    call_kwargs = mock_client.messages.create.call_args[1]
-    user_content = call_kwargs["messages"][0]["content"]
+    call_kwargs = mock_client.converse.call_args[1]
+    user_content = call_kwargs["messages"][0]["content"][0]["text"]
     assert "관련 아티클" not in user_content
 
 
@@ -93,8 +104,8 @@ def test_answer_with_rag_chunks() -> None:
         rag_chunks=["[출처: blog_001]\nReact useState 훅은..."],
     )
 
-    call_kwargs = mock_client.messages.create.call_args[1]
-    user_content = call_kwargs["messages"][0]["content"]
+    call_kwargs = mock_client.converse.call_args[1]
+    user_content = call_kwargs["messages"][0]["content"][0]["text"]
     assert "참고 문서" in user_content
     assert "blog_001" in user_content
 
@@ -109,8 +120,8 @@ def test_answer_with_original_question() -> None:
         original_content="뭔가 이상하게 렌더링됨",
     )
 
-    call_kwargs = mock_client.messages.create.call_args[1]
-    user_content = call_kwargs["messages"][0]["content"]
+    call_kwargs = mock_client.converse.call_args[1]
+    user_content = call_kwargs["messages"][0]["content"][0]["text"]
     assert "원본 질문" in user_content
     assert "뭔가 이상하게 렌더링됨" in user_content
 
@@ -124,8 +135,8 @@ def test_answer_with_suggested_tags() -> None:
         suggested_tags=["React", "useEffect"],
     )
 
-    call_kwargs = mock_client.messages.create.call_args[1]
-    user_content = call_kwargs["messages"][0]["content"]
+    call_kwargs = mock_client.converse.call_args[1]
+    user_content = call_kwargs["messages"][0]["content"][0]["text"]
     assert "관련 기술 태그" in user_content
     assert "React" in user_content
 
@@ -151,13 +162,13 @@ def test_answer_empty_references() -> None:
 
 
 def test_invalid_tool_response_raises() -> None:
-    with patch("anthropic.Anthropic"):
-        svc = AnswerService(api_key="test-key")
+    with patch("boto3.client"):
+        svc = AnswerService(aws_region="us-east-1")
 
     mock_client = MagicMock()
-    text_block = MagicMock()
-    text_block.type = "text"
-    mock_client.messages.create.return_value.content = [text_block]
+    mock_client.converse.return_value = {
+        "output": {"message": {"content": [{"text": "일반 텍스트 응답"}]}}
+    }
     svc._client = mock_client
 
     with pytest.raises(AIInternalError, match="tool_use 블록이 없습니다"):
@@ -180,14 +191,25 @@ def test_empty_refined_content_raises() -> None:
 
 def test_validation_error_raises_ai_internal_error() -> None:
     """AnswerResponse 파싱 실패 → AIInternalError."""
-    with patch("anthropic.Anthropic"):
-        svc = AnswerService(api_key="test-key")
+    with patch("boto3.client"):
+        svc = AnswerService(aws_region="us-east-1")
 
     mock_client = MagicMock()
-    tool_block = MagicMock()
-    tool_block.type = "tool_use"
-    tool_block.input = {"answer_content": "답변만"}  # 필수 필드 대부분 누락
-    mock_client.messages.create.return_value.content = [tool_block]
+    mock_client.converse.return_value = {
+        "output": {
+            "message": {
+                "content": [
+                    {
+                        "toolUse": {
+                            "toolUseId": "tool-1",
+                            "name": "save_answer",
+                            "input": {"answer_content": "답변만"},  # 필수 필드 대부분 누락
+                        }
+                    }
+                ]
+            }
+        }
+    }
     svc._client = mock_client
 
     with pytest.raises(AIInternalError, match="파싱"):
@@ -198,16 +220,16 @@ def test_validation_error_raises_ai_internal_error() -> None:
 
 
 def _make_service_with_api_error(side_effect: Exception) -> AnswerService:
-    with patch("anthropic.Anthropic"):
-        svc = AnswerService(api_key="test-key")
+    with patch("boto3.client"):
+        svc = AnswerService(aws_region="us-east-1")
     mock_client = MagicMock()
-    mock_client.messages.create.side_effect = side_effect
+    mock_client.converse.side_effect = side_effect
     svc._client = mock_client
     return svc
 
 
 def test_api_timeout_raises_ai_timeout_error() -> None:
-    svc = _make_service_with_api_error(anthropic.APITimeoutError(request=MagicMock()))
+    svc = _make_service_with_api_error(ReadTimeoutError(endpoint_url="test"))
 
     with pytest.raises(AITimeoutError):
         svc.answer(refined_title="질문", refined_content="본문")
@@ -215,10 +237,9 @@ def test_api_timeout_raises_ai_timeout_error() -> None:
 
 def test_rate_limit_raises_ai_upstream_error() -> None:
     svc = _make_service_with_api_error(
-        anthropic.RateLimitError(
-            message="rate limit",
-            response=MagicMock(status_code=429),
-            body={},
+        ClientError(
+            error_response={"Error": {"Code": "ThrottlingException", "Message": ""}},
+            operation_name="Converse",
         )
     )
 
@@ -227,9 +248,7 @@ def test_rate_limit_raises_ai_upstream_error() -> None:
 
 
 def test_api_connection_error_raises_ai_upstream_error() -> None:
-    svc = _make_service_with_api_error(
-        anthropic.APIConnectionError(request=MagicMock())
-    )
+    svc = _make_service_with_api_error(EndpointConnectionError(endpoint_url="test"))
 
     with pytest.raises(AIUpstreamError):
         svc.answer(refined_title="질문", refined_content="본문")

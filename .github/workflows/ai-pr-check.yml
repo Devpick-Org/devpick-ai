@@ -2,14 +2,14 @@ name: AI PR Checks
 
 on:
   pull_request:
-    branches: [develop]
+    branches: [develop, developV2]
     paths:
       - '**/*.py'
       - 'requirements.txt'
       - 'requirements-dev.txt'
       - '.github/workflows/ai-pr-check.yml'
   push:
-    branches: [develop]
+    branches: [develop,developV2]
     paths:
       - '**/*.py'
       - 'requirements.txt'

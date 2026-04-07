@@ -136,7 +136,9 @@ class NaverD2BackfillCollector(BackfillCollector):
 
         # If this was the last page (exhausted) and no more pending, go incremental
         if exhausted and not remaining:
-            logger.info("Naver D2 backfill: last page exhausted — transitioning to incremental")
+            logger.info(
+                "Naver D2 backfill: last page exhausted — transitioning to incremental"
+            )
             return entries, {
                 "phase": "incremental",
                 "latest_seen_ts": latest_seen_ts,

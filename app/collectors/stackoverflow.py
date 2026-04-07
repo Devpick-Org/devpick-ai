@@ -96,7 +96,9 @@ class StackOverflowCollector:
                 return []
 
             # view_count 임계값 필터링 (API 파라미터 미지원)
-            filtered = [q for q in questions if (q.get("view_count") or 0) >= self.min_views]
+            filtered = [
+                q for q in questions if (q.get("view_count") or 0) >= self.min_views
+            ]
             if not filtered:
                 logger.info(
                     "StackOverflow all %d questions filtered out (view_count<%d)",
@@ -143,12 +145,12 @@ class StackOverflowCollector:
         )
         params: dict = {
             "order": "desc",
-            "sort": "hot",           # 변경: votes → hot (시간 가중 인기도)
+            "sort": "hot",  # 변경: votes → hot (시간 가중 인기도)
             "site": _SITE,
             "filter": "withbody",
             "fromdate": from_date,
             "pagesize": _PAGE_SIZE,
-            "min": self.min_score,   # score 최솟값 서버측 필터링
+            "min": self.min_score,  # score 최솟값 서버측 필터링
         }
         if tags:
             params["tagged"] = ";".join(tags)
@@ -200,7 +202,9 @@ class StackOverflowCollector:
 
         except Exception:
             logger.warning(
-                "Failed to fetch answers for question_ids=%s", question_ids, exc_info=True
+                "Failed to fetch answers for question_ids=%s",
+                question_ids,
+                exc_info=True,
             )
             return {}
 
@@ -271,9 +275,7 @@ def _build_body_candidate(
     if accepted_answer and accepted_answer.get("body"):
         parts.append(f"## Accepted Answer\n{accepted_answer['body']}")
     if top_answers:
-        top_bodies = "\n\n".join(
-            a["body"] for a in top_answers if a.get("body")
-        )
+        top_bodies = "\n\n".join(a["body"] for a in top_answers if a.get("body"))
         if top_bodies:
             parts.append(f"## Top Answers\n{top_bodies}")
 

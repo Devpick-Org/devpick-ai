@@ -9,7 +9,6 @@ import pytest
 from app.repositories.summary_repository import SummaryRepository
 from app.schemas.summary import AllLevelsSummaryResponse
 
-
 _LEVEL_PAYLOAD = {
     "core_summary": [{"heading": "소제목", "content": "요약 내용"}],
     "key_points": ["포인트1"],
@@ -69,8 +68,7 @@ def test_save_all_levels_includes_all_level_names(
     repo.save_all_levels("test-all-001", response)
 
     levels = {
-        call.kwargs["Key"]["level"]
-        for call in mock_table.update_item.call_args_list
+        call.kwargs["Key"]["level"] for call in mock_table.update_item.call_args_list
     }
     assert levels == {"beginner", "junior", "mid", "senior"}
 
@@ -84,14 +82,8 @@ def test_save_all_levels_includes_common_fields(
     for call in mock_table.update_item.call_args_list:
         expr_values = call.kwargs["ExpressionAttributeValues"]
         # one_line_summary は common フィールド
-        assert any(
-            v == "Redis TTL 설정 전략"
-            for v in expr_values.values()
-        )
-        assert any(
-            v == "easy"
-            for v in expr_values.values()
-        )
+        assert any(v == "Redis TTL 설정 전략" for v in expr_values.values())
+        assert any(v == "easy" for v in expr_values.values())
 
 
 def test_save_all_levels_sets_content_id_key(

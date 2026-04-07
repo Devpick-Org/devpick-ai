@@ -4,12 +4,10 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock, patch
 
-import pytest
 import requests
 
 from app.collectors.stackoverflow import StackOverflowCollector, _build_body_candidate
 from app.schemas.normalized_content import NormalizedContent
-
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -80,7 +78,10 @@ def test_fetch_returns_normalized_contents() -> None:
     assert isinstance(content, NormalizedContent)
     assert content.source_name == "Stack Overflow"
     assert content.title == "How to use Spring Boot?"
-    assert content.canonical_url == "https://stackoverflow.com/questions/1/how-to-use-spring-boot"
+    assert (
+        content.canonical_url
+        == "https://stackoverflow.com/questions/1/how-to-use-spring-boot"
+    )
     assert content.author == "devuser"
     assert content.is_original_visible is True
     assert content.license_type == "CC BY-SA 4.0"

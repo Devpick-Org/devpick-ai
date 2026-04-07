@@ -10,7 +10,6 @@ from urllib.parse import urljoin
 
 from bs4 import BeautifulSoup
 
-
 KAKAO_BODY_SELECTORS: tuple[str, ...] = (
     "article",
     "main article",

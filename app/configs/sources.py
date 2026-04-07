@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from app.schemas.source import SourceConfig
 
-
 # ---------------------------------------------------------------------------
 # Unified source configs — single collector per source (backfill + incremental)
 # ---------------------------------------------------------------------------

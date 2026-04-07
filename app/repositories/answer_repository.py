@@ -57,16 +57,10 @@ class AnswerRepository:
             Key={"question_id": pk},
             UpdateExpression=(
                 "SET "
-                + ", ".join(
-                    f"#{k} = :{k}"
-                    for k in doc
-                    if k != "question_id"
-                )
+                + ", ".join(f"#{k} = :{k}" for k in doc if k != "question_id")
                 + ", created_at = if_not_exists(created_at, :created_at)"
             ),
-            ExpressionAttributeNames={
-                f"#{k}": k for k in doc if k != "question_id"
-            },
+            ExpressionAttributeNames={f"#{k}": k for k in doc if k != "question_id"},
             ExpressionAttributeValues={
                 **{f":{k}": v for k, v in doc.items() if k != "question_id"},
                 ":created_at": now,

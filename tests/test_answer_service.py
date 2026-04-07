@@ -203,7 +203,9 @@ def test_validation_error_raises_ai_internal_error() -> None:
                         "toolUse": {
                             "toolUseId": "tool-1",
                             "name": "save_answer",
-                            "input": {"answer_content": "답변만"},  # 필수 필드 대부분 누락
+                            "input": {
+                                "answer_content": "답변만"
+                            },  # 필수 필드 대부분 누락
                         }
                     }
                 ]

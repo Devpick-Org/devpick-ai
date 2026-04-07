@@ -58,12 +58,20 @@ class SummaryRepository:
                 Key={"content_id": content_id, "level": level},
                 UpdateExpression=(
                     "SET "
-                    + ", ".join(f"#{k} = :{k}" for k in item if k not in ("content_id", "level"))
+                    + ", ".join(
+                        f"#{k} = :{k}" for k in item if k not in ("content_id", "level")
+                    )
                     + ", created_at = if_not_exists(created_at, :created_at)"
                 ),
-                ExpressionAttributeNames={f"#{k}": k for k in item if k not in ("content_id", "level")},
+                ExpressionAttributeNames={
+                    f"#{k}": k for k in item if k not in ("content_id", "level")
+                },
                 ExpressionAttributeValues={
-                    **{f":{k}": v for k, v in item.items() if k not in ("content_id", "level")},
+                    **{
+                        f":{k}": v
+                        for k, v in item.items()
+                        if k not in ("content_id", "level")
+                    },
                     ":created_at": now,
                 },
             )

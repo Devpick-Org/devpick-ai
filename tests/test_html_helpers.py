@@ -1,13 +1,9 @@
-"""Tests for Kakao RSS+crawl enrichment collector."""
+"""Tests for Kakao article body extraction helpers."""
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
 import json
 
-from app.collectors.rss_crawl import RSSCrawlCollector
-from app.schemas.raw_content import RawEntry, RawFeedMeta
-from app.schemas.source import SourceConfig
 from app.utils.html_helpers import (
     extract_kakao_article_body,
     extract_kakao_article_body_result,
@@ -123,72 +119,3 @@ def test_cleaning_preserves_core_text_removes_share_blocks() -> None:
     assert "핵심 본문 문장 B" in body_text
     assert "공유 링크 모음" not in body_text
     assert "관련글 목록" not in body_text
-
-
-def test_rss_crawl_collector_enriches_html_text(monkeypatch) -> None:
-    collector = RSSCrawlCollector(timeout=3.0, max_retries=0)
-
-    source = SourceConfig(
-        name="Kakao_Tech",
-        feed_url="https://tech.kakao.com/feed/",
-        site_url="https://tech.kakao.com/",
-        parser_type="rss",
-        content_level=1,
-        active=True,
-        note="Level 1 RSS + crawl",
-    )
-
-    raw_entry = RawEntry(
-        source_name="Kakao_Tech",
-        feed_url=source.feed_url,
-        site_url=source.site_url,
-        parser_type="rss",
-        content_level_hint=1,
-        entry_external_id="entry-1",
-        entry_url="https://tech.kakao.com/posts/1",
-        title_raw="Title",
-        published_at_raw="2026-03-08T00:00:00+00:00",
-        summary_raw="summary",
-        content_raw=None,
-        response_hash="resp",
-        entry_hash="ehash",
-        fetched_at=datetime.now(timezone.utc),
-    )
-    raw_meta = RawFeedMeta(
-        source_name="Kakao_Tech",
-        feed_url=source.feed_url,
-        site_url=source.site_url,
-        parser_type="rss",
-        http_status=200,
-        response_hash="resp",
-        fetched_at=datetime.now(timezone.utc),
-    )
-
-    def fake_collect(_source: SourceConfig):
-        return raw_meta, [raw_entry], "<rss></rss>"
-
-    class DummyResponse:
-        def __init__(self, text: str) -> None:
-            self.text = text
-            self.status_code = 200
-            self.headers = {"Content-Type": "text/html; charset=utf-8"}
-
-        def raise_for_status(self) -> None:
-            return None
-
-    html = """
-    <html><body>
-      <article><div class="entry-content"><p>본문 보강 텍스트</p></div></article>
-    </body></html>
-    """
-
-    def fake_get(*args, **kwargs):
-        return DummyResponse(html)
-
-    monkeypatch.setattr(collector.rss_collector, "collect", fake_collect)
-    monkeypatch.setattr(collector.session, "get", fake_get)
-
-    _, enriched_entries, _ = collector.collect(source)
-    assert len(enriched_entries) == 1
-    assert enriched_entries[0].html_text_raw is not None
-    assert "본문 보강 텍스트" in enriched_entries[0].html_text_raw

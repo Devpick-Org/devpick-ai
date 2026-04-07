@@ -8,7 +8,7 @@ Pydantic 기반 데이터 계약. 수집부터 전송까지 모든 데이터 형
 
 | 파일 | 클래스 | 역할 |
 |------|--------|------|
-| `source.py` | `SourceConfig` | 수집 대상 소스 설정 (URL, 레벨, 활성 여부) |
+| `source.py` | `SourceConfig` | 수집 대상 소스 설정 (URL, 레벨, 활성 여부, parser_type: rss/atom/auto/backfill) |
 | `raw_content.py` | `RawEntry` | 수집기가 반환하는 원시 항목 |
 | `raw_content.py` | `RawFeedMeta` | 피드 메타 정보 (제목, 수집 시각 등) |
 | `normalized_content.py` | `NormalizedContent` | Backend로 전송하는 최종 정규화 항목 (DP-292: author/thumbnail/tags/is_original_visible 반영) |

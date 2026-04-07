@@ -1,73 +1,116 @@
-"""Default source list for local ingestion runs."""
+"""Source configurations for unified backfill collection pipeline."""
 
 from __future__ import annotations
 
 from app.schemas.source import SourceConfig
 
-MEDIUM_PUBLICATIONS: list[str] = [
-    "daangn",
-    "zigbang",
-    "watcha",
-]
 
+# ---------------------------------------------------------------------------
+# Unified source configs — single collector per source (backfill + incremental)
+# ---------------------------------------------------------------------------
 
-BASE_SOURCES: list[SourceConfig] = [
-    SourceConfig(
-        name="NAVER_D2",
-        feed_url="https://d2.naver.com/d2.atom",
-        site_url="https://d2.naver.com",
-        parser_type="atom",
-        content_level=2,
-        active=True,
-        note="Level 2 raw feed collection source",
-    ),
-    SourceConfig(
-        name="Toss_Tech",
-        feed_url="https://toss.tech/rss.xml",
-        site_url="https://toss.tech",
-        parser_type="rss",
-        content_level=2,
-        active=True,
-        note="Level 2 raw feed collection source",
-    ),
-]
-
-
-def build_medium_sources() -> list[SourceConfig]:
-    """Build Medium publication RSS source configs."""
-    return [
-        SourceConfig(
-            name=f"Medium_{publication}",
-            feed_url=f"https://medium.com/feed/{publication}",
-            site_url=f"https://medium.com/{publication}",
-            parser_type="rss",
-            content_level=2,
-            active=True,
-            note="Level 2 RSS - Medium publication",
-        )
-        for publication in MEDIUM_PUBLICATIONS
-    ]
-
-
-def get_default_sources() -> list[SourceConfig]:
-    """Return default level-2 RSS/Atom sources including Medium publications."""
-    return [*BASE_SOURCES, *build_medium_sources()]
-
-
-KAKAO_CRAWL_SOURCE = SourceConfig(
+KAKAO = SourceConfig(
     name="Kakao_Tech",
     feed_url="https://tech.kakao.com/feed/",
     site_url="https://tech.kakao.com/",
-    parser_type="rss",
+    parser_type="backfill",
     content_level=1,
     active=True,
-    note="Level 1 RSS + crawl",
+    note="Sequential post ID enumeration (675~). Backfill + incremental.",
+    title_blocklist=["코딩테스트", "공채", "채용", "신입크루", "인턴", "문제해설"],
+)
+
+NAVER_D2 = SourceConfig(
+    name="NAVER_D2",
+    feed_url="https://d2.naver.com/d2.atom",
+    site_url="https://d2.naver.com",
+    parser_type="backfill",
+    content_level=1,
+    active=True,
+    note="REST API listing + individual article fetch. Backfill + incremental.",
+    title_blocklist=["FE News"],
+)
+
+TOSS = SourceConfig(
+    name="Toss_Tech",
+    feed_url="https://toss.tech/rss.xml",
+    site_url="https://toss.tech",
+    parser_type="backfill",
+    content_level=1,
+    active=True,
+    note="Listing page pagination + article body extraction. Backfill + incremental.",
+)
+
+OLIVEYOUNG = SourceConfig(
+    name="OliveYoung_Tech",
+    feed_url="https://oliveyoung.tech/rss.xml",
+    site_url="https://oliveyoung.tech",
+    parser_type="backfill",
+    content_level=1,
+    active=True,
+    note="RSS feed parsing (full body in feed). Backfill + incremental.",
+)
+
+MEDIUM_DAANGN = SourceConfig(
+    name="Medium_daangn",
+    feed_url="https://medium.com/feed/daangn",
+    site_url="https://medium.com/daangn",
+    parser_type="backfill",
+    content_level=1,
+    active=True,
+    note="Medium internal JSON API + curl_cffi direct fetch. Backfill + incremental.",
+)
+
+MEDIUM_MUSINSA = SourceConfig(
+    name="Medium_musinsa-tech",
+    feed_url="https://medium.com/feed/musinsa-tech",
+    site_url="https://medium.com/musinsa-tech",
+    parser_type="backfill",
+    content_level=1,
+    active=True,
+    note="Medium internal JSON API + curl_cffi direct fetch. Backfill + incremental.",
+)
+
+MEDIUM_MYREALTRIP = SourceConfig(
+    name="Medium_myrealtrip-product",
+    feed_url="https://medium.com/feed/myrealtrip-product",
+    site_url="https://medium.com/myrealtrip-product",
+    parser_type="backfill",
+    content_level=1,
+    active=True,
+    note="Medium internal JSON API + curl_cffi direct fetch. Backfill + incremental.",
+)
+
+MEDIUM_NETFLIX = SourceConfig(
+    name="Medium_netflix-techblog",
+    feed_url="https://medium.com/feed/netflix-techblog",
+    site_url="https://netflixtechblog.com",
+    parser_type="backfill",
+    content_level=1,
+    active=True,
+    note="Medium internal JSON API + curl_cffi direct fetch (redirects to netflixtechblog.com). Backfill + incremental.",
 )
 
 
-def get_crawl_sources() -> list[SourceConfig]:
-    """Return currently enabled RSS+crawl sources."""
-    return [KAKAO_CRAWL_SOURCE]
+def get_all_sources() -> list[SourceConfig]:
+    """Return all active source configs for the unified collection pipeline."""
+    return [
+        KAKAO,
+        NAVER_D2,
+        TOSS,
+        OLIVEYOUNG,
+        MEDIUM_DAANGN,
+        MEDIUM_MUSINSA,
+        MEDIUM_MYREALTRIP,
+        MEDIUM_NETFLIX,
+    ]
 
 
-DEFAULT_SOURCES: list[SourceConfig] = get_default_sources()
+# ---------------------------------------------------------------------------
+# Backward-compatibility aliases (used by existing scripts during migration)
+# ---------------------------------------------------------------------------
+
+
+def get_backfill_sources() -> list[SourceConfig]:
+    """Alias for get_all_sources() — kept for backward compatibility."""
+    return get_all_sources()

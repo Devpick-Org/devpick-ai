@@ -34,9 +34,12 @@
 | 파일 | 설명 |
 |------|------|
 | `init_mongo.py` | Mongo ping 확인, 최소 컬렉션/인덱스 생성, seed upsert |
-| `run_collect_and_save.py` | 수집 → 정규화 → dedup → 로컬 JSONL 저장 (백서버 미연동 환경) |
+| `init_vectors.py` | FAISS 인덱스 초기화 |
+| `reindex_vectors.py` | FAISS 인덱스 재빌드 (인덱스 유실 시) |
+| `run_collect_and_save.py` | 수집 → 정규화 → dedup → 로컬 JSONL 저장 (백서버 미연동 환경). `--backfill` 플래그로 백필 수집도 지원 |
 | `run_collect_and_push.py` | 수집 → 정규화 → dedup → Backend push 통합 파이프라인 (DP-199) |
-| `run_scheduler.py` | 6시간 간격으로 `run_collect_and_push.main()` 반복 실행 |
+| `run_backfill_batch.py` | 백필 1회 배치 실행 — 소스당 20개 수집 → push (DP-199) |
+| `run_scheduler.py` | 6시간 간격으로 RSS + 백필 배치 반복 실행 |
 | `inspect_preprocess.py` | URL 기반 전처리 출력 확인 |
 
 ### `run_collect_and_save.py` (DP-199)
@@ -44,11 +47,21 @@
 백서버 미연동 환경에서 수집 결과를 로컬에 저장한다.
 
 ```bash
+# RSS + Crawl만 (기본)
 python scripts/run_collect_and_save.py
+
+# 백필 소스 전체 포함 (배치 3개씩)
+python scripts/run_collect_and_save.py --backfill
+
+# 특정 백필 소스만, 배치 크기 지정
+python scripts/run_collect_and_save.py --backfill --source Medium_daangn --batch-size 5
+python scripts/run_collect_and_save.py --backfill --source LY_Corp --source Woowahan
 ```
 
 - 환경변수 불필요
 - Level-2 소스(RSS/Atom) → `RSSCollector`, Level-1 소스(Crawl) → `RSSCrawlCollector` 순으로 실행
+- `--backfill`: 백필 소스도 1배치 수집 (기본값 3개, `--batch-size N`으로 조정)
+- `--source NAME`: 백필 소스 필터 (`--backfill` 사용 시, 여러 번 지정 가능)
 - `SentIdStore(data/raw/sent_ids)` — `run_collect_and_push.py`와 dedup 상태 공유
 - 출력: `data/raw/normalized/{source_name}.jsonl` (append)
 - 소스별 실패는 개별 catch — 전체 파이프라인이 중단되지 않는다
@@ -77,7 +90,22 @@ BACKEND_URL=http://localhost:8080 python scripts/run_scheduler.py
 
 - `BlockingScheduler` 사용 — 프로세스가 살아 있는 동안 계속 실행
 - `next_run_time=datetime.now()` — 시작 즉시 첫 실행
+- RSS 수집 + 백필 배치 2개 job 등록 (각 6시간 간격)
+- 백필 소스 전체 완료 시 자동 skip
 - 도커/서버 환경에서 장기 실행 프로세스로 사용
+
+### `run_backfill_batch.py` (DP-199)
+
+백필 1회 배치 실행. 소스당 최대 20개 과거 글을 수집하여 Backend로 push한다.
+
+```bash
+BACKEND_URL=http://localhost:8080 python scripts/run_backfill_batch.py
+```
+
+- `BackfillCursor(data/raw/backfill_cursor)` — 소스별 진행 상태 파일 관리
+- `SentIdStore(data/raw/sent_ids)` — RSS 파이프라인과 dedup 상태 공유
+- 커서 `"done": true` → 해당 소스 skip, 전체 done → 즉시 반환
+- 소스별 실패는 개별 catch — 전체 배치가 중단되지 않는다
 
 ### `inspect_preprocess.py` (DP-216)
 

@@ -1,11 +1,9 @@
-"""Unit tests for RSS raw collection helpers and collector."""
+"""Unit tests for RSS/XML parsing utility helpers."""
 
 from __future__ import annotations
 
 import feedparser
 
-from app.collectors.rss import RSSCollector
-from app.schemas.source import SourceConfig
 from app.utils.xml_helpers import (
     compute_entry_hash,
     detect_parser_type,
@@ -70,62 +68,3 @@ def test_feedparser_parse_sample_rss() -> None:
     parsed = feedparser.parse(rss_xml)
     assert parsed.feed.get("title") == "Sample Feed"
     assert len(parsed.entries) == 1
-
-
-def test_collector_collect_rss_with_mock(monkeypatch) -> None:
-    rss_xml = """<?xml version=\"1.0\" encoding=\"UTF-8\"?>
-<rss version=\"2.0\">
-  <channel>
-    <title>Test Feed</title>
-    <link>https://example.com</link>
-    <description>Test Desc</description>
-    <item>
-      <guid>abc-123</guid>
-      <title>Post 1</title>
-      <link>https://example.com/post-1</link>
-      <description>Summary 1</description>
-            <content:encoded xmlns:content="http://purl.org/rss/1.0/modules/content/">Body 1</content:encoded>
-      <pubDate>Sat, 07 Mar 2026 12:00:00 GMT</pubDate>
-      <category>Python</category>
-    </item>
-  </channel>
-</rss>
-"""
-
-    class DummyResponse:
-        def __init__(self, text: str) -> None:
-            self.text = text
-            self.content = text.encode("utf-8")
-            self.status_code = 200
-            self.headers = {"ETag": "etag-1", "Last-Modified": "last-mod-1"}
-
-        def raise_for_status(self) -> None:
-            return None
-
-    def fake_get(*args, **kwargs):
-        return DummyResponse(rss_xml)
-
-    collector = RSSCollector()
-    monkeypatch.setattr(collector.session, "get", fake_get)
-
-    source = SourceConfig(
-        name="Test Source",
-        feed_url="https://example.com/rss.xml",
-        site_url="https://example.com",
-        parser_type="auto",
-        content_level=2,
-        active=True,
-        note="",
-    )
-
-    meta, entries, raw_xml = collector.collect(source)
-    assert meta.source_name == "Test Source"
-    assert meta.http_status == 200
-    assert len(entries) == 1
-    assert entries[0].entry_external_id == "abc-123"
-    assert entries[0].entry_url == "https://example.com/post-1"
-    assert entries[0].summary_raw == "Summary 1"
-    assert entries[0].content_raw == "Body 1"
-    assert entries[0].categories_raw == ["Python"]
-    assert entries[0].raw_xml_fragment is None
-    assert raw_xml.startswith("<?xml")

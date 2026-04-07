@@ -30,6 +30,9 @@
              **+ 4레벨 동시 요약 AllLevelsSummaryService + POST /internal/summaries 구현 완료 (DP-300)**
              **+ AI 처리 이벤트 로그 MongoDB 저장 (event_logs) + 일별 중복 제거 구현 완료 (DP-252)**
              **+ 주간 인사이트 InsightService + InsightRepository + POST /internal/report 구현 완료 (DP-259, DP-260)**
+             **+ 과거 글 백필 크롤러 (카카오/네이버D2/토스/미디엄/올리브영) + 스케줄러 통합 구현 완료 (DP-199)**
+             **+ html_helpers 공통 파싱 유틸 추가 (BeautifulSoup 기반, curl_cffi 도입)**
+             **+ RSS 파이프라인 제거 → 통합 수집기(백필+incremental) 단일화 (중복 수집 문제 해결)**
 
 ---
 
@@ -50,7 +53,7 @@
 
 ## 3. 이 레포의 핵심 책임
 
-1. **콘텐츠 수집 및 정규화** — RSS/크롤링 → `NormalizedContent`
+1. **콘텐츠 수집 및 정규화** — RSS/크롤링 + 백필(과거 글) → `NormalizedContent`
 2. **Backend ingest push** — `POST /internal/contents`
 3. **AI 요약** — SummaryService (Tool Use + Prompt Caching, DP-219 구현 완료) / 질문·리포트 (Epic D, F — 향후 구현)
 4. **출력 JSON 스키마 검증 + 파싱 실패 대응**
@@ -83,7 +86,7 @@ devpick-ai/
 │   ├── api/            # FastAPI 라우터 + 인증 (DP-215~)
 │   │   ├── deps.py     # X-Internal-Key 인증 dependency
 │   │   └── internal/   # /internal/* 라우터
-│   ├── collectors/     # RSS / RSS+크롤링 수집기
+│   ├── collectors/     # 통합 수집기 (backfill/ — 백필+incremental 단일 파이프라인)
 │   ├── configs/        # 수집 대상 소스 목록
 │   ├── core/           # 프롬프트 템플릿 + Tool Use 스키마 (DP-219~)
 │   │   └── prompts/    # 요약/질문/리포트 프롬프트
@@ -91,7 +94,7 @@ devpick-ai/
 │   ├── repositories/   # MongoDB 접근 레이어 (DP-220~)
 │   ├── schemas/        # Pydantic 스키마
 │   ├── services/       # 비즈니스 로직 (ingest, normalize, push, summary, embedding)
-│   ├── stores/         # raw JSONL 저장 + SentIdStore
+│   ├── stores/         # raw JSONL 저장 + SentIdStore + BackfillCursor
 │   └── utils/          # XML/HTML 파싱 헬퍼
 ├── docs/               # 운영/설계 문서
 ├── scripts/            # 일회성/운영 스크립트
@@ -146,11 +149,14 @@ ruff check . && black --check . && pytest -q
 # 개발 서버
 uvicorn main:app --reload
 
-# 1회 파이프라인 실행
-BACKEND_URL=http://localhost:8080 python scripts/run_collect_and_push.py
+# 1회 수집 실행 (백필 + incremental, Backend push)
+BACKEND_URL=http://localhost:8080 python scripts/run_backfill_batch.py
 
-# 스케줄러 (6시간 간격)
+# 스케줄러 (6시간 간격, 통합 수집)
 BACKEND_URL=http://localhost:8080 python scripts/run_scheduler.py
+
+# 로컬 저장 (소스당 3개, Backend push 없음)
+python scripts/run_collect_and_save.py --batch-size 3
 
 # Mongo 초기화 (rag_documents 인덱스 포함)
 python scripts/init_mongo.py

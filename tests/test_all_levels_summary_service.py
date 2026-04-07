@@ -47,7 +47,13 @@ def _bedrock_response(payload: dict, tool_name: str = "save_all_summaries") -> d
         "output": {
             "message": {
                 "content": [
-                    {"toolUse": {"toolUseId": "tool-1", "name": tool_name, "input": payload}}
+                    {
+                        "toolUse": {
+                            "toolUseId": "tool-1",
+                            "name": tool_name,
+                            "input": payload,
+                        }
+                    }
                 ]
             }
         }
@@ -170,9 +176,7 @@ def test_rate_limit_raises_ai_upstream_error() -> None:
 
 
 def test_api_connection_error_raises_ai_upstream_error() -> None:
-    svc = _make_service_with_api_error(
-        EndpointConnectionError(endpoint_url="test")
-    )
+    svc = _make_service_with_api_error(EndpointConnectionError(endpoint_url="test"))
 
     with pytest.raises(AIUpstreamError):
         svc.summarize_all(content_id="art-t3", text="텍스트.")

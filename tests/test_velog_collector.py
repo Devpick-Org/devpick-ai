@@ -2,9 +2,8 @@
 
 from __future__ import annotations
 
-from unittest.mock import MagicMock, call, patch
+from unittest.mock import MagicMock, patch
 
-import pytest
 import requests
 
 from app.collectors.velog import VelogCollector
@@ -85,8 +84,10 @@ def test_fetch_tries_trending_posts_first() -> None:
     post = make_post()
     trending_resp = mock_trending_response([post])
 
-    with patch.object(collector.session, "post", return_value=trending_resp) as mock_post:
-        results = collector.fetch()
+    with patch.object(
+        collector.session, "post", return_value=trending_resp
+    ) as mock_post:
+        collector.fetch()
 
     # Only one call should have been made (trendingPosts), not two
     assert mock_post.call_count == 1
@@ -194,9 +195,7 @@ def test_fetch_filters_out_pre_min_date_posts() -> None:
     resp = mock_trending_response([old_post])
     posts_empty = mock_posts_response([])
 
-    with patch.object(
-        collector.session, "post", side_effect=[resp, posts_empty]
-    ):
+    with patch.object(collector.session, "post", side_effect=[resp, posts_empty]):
         results = collector.fetch()
 
     assert results == []

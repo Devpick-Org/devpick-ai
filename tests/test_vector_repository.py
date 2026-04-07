@@ -130,9 +130,7 @@ def test_find_by_content_id_returns_list(
 # ── find_all ───────────────────────────────────────────────────────────────
 
 
-def test_find_all_yields_dicts(
-    repo: VectorRepository, mock_table: MagicMock
-) -> None:
+def test_find_all_yields_dicts(repo: VectorRepository, mock_table: MagicMock) -> None:
     dynamo_chunk = {
         "content_id": "cid-001",
         "chunk_index": 0,

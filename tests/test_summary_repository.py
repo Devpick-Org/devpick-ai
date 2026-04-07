@@ -69,8 +69,7 @@ def test_save_all_levels_includes_all_level_names(
     repo.save_all_levels("test-all-001", response)
 
     levels = {
-        call.kwargs["Key"]["level"]
-        for call in mock_table.update_item.call_args_list
+        call.kwargs["Key"]["level"] for call in mock_table.update_item.call_args_list
     }
     assert levels == {"beginner", "junior", "mid", "senior"}
 
@@ -84,14 +83,8 @@ def test_save_all_levels_includes_common_fields(
     for call in mock_table.update_item.call_args_list:
         expr_values = call.kwargs["ExpressionAttributeValues"]
         # one_line_summary は common フィールド
-        assert any(
-            v == "Redis TTL 설정 전략"
-            for v in expr_values.values()
-        )
-        assert any(
-            v == "easy"
-            for v in expr_values.values()
-        )
+        assert any(v == "Redis TTL 설정 전략" for v in expr_values.values())
+        assert any(v == "easy" for v in expr_values.values())
 
 
 def test_save_all_levels_sets_content_id_key(

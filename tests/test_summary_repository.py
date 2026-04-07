@@ -9,7 +9,6 @@ import pytest
 from app.repositories.summary_repository import SummaryRepository
 from app.schemas.summary import AllLevelsSummaryResponse
 
-
 _LEVEL_PAYLOAD = {
     "core_summary": [{"heading": "소제목", "content": "요약 내용"}],
     "key_points": ["포인트1"],

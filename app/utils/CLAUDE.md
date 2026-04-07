@@ -13,10 +13,26 @@
 
 ---
 
+## html_helpers.py 주요 함수
+
+| 함수 | 설명 |
+|------|------|
+| `html_to_text(html)` | HTML → 정규화 텍스트 |
+| `extract_og_meta(html, prop)` | OG/meta 속성 추출 (og:title, og:image 등) |
+| `extract_og_image(html)` | og:image / twitter:image 추출 (extract_og_meta 래핑) |
+| `extract_article_body(html)` | `<article>` 태그 본문 추출 (noisy 태그 제거 포함) |
+| `extract_jsonld_field(html, field)` | JSON-LD에서 필드 추출 (datePublished 등) |
+| `extract_meta_author(html)` | `<meta name="author">` 추출 |
+| `strip_wayback_prefix(url)` | Wayback Machine URL prefix 제거 |
+| `extract_first_image(html)` | 본문 첫 번째 이미지 URL |
+| `extract_kakao_article_body(html)` | 카카오 전용 본문 추출 (Nuxt payload fallback 포함) |
+
+---
+
 ## 사용 위치
 
 - `xml_helpers` → `RSSCollector`, `RSSCrawlCollector`
-- `html_helpers` → `RSSCrawlCollector` (HTML 크롤링 본문 정제)
+- `html_helpers` → `RSSCrawlCollector`, 모든 백필 크롤러 공통 사용
 
 ---
 

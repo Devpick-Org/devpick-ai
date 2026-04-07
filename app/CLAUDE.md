@@ -11,14 +11,14 @@ app/
 ├── api/            # FastAPI 라우터 + 인증 (DP-215)
 │   ├── deps.py     # X-Internal-Key 인증 dependency
 │   └── internal/   # /internal/* 라우터
-├── collectors/     # 수집기 — RSS, RSS+크롤링
+├── collectors/     # 수집기 — RSS, RSS+크롤링, 백필(backfill/)
 ├── configs/        # 수집 대상 소스 목록
 ├── core/           # 프롬프트 템플릿 + 설정 (DP-219~)
 │   └── prompts/    # 요약/질문/리포트 프롬프트 + Tool Use 스키마
 ├── rag/            # RAG 파이프라인 (청킹 → 임베딩 → FAISS, DP-218)
 ├── schemas/        # Pydantic 스키마 (RawEntry, NormalizedContent, SourceConfig, SummaryResponse)
 ├── services/       # 비즈니스 로직 (IngestService, NormalizeService, PushService, SummaryService, EmbeddingOrchestrator)
-├── stores/         # raw JSONL 저장 + SentIdStore (cross-run dedup)
+├── stores/         # raw JSONL 저장 + SentIdStore (cross-run dedup) + BackfillCursor
 ├── utils/          # XML/HTML 파싱 헬퍼
 └── repositories/   # MongoDB 접근 레이어 (SummaryRepository, VectorRepository, DP-220~)
 ```
@@ -43,6 +43,40 @@ SentIdStore.add() → 처리 완료 ID 기록
 ```
 
 전체 파이프라인 실행 진입점: `scripts/run_collect_and_push.py`
+
+### 백필 파이프라인 흐름 (DP-199)
+
+```
+BackfillCursor.load(source.name) → cursor
+    ↓
+BackfillCollector.collect_batch(source, cursor, 20) → (list[RawEntry], new_cursor)
+    ↓
+SentIdStore.load(source.name) → 이미 처리된 ID 필터링
+    ↓
+NormalizeService.normalize_entry() → list[NormalizedContent]
+    ↓
+PushService.push(new_items) → Backend
+    ↓
+SentIdStore.add() + BackfillCursor.save() → 상태 갱신
+```
+
+- 6시간마다 RSS 수집 후 백필 배치 실행 (소스당 20개)
+- 커서 `"done": true` → 해당 소스 skip, 전체 done → 백필 단계 자동 skip
+- 실행 진입점: `scripts/run_backfill_batch.py`
+
+#### 백필 소스별 수집 방식
+
+| 소스 | 크롤러 | 수집 전략 |
+|------|--------|----------|
+| Kakao Tech | `KakaoBackfillCollector` | 순차 post ID 열거 (675~) |
+| NAVER D2 | `NaverD2BackfillCollector` | REST API 리스팅 + 개별 글 fetch |
+| Toss Tech | `TossBackfillCollector` | 리스팅 페이지네이션 + article body 추출 |
+| Medium daangn | `MediumWaybackBackfillCollector` | Wayback Machine CDX API + 캐시 페이지 fetch |
+| Medium coupang-engineering | `MediumWaybackBackfillCollector` | Wayback Machine CDX API + 캐시 페이지 fetch |
+| Medium musinsa-tech | `MediumWaybackBackfillCollector` | Wayback Machine CDX API + 캐시 페이지 fetch |
+| Medium watcha | `MediumWaybackBackfillCollector` | Wayback Machine CDX API + 캐시 페이지 fetch |
+| LY Corp | `LYCorpBackfillCollector` | 리스팅 페이지네이션 (`/ko/page/{n}/`) + article body 추출 |
+| 우아한형제들 | `WoowahanBackfillCollector` | Wayback Machine CDX API + 캐시 페이지 fetch (Cloudflare 우회) |
 
 ---
 

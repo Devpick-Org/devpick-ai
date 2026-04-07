@@ -10,7 +10,6 @@ from urllib.parse import urljoin
 
 from bs4 import BeautifulSoup
 
-
 KAKAO_BODY_SELECTORS: tuple[str, ...] = (
     "article",
     "main article",
@@ -293,19 +292,86 @@ def extract_first_image(html: str, base_url: str | None = None) -> str | None:
     return None
 
 
+def extract_og_meta(html: str, prop: str) -> str | None:
+    """Extract an Open Graph or standard meta property from HTML.
+
+    Checks both ``property="..."`` and ``name="..."`` attributes so it works
+    for og:title, og:description, og:image, twitter:image, author, etc.
+    """
+    soup = BeautifulSoup(html, "html.parser")
+    tag = soup.find("meta", property=prop) or soup.find("meta", attrs={"name": prop})
+    if tag and tag.get("content"):
+        return tag["content"].strip() or None
+    return None
+
+
 def extract_og_image(html: str) -> str | None:
     """Extract representative image URL from HTML meta tags."""
+    return extract_og_meta(html, "og:image") or extract_og_meta(html, "twitter:image")
+
+
+def extract_meta_author(html: str) -> str | None:
+    """Extract author name from <meta name="author"> tag."""
+    return extract_og_meta(html, "author")
+
+
+def extract_article_body(html: str) -> tuple[str | None, str | None]:
+    """Extract body HTML and plain text from the first <article> element.
+
+    Strips noisy child nodes (nav, aside, footer, .related-*, etc.) before
+    returning.  Returns (body_html, body_text); both None if no <article>
+    found or content is too short.
+    """
     soup = BeautifulSoup(html, "html.parser")
+    article = soup.find("article")
+    if not article:
+        return None, None
 
-    og = soup.find("meta", property="og:image")
-    if og and og.get("content"):
-        return og["content"].strip() or None
+    _strip_noisy_nodes(article)
+    body_html = str(article)
+    body_text = html_to_text(body_html)
+    return body_html, body_text
 
-    tw = soup.find("meta", attrs={"name": "twitter:image"})
-    if tw and tw.get("content"):
-        return tw["content"].strip() or None
 
+def extract_jsonld_field(html: str, field: str) -> str | None:
+    """Extract a field from the first JSON-LD <script> block.
+
+    More reliable than regex because it parses the full JSON structure,
+    which handles whitespace, escaping, and nested objects correctly.
+    Common fields: 'datePublished', 'dateModified', 'author', 'name'.
+    """
+    soup = BeautifulSoup(html, "html.parser")
+    for script in soup.find_all("script", type="application/ld+json"):
+        text = (script.string or "").strip()
+        if not text:
+            continue
+        try:
+            data = json.loads(text)
+        except json.JSONDecodeError:
+            continue
+        # data may be a dict or a list of dicts
+        if isinstance(data, list):
+            for item in data:
+                if isinstance(item, dict) and field in item:
+                    return str(item[field]).strip() or None
+        elif isinstance(data, dict) and field in data:
+            return str(data[field]).strip() or None
     return None
+
+
+def strip_wayback_prefix(url: str) -> str:
+    """Remove Wayback Machine URL prefix from a URL.
+
+    e.g. ``https://web.archive.org/web/20240101120000/https://example.com/img.jpg``
+    → ``https://example.com/img.jpg``
+
+    Also handles image-specific variant ``/web/20240101120000im_/...``.
+    Returns the original URL unchanged if it does not contain a Wayback prefix.
+    """
+    if "web.archive.org" not in url:
+        return url
+    m = re.search(r"https?://web\.archive\.org/web/\d+(?:im_)?/(https?://.+)", url)
+    return m.group(1) if m else url
 
 
 def extract_kakao_article_body_result(html: str) -> ExtractionResult:

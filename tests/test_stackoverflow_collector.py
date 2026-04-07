@@ -9,7 +9,6 @@ import requests
 from app.collectors.stackoverflow import StackOverflowCollector, _build_body_candidate
 from app.schemas.normalized_content import NormalizedContent
 
-
 # ── Helpers ──────────────────────────────────────────────────────────────────
 
 

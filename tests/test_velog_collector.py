@@ -9,7 +9,6 @@ import requests
 from app.collectors.velog import VelogCollector
 from app.schemas.normalized_content import NormalizedContent
 
-
 # ── Helpers ──────────────────────────────────────────────────────────────────
 
 

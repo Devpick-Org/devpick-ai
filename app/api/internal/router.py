@@ -66,7 +66,9 @@ def create_all_levels_summary(
     except ValueError as exc:
         raise AIBadRequestError(str(exc)) from exc
 
-    result = AllLevelsSummaryService(aws_region=_AWS_REGION, model=_BEDROCK_MODEL).summarize_all(
+    result = AllLevelsSummaryService(
+        aws_region=_AWS_REGION, model=_BEDROCK_MODEL
+    ).summarize_all(
         content_id=body.content_id,
         text=preprocessed,
         thumbnail_url=body.thumbnail_url,
@@ -109,7 +111,9 @@ def create_refine(body: RefineRequest) -> RefineResponse:
     context_chunks: list[str] | None = None
     if body.content_id:
         try:
-            docs = VectorRepository(aws_region=_AWS_REGION).find_by_content_id(body.content_id)
+            docs = VectorRepository(aws_region=_AWS_REGION).find_by_content_id(
+                body.content_id
+            )
             if docs:
                 context_chunks = [doc["text"] for doc in docs]
         except Exception:
@@ -150,7 +154,9 @@ def create_answer(body: AnswerRequest) -> AnswerResponse:
     article_chunks: list[str] | None = None
     if body.content_id:
         try:
-            docs = VectorRepository(aws_region=_AWS_REGION).find_by_content_id(body.content_id)
+            docs = VectorRepository(aws_region=_AWS_REGION).find_by_content_id(
+                body.content_id
+            )
             if docs:
                 article_chunks = [doc["text"] for doc in docs]
         except Exception:
@@ -168,14 +174,15 @@ def create_answer(body: AnswerRequest) -> AnswerResponse:
         ]
         if filtered:
             rag_chunks = [
-                f"[출처: {doc.metadata.content_id}]\n{doc.text}"
-                for doc, _ in filtered
+                f"[출처: {doc.metadata.content_id}]\n{doc.text}" for doc, _ in filtered
             ]
     except Exception:
         logger.exception("Failed to perform RAG search")
 
     # Step 3. 답변 생성
-    result, references = AnswerService(aws_region=_AWS_REGION, model=_BEDROCK_MODEL).answer(
+    result, references = AnswerService(
+        aws_region=_AWS_REGION, model=_BEDROCK_MODEL
+    ).answer(
         refined_title=body.refined_title,
         refined_content=body.refined_content,
         original_title=body.original_title,
@@ -188,7 +195,9 @@ def create_answer(body: AnswerRequest) -> AnswerResponse:
     # Step 4. references 기반 related_contents 주입
     if references:
         try:
-            summaries = SummaryRepository(aws_region=_AWS_REGION).find_by_content_ids(references)
+            summaries = SummaryRepository(aws_region=_AWS_REGION).find_by_content_ids(
+                references
+            )
             result.related_contents = [
                 RelatedContent(
                     content_id=s["content_id"],
@@ -298,14 +307,10 @@ def create_insight(body: InsightRequest) -> InsightResponse:
         )
         ai_events = {
             "refine": sum(
-                1
-                for e in events
-                if e["event_type"] == EventType.QUESTION_REFINED.value
+                1 for e in events if e["event_type"] == EventType.QUESTION_REFINED.value
             ),
             "answer": sum(
-                1
-                for e in events
-                if e["event_type"] == EventType.ANSWER_GENERATED.value
+                1 for e in events if e["event_type"] == EventType.ANSWER_GENERATED.value
             ),
             "similar": sum(
                 1
@@ -324,7 +329,9 @@ def create_insight(body: InsightRequest) -> InsightResponse:
         if body.activities.read_content_ids:
             read_summaries = repo.find_by_content_ids(body.activities.read_content_ids)
         if body.activities.scrapped_content_ids:
-            scrapped_summaries = repo.find_by_content_ids(body.activities.scrapped_content_ids)
+            scrapped_summaries = repo.find_by_content_ids(
+                body.activities.scrapped_content_ids
+            )
     except Exception:
         logger.exception("Failed to fetch article summaries from DynamoDB")
 
@@ -332,9 +339,9 @@ def create_insight(body: InsightRequest) -> InsightResponse:
     question_texts: list[str] = []
     if body.activities.question_ids:
         try:
-            question_texts = QuestionVectorRepository(aws_region=_AWS_REGION).find_texts_by_ids(
-                body.activities.question_ids
-            )
+            question_texts = QuestionVectorRepository(
+                aws_region=_AWS_REGION
+            ).find_texts_by_ids(body.activities.question_ids)
         except Exception:
             logger.exception("Failed to fetch question texts from DynamoDB")
 

@@ -13,7 +13,9 @@ from app.schemas.event import EventType
 logger = logging.getLogger(__name__)
 
 
-def _dedup_sk(date_str: str, event_type: str, content_id: str | None, question_id: str | None) -> str:
+def _dedup_sk(
+    date_str: str, event_type: str, content_id: str | None, question_id: str | None
+) -> str:
     """일별 중복 제거용 Sort Key를 생성한다.
 
     형식: {YYYY-MM-DD}#{event_type}#{content_id or ''}#{question_id or ''}

@@ -20,6 +20,6 @@ class NormalizedContent(BaseModel):
     license_type: str | None = None
     tags: list[str] = []
     # 소스별 참여 지표 (수집 통계용, null for RSS sources)
-    likes: int | None = None           # 좋아요/추천수 (Velog: likes, SO: score)
-    view_count: int | None = None      # 조회수 (SO: view_count)
+    likes: int | None = None  # 좋아요/추천수 (Velog: likes, SO: score)
+    view_count: int | None = None  # 조회수 (SO: view_count)
     comments_count: int | None = None  # 댓글수 (Velog: comments_count)

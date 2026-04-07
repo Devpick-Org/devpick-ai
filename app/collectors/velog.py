@@ -165,7 +165,9 @@ class VelogCollector:
             data = resp.json()
             return (data.get("data") or {}).get("trendingPosts") or []
         except Exception:
-            logger.warning("Velog trendingPosts query failed, will fallback", exc_info=True)
+            logger.warning(
+                "Velog trendingPosts query failed, will fallback", exc_info=True
+            )
             return []
 
     def _fetch_posts(self) -> list[dict]:
@@ -242,5 +244,7 @@ def _parse_min_date(min_date_str: str) -> datetime | None:
     try:
         return datetime.fromisoformat(min_date_str).replace(tzinfo=timezone.utc)
     except (ValueError, AttributeError):
-        logger.warning("Failed to parse VELOG_MIN_DATE: %r, no date filter applied", min_date_str)
+        logger.warning(
+            "Failed to parse VELOG_MIN_DATE: %r, no date filter applied", min_date_str
+        )
         return None

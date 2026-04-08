@@ -231,7 +231,6 @@ class VelogCollector:
             body_candidate=None,  # ADR-006: SUMMARY_ONLY
             is_original_visible=False,
             license_type=None,
-            tags=post.get("tags") or [],
             likes=likes,
             comments_count=comments_count,
         )

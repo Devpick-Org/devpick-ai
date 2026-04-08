@@ -382,7 +382,7 @@ def test_to_normalized_content_short_description_not_truncated() -> None:
     assert result.preview == "짧은 설명"
 
 
-def test_to_normalized_content_null_tags_uses_empty_list() -> None:
+def test_to_normalized_content_null_tags_ignored() -> None:
     collector = VelogCollector()
     post = make_post()
     post["tags"] = None
@@ -390,7 +390,6 @@ def test_to_normalized_content_null_tags_uses_empty_list() -> None:
     result = collector._to_normalized_content(post)
 
     assert result is not None
-    assert result.tags == []
 
 
 def test_to_normalized_content_body_candidate_always_none() -> None:

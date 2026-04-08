@@ -92,7 +92,7 @@ devpick-ai/
 │   ├── core/           # 프롬프트 템플릿 + Tool Use 스키마 (DP-219~)
 │   │   └── prompts/    # 요약/질문/리포트 프롬프트
 │   ├── rag/            # RAG 파이프라인 (청킹/임베딩/FAISS, DP-218)
-│   ├── repositories/   # MongoDB 접근 레이어 (DP-220~)
+│   ├── repositories/   # DynamoDB 접근 레이어 (DP-220~)
 │   ├── schemas/        # Pydantic 스키마
 │   ├── services/       # 비즈니스 로직 (ingest, normalize, push, summary, embedding)
 │   ├── stores/         # raw JSONL 저장 + SentIdStore + BackfillCursor

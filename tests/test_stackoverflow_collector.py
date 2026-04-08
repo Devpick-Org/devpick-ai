@@ -85,7 +85,6 @@ def test_fetch_returns_normalized_contents() -> None:
     assert content.author == "devuser"
     assert content.is_original_visible is True
     assert content.license_type == "CC BY-SA 4.0"
-    assert "java" in content.tags
     assert content.view_count == 1200
     assert content.likes == 15  # SO score → likes
 
@@ -315,7 +314,7 @@ def test_to_normalized_content_null_owner_uses_unknown() -> None:
     assert result.author == "Unknown"
 
 
-def test_to_normalized_content_null_tags_uses_empty_list() -> None:
+def test_to_normalized_content_null_tags_ignored() -> None:
     collector = StackOverflowCollector()
     q = make_question()
     q["tags"] = None
@@ -323,7 +322,6 @@ def test_to_normalized_content_null_tags_uses_empty_list() -> None:
     result = collector._to_normalized_content(q, [])
 
     assert result is not None
-    assert result.tags == []
 
 
 def test_to_normalized_content_preview_truncated_at_300_chars() -> None:

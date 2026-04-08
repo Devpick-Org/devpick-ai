@@ -1,4 +1,4 @@
-"""Run one collection batch (backfill + incremental) per source and push to Backend.
+"""Run one collection batch (backfill + incremental) per source and save to PostgreSQL.
 
 Designed to be called from the scheduler every 6 hours.  Each invocation picks
 up where the previous one left off via per-source cursor files.
@@ -10,7 +10,7 @@ marked done and are always included in each run.
 
 Can also be run standalone::
 
-    BACKEND_URL=http://localhost:8080 python scripts/run_backfill_batch.py
+    DATABASE_URL=postgresql://... python scripts/run_backfill_batch.py
 """
 
 from __future__ import annotations
@@ -38,10 +38,11 @@ from app.collectors.backfill.naver_d2 import NaverD2BackfillCollector
 from app.collectors.backfill.oliveyoung import OliveYoungBackfillCollector
 from app.collectors.backfill.toss import TossBackfillCollector
 from app.configs.sources import get_all_sources
+from app.repositories.content_repository import ContentRepository
 from app.schemas.raw_content import RawEntry
 from app.schemas.source import SourceConfig
+from app.services.content_pipeline import ContentPipeline
 from app.services.normalize_service import NormalizeService
-from app.services.push_service import PushService
 from app.stores.backfill_cursor import BackfillCursor
 from app.stores.sent_id_store import SentIdStore
 
@@ -84,7 +85,8 @@ def _is_relevant(entry: RawEntry, source: SourceConfig) -> bool:
 def _run_source(
     source: SourceConfig,
     normalizer: NormalizeService,
-    push_service: PushService,
+    content_repo: ContentRepository,
+    pipeline: ContentPipeline,
     sent_id_store: SentIdStore,
     cursor_store: BackfillCursor,
     batch_size: int = BATCH_SIZE,
@@ -143,26 +145,41 @@ def _run_source(
     # Normalize
     new_items = [normalizer.normalize_entry(entry) for entry in new_entries]
 
-    # Push to Backend
+    # PostgreSQL 저장
     try:
-        result = push_service.push(new_items)
+        result = content_repo.save_contents(new_items)
     except Exception:
-        logger.exception("[ERROR] %s push failed", source.name)
+        logger.exception("[ERROR] %s PostgreSQL 저장 실패", source.name)
         return
 
-    # Record pushed IDs + save cursor
+    # 저장 완료된 ID 기록 + 커서 갱신
     pushed_ids = {e.entry_external_id for e in new_entries}
     sent_id_store.add(source.name, pushed_ids)
     cursor_store.save(source.name, new_cursor)
 
+    # 신규 저장된 콘텐츠만 요약 실행 (중복 스킵된 항목 제외)
+    for content_id, item in result.inserted:
+        try:
+            pipeline.process_content(
+                content_id=content_id,
+                body_html=item.body_candidate,
+                thumbnail_url=item.thumbnail_url,
+            )
+        except Exception:
+            logger.exception(
+                "[WARN] %s 요약 실패 content_id=%s (콘텐츠는 저장됨)",
+                source.name,
+                content_id,
+            )
+
     phase = new_cursor.get("phase", "backfill")
     logger.info(
-        "[OK] %s collected=%d new=%d pushed=%s skipped=%s phase=%s",
+        "[OK] %s collected=%d new=%d saved=%d skipped=%d phase=%s",
         source.name,
         len(entries),
         len(new_items),
-        result.get("saved", "?"),
-        result.get("skipped", "?"),
+        result.saved,
+        result.skipped,
         phase,
     )
 
@@ -173,9 +190,19 @@ def main(batch_size: int = BATCH_SIZE) -> None:
         level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s"
     )
 
-    backend_url = os.environ.get("BACKEND_URL", "http://localhost:8080")
+    database_url = os.environ.get("DATABASE_URL")
+    if not database_url:
+        logger.error("DATABASE_URL이 설정되지 않았습니다 — 실행 중단")
+        return
+
+    aws_region = os.environ.get("AWS_REGION", "ap-northeast-2")
+    bedrock_model = os.environ.get(
+        "BEDROCK_MODEL", "anthropic.claude-3-5-sonnet-20241022-v2:0"
+    )
+
     normalizer = NormalizeService()
-    push_service = PushService(backend_url=backend_url, timeout=30)
+    content_repo = ContentRepository(database_url=database_url)
+    pipeline = ContentPipeline(aws_region=aws_region, bedrock_model=bedrock_model)
     sent_id_store = SentIdStore(base_dir="data/raw/sent_ids")
     cursor_store = BackfillCursor(base_dir="data/raw/backfill_cursor")
 
@@ -185,8 +212,16 @@ def main(batch_size: int = BATCH_SIZE) -> None:
         if not source.active:
             continue
         _run_source(
-            source, normalizer, push_service, sent_id_store, cursor_store, batch_size
+            source,
+            normalizer,
+            content_repo,
+            pipeline,
+            sent_id_store,
+            cursor_store,
+            batch_size,
         )
+
+    content_repo.close()
 
 
 if __name__ == "__main__":

@@ -254,7 +254,6 @@ class StackOverflowCollector:
             body_candidate=body_candidate,
             is_original_visible=True,
             license_type=_LICENSE_TYPE,
-            tags=q.get("tags") or [],
             view_count=q.get("view_count"),
             likes=q.get("score"),
         )

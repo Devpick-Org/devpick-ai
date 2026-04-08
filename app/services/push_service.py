@@ -1,4 +1,9 @@
-"""Backend ingest push service — sends normalized content via HTTP POST."""
+"""Backend ingest push service — sends normalized content via HTTP POST.
+
+Deprecated: AI 서버가 PostgreSQL에 직접 저장하는 구조로 전환되었다.
+ContentRepository + ContentPipeline을 사용하라.
+이 파일은 하위 호환성을 위해 유지되며 향후 삭제될 예정이다.
+"""
 
 from __future__ import annotations
 

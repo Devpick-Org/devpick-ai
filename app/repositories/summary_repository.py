@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 from datetime import datetime, timezone
+from decimal import Decimal
 
 import boto3
 from boto3.dynamodb.conditions import Key
@@ -11,6 +12,17 @@ from boto3.dynamodb.conditions import Key
 from app.schemas.summary import AllLevelsSummaryResponse
 
 logger = logging.getLogger(__name__)
+
+
+def _sanitize(obj: object) -> object:
+    """float을 Decimal로 재귀 변환한다 (DynamoDB float 미지원)."""
+    if isinstance(obj, float):
+        return Decimal(str(obj))
+    if isinstance(obj, dict):
+        return {k: _sanitize(v) for k, v in obj.items()}
+    if isinstance(obj, list):
+        return [_sanitize(v) for v in obj]
+    return obj
 
 
 class SummaryRepository:
@@ -44,7 +56,7 @@ class SummaryRepository:
 
         for level in ("beginner", "junior", "mid", "senior"):
             level_data = getattr(response, level).model_dump()
-            item = {
+            item = _sanitize({
                 "content_id": content_id,
                 "level": level,
                 "generated_at": response.generated_at or now,
@@ -52,7 +64,7 @@ class SummaryRepository:
                 "updated_at": now,
                 **common,
                 **level_data,
-            }
+            })
             # if_not_exists(created_at, :now) — 최초 삽입 시에만 created_at 설정
             self._table.update_item(
                 Key={"content_id": content_id, "level": level},

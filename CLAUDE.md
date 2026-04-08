@@ -19,7 +19,7 @@
              **+ PreprocessService (HTML→텍스트) + SummaryResponse 스키마 구현 완료 (DP-216)**
              **+ SummaryService (Tool Use + Prompt Caching + 소제목별 요약) 구현 완료 (DP-219)**
              **+ POST /internal/summary 엔드포인트 구현 완료 (DP-217)**
-             **+ AI 요약 결과 MongoDB ai_summaries 저장 구현 완료 (DP-220)**
+             **+ AI 요약 결과 DynamoDB ai_summaries 저장 구현 완료 (DP-220)**
              **+ NormalizedContent 썸네일 필드 추가 및 본문 이미지 fallback 추출 완료 (DP-291)**
              **+ AI 요약 실패 시 에러 분류 + 재시도 가능 응답 구현 완료 (DP-223)**
              **+ LangChain + FAISS RAG 파이프라인 구현 완료 (DP-218)**
@@ -28,7 +28,7 @@
              **+ 질문 임베딩 저장 (rag_questions + FAISS questions 인덱스) 구현 완료 (DP-234)**
              **+ 유사 질문 탐색 SimilarQuestionService + POST /internal/similar-questions 구현 완료 (DP-235)**
              **+ 4레벨 동시 요약 AllLevelsSummaryService + POST /internal/summaries 구현 완료 (DP-300)**
-             **+ AI 처리 이벤트 로그 MongoDB 저장 (event_logs) + 일별 중복 제거 구현 완료 (DP-252)**
+             **+ AI 처리 이벤트 로그 DynamoDB 저장 (event_logs) + 일별 중복 제거 구현 완료 (DP-252)**
              **+ 주간 인사이트 InsightService + InsightRepository + POST /internal/report 구현 완료 (DP-259, DP-260)**
              **+ 과거 글 백필 크롤러 (카카오/네이버D2/토스/미디엄/올리브영) + 스케줄러 통합 구현 완료 (DP-199)**
              **+ html_helpers 공통 파싱 유틸 추가 (BeautifulSoup 기반, curl_cffi 도입)**
@@ -44,9 +44,10 @@
 → Next.js (프론트, :3000)
 → Spring Boot (백엔드, :8080)
 → PostgreSQL (:5432)
-→ MongoDB (:27017)
+→ DynamoDB (AWS)
 → Redis (:6379)
 → FastAPI AI 서버 (:8000)
+→ DynamoDB (AWS)
 ```
 
 ---
@@ -70,7 +71,7 @@
 | 프레임워크     | FastAPI              | `main.py` 최소 서버            |
 | 테스트       | pytest               | CI에서 자동 실행                 |
 | 린트/포맷     | ruff, black          | CI 체크 포함                   |
-| DB(비정형)   | MongoDB              | 초기 컬렉션/인덱스 구성              |
+| DB(비정형)   | DynamoDB             | AWS IAM 기반, 키 불필요             |
 | 캐시        | Redis                | 향후 summary / answer 캐시     |
 | 구조화 DB 연계 | PostgreSQL           | Backend가 담당                |
 | LLM       | Claude Sonnet 계열 우선  |                            |
@@ -187,7 +188,7 @@ pytest -q
 | `app/configs/` | [app/configs/CLAUDE.md](app/configs/CLAUDE.md) — 소스 설정 |
 | `app/utils/` | [app/utils/CLAUDE.md](app/utils/CLAUDE.md) — XML/HTML 헬퍼 |
 | `app/services/` | [app/services/CLAUDE.md](app/services/CLAUDE.md) — 서비스 레이어 |
-| `app/repositories/` | [app/repositories/CLAUDE.md](app/repositories/CLAUDE.md) — MongoDB 접근 레이어 |
+| `app/repositories/` | [app/repositories/CLAUDE.md](app/repositories/CLAUDE.md) — DynamoDB 접근 레이어 |
 | `scripts/` | [scripts/CLAUDE.md](scripts/CLAUDE.md) — 운영 스크립트 |
 | `tests/` | [tests/CLAUDE.md](tests/CLAUDE.md) — 테스트 |
 | `docs/` | [docs/CLAUDE.md](docs/CLAUDE.md) — 설계/운영 문서 |

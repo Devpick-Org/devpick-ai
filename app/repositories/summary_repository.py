@@ -56,15 +56,17 @@ class SummaryRepository:
 
         for level in ("beginner", "junior", "mid", "senior"):
             level_data = getattr(response, level).model_dump()
-            item = _sanitize({
-                "content_id": content_id,
-                "level": level,
-                "generated_at": response.generated_at or now,
-                "thumbnail_url": response.thumbnail_url,
-                "updated_at": now,
-                **common,
-                **level_data,
-            })
+            item = _sanitize(
+                {
+                    "content_id": content_id,
+                    "level": level,
+                    "generated_at": response.generated_at or now,
+                    "thumbnail_url": response.thumbnail_url,
+                    "updated_at": now,
+                    **common,
+                    **level_data,
+                }
+            )
             # if_not_exists(created_at, :now) — 최초 삽입 시에만 created_at 설정
             self._table.update_item(
                 Key={"content_id": content_id, "level": level},

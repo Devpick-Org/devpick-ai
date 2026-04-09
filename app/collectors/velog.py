@@ -3,7 +3,7 @@
 수집 전략:
 - trendingPosts 쿼리 먼저 시도 (timeframe="week")
   → 빈 배열이면 posts 쿼리로 fallback (Velog SSR 전환 이후 이슈)
-- POST https://v2.velog.io/graphql, Origin: https://velog.io 헤더 필수
+- POST https://v3.velog.io/graphql, Origin: https://velog.io 헤더 필수
 - released_at >= VELOG_MIN_DATE (기본값 2026-01-01) 필터링
 - ADR-006 정책: SUMMARY_ONLY
   - is_original_visible = False
@@ -24,13 +24,13 @@ from app.schemas.normalized_content import NormalizedContent
 
 logger = logging.getLogger(__name__)
 
-_GRAPHQL_URL = "https://v2.velog.io/graphql"
+_GRAPHQL_URL = "https://v3.velog.io/graphql"
 _PREVIEW_MAX_LENGTH = 260
 _DEFAULT_MIN_DATE = "2026-01-01"
 
 # trendingPosts 쿼리 (timeframe=week, 최대 30개)
 _TRENDING_QUERY = """
-query TrendingPosts($input: TrendingPostsInput) {
+query TrendingPosts($input: TrendingPostsInput!) {
   trendingPosts(input: $input) {
     id
     title

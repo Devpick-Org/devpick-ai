@@ -15,13 +15,14 @@ from __future__ import annotations
 
 import calendar
 import logging
+import re
 from datetime import date, datetime, timezone
 
 import requests
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 
-from app.collectors.stackoverflow import StackOverflowCollector
+from app.collectors.stackoverflow import StackOverflowCollector, _build_body_candidate
 from app.schemas.normalized_content import NormalizedContent
 
 logger = logging.getLogger(__name__)
@@ -214,8 +215,6 @@ class StackOverflowBackfillCollector:
 
         preview: str | None = None
         if question_body:
-            import re
-
             plain = re.sub(r"<[^>]+>", " ", question_body)
             plain = re.sub(r"\s+", " ", plain).strip()
             preview = (
@@ -255,7 +254,9 @@ class StackOverflowBackfillCollector:
             canonical_url=canonical_url,
             published_at=published_at,
             preview=preview,
-            body_candidate=question_body,
+            body_candidate=_build_body_candidate(
+                question_body, accepted_answer, top_answers
+            ),
             is_original_visible=True,
             license_type=_LICENSE_TYPE,
             tags=tags,

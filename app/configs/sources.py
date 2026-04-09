@@ -91,6 +91,27 @@ MEDIUM_NETFLIX = SourceConfig(
 )
 
 
+STACKOVERFLOW = SourceConfig(
+    name="Stack_Overflow",
+    feed_url="https://stackoverflow.com/questions?tab=trending",
+    site_url="https://stackoverflow.com",
+    parser_type="backfill",
+    content_level=1,
+    active=True,
+    note="Trending page crawl + API body/answers. Backfill: monthly sort=hot API.",
+)
+
+VELOG = SourceConfig(
+    name="Velog",
+    feed_url="https://velog.io/trending",
+    site_url="https://velog.io",
+    parser_type="backfill",
+    content_level=1,
+    active=True,
+    note="GraphQL trendingPosts with HTML crawl fallback. ADR-006: SUMMARY_ONLY.",
+)
+
+
 def get_all_sources() -> list[SourceConfig]:
     """Return all active source configs for the unified collection pipeline."""
     return [
@@ -102,6 +123,8 @@ def get_all_sources() -> list[SourceConfig]:
         MEDIUM_MUSINSA,
         MEDIUM_MYREALTRIP,
         MEDIUM_NETFLIX,
+        STACKOVERFLOW,
+        VELOG,
     ]
 
 

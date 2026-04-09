@@ -36,9 +36,12 @@ from app.collectors.backfill.kakao import KakaoBackfillCollector
 from app.collectors.backfill.medium_direct import MediumDirectBackfillCollector
 from app.collectors.backfill.naver_d2 import NaverD2BackfillCollector
 from app.collectors.backfill.oliveyoung import OliveYoungBackfillCollector
+from app.collectors.backfill.stackoverflow import StackOverflowBackfillCollector
 from app.collectors.backfill.toss import TossBackfillCollector
+from app.collectors.backfill.velog import VelogBackfillCollector
 from app.configs.sources import get_all_sources
 from app.repositories.content_repository import ContentRepository
+from app.schemas.normalized_content import NormalizedContent
 from app.schemas.raw_content import RawEntry
 from app.schemas.source import SourceConfig
 from app.services.content_pipeline import ContentPipeline
@@ -50,7 +53,7 @@ logger = logging.getLogger(__name__)
 
 _SINCE_YEAR = 2026
 
-# Source name → factory callable
+# Source name → factory callable (RawEntry 기반 BackfillCollector)
 _COLLECTOR_FACTORIES: dict[str, Callable[[], BackfillCollector]] = {
     "Kakao_Tech": KakaoBackfillCollector,
     "NAVER_D2": NaverD2BackfillCollector,
@@ -65,6 +68,16 @@ _COLLECTOR_FACTORIES: dict[str, Callable[[], BackfillCollector]] = {
     ),
     "Medium_netflix-techblog": lambda: MediumDirectBackfillCollector(
         publication="netflix-techblog"
+    ),
+}
+
+# Source name → factory callable (NormalizedContent 직접 반환)
+_DIRECT_COLLECTOR_FACTORIES: dict[str, Callable] = {
+    "Stack_Overflow": lambda: StackOverflowBackfillCollector(
+        api_key=os.environ.get("STACKOVERFLOW_API_KEY")
+    ),
+    "Velog": lambda: VelogBackfillCollector(
+        min_date=os.environ.get("VELOG_MIN_DATE", "2026-01-01")
     ),
 }
 
@@ -184,6 +197,87 @@ def _run_source(
     )
 
 
+def _run_direct_source(
+    source: SourceConfig,
+    content_repo: ContentRepository,
+    pipeline: ContentPipeline,
+    sent_id_store: SentIdStore,
+    cursor_store: BackfillCursor,
+    batch_size: int = BATCH_SIZE,
+) -> None:
+    """NormalizedContent를 직접 반환하는 수집기(SO, Velog)용 실행 함수."""
+    factory = _DIRECT_COLLECTOR_FACTORIES.get(source.name)
+    if factory is None:
+        logger.warning("[SKIP] %s — no direct collector registered", source.name)
+        return
+
+    collector = factory()
+    cursor = cursor_store.load(source.name)
+
+    try:
+        items, new_cursor = collector.collect_batch_normalized(cursor, batch_size)
+    except Exception:
+        logger.exception("[ERROR] %s collect_batch_normalized failed", source.name)
+        return
+
+    if not items:
+        cursor_store.save(source.name, new_cursor)
+        phase = new_cursor.get("phase", "backfill")
+        logger.info("[EMPTY] %s — 0 items this batch (phase=%s)", source.name, phase)
+        return
+
+    # Dedup via SentIdStore (canonical_url을 외부 ID로 사용)
+    sent_ids = sent_id_store.load(source.name)
+    new_items: list[NormalizedContent] = [
+        item
+        for item in items
+        if item.canonical_url and item.canonical_url not in sent_ids
+    ]
+
+    if not new_items:
+        logger.info("[SKIP] %s all %d items already sent", source.name, len(items))
+        cursor_store.save(source.name, new_cursor)
+        return
+
+    # PostgreSQL 저장
+    try:
+        result = content_repo.save_contents(new_items)
+    except Exception:
+        logger.exception("[ERROR] %s PostgreSQL 저장 실패", source.name)
+        return
+
+    # 처리 완료 ID 기록 + 커서 갱신
+    pushed_ids = {item.canonical_url for item in new_items if item.canonical_url}
+    sent_id_store.add(source.name, pushed_ids)
+    cursor_store.save(source.name, new_cursor)
+
+    # 신규 저장된 콘텐츠만 요약 실행
+    for content_id, item in result.inserted:
+        try:
+            pipeline.process_content(
+                content_id=content_id,
+                body_html=item.body_candidate,
+                thumbnail_url=item.thumbnail_url,
+            )
+        except Exception:
+            logger.exception(
+                "[WARN] %s 요약 실패 content_id=%s (콘텐츠는 저장됨)",
+                source.name,
+                content_id,
+            )
+
+    phase = new_cursor.get("phase", "backfill")
+    logger.info(
+        "[OK] %s collected=%d new=%d saved=%d skipped=%d phase=%s",
+        source.name,
+        len(items),
+        len(new_items),
+        result.saved,
+        result.skipped,
+        phase,
+    )
+
+
 def main(batch_size: int = BATCH_SIZE) -> None:
     """Run one collection batch for all active sources."""
     logging.basicConfig(
@@ -211,15 +305,25 @@ def main(batch_size: int = BATCH_SIZE) -> None:
     for source in sources:
         if not source.active:
             continue
-        _run_source(
-            source,
-            normalizer,
-            content_repo,
-            pipeline,
-            sent_id_store,
-            cursor_store,
-            batch_size,
-        )
+        if source.name in _DIRECT_COLLECTOR_FACTORIES:
+            _run_direct_source(
+                source,
+                content_repo,
+                pipeline,
+                sent_id_store,
+                cursor_store,
+                batch_size,
+            )
+        else:
+            _run_source(
+                source,
+                normalizer,
+                content_repo,
+                pipeline,
+                sent_id_store,
+                cursor_store,
+                batch_size,
+            )
 
     content_repo.close()
 

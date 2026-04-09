@@ -278,7 +278,7 @@ def _run_direct_source(
     )
 
 
-def main(batch_size: int = BATCH_SIZE) -> None:
+def main(batch_size: int = BATCH_SIZE, only_sources: set[str] | None = None) -> None:
     """Run one collection batch for all active sources."""
     logging.basicConfig(
         level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s"
@@ -304,6 +304,8 @@ def main(batch_size: int = BATCH_SIZE) -> None:
 
     for source in sources:
         if not source.active:
+            continue
+        if only_sources and source.name not in only_sources:
             continue
         if source.name in _DIRECT_COLLECTOR_FACTORIES:
             _run_direct_source(
@@ -333,5 +335,12 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
     parser.add_argument("--batch-size", type=int, default=BATCH_SIZE)
+    parser.add_argument(
+        "--source",
+        action="append",
+        dest="sources",
+        metavar="SOURCE_NAME",
+        help="특정 소스만 실행 (여러 번 지정 가능). 예: --source Stack_Overflow --source Velog",
+    )
     args = parser.parse_args()
-    main(batch_size=args.batch_size)
+    main(batch_size=args.batch_size, only_sources=set(args.sources) if args.sources else None)

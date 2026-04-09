@@ -14,25 +14,26 @@
 
 * 담당: **수헌** (AI 메인)
 * MVP 데드라인: **2026-04-13**
-* 현재 상태: **RSS/크롤 수집 파이프라인 + SentIdStore dedup + PushService 구현 완료 (DP-199)**
-             **+ /internal 라우터 + X-Internal-Key 인증 + 에러 핸들러 세팅 완료 (DP-215)**
-             **+ PreprocessService (HTML→텍스트) + SummaryResponse 스키마 구현 완료 (DP-216)**
-             **+ SummaryService (Tool Use + Prompt Caching + 소제목별 요약) 구현 완료 (DP-219)**
-             **+ POST /internal/summary 엔드포인트 구현 완료 (DP-217)**
-             **+ AI 요약 결과 DynamoDB ai_summaries 저장 구현 완료 (DP-220)**
-             **+ NormalizedContent 썸네일 필드 추가 및 본문 이미지 fallback 추출 완료 (DP-291)**
-             **+ AI 요약 실패 시 에러 분류 + 재시도 가능 응답 구현 완료 (DP-223)**
-             **+ LangChain + FAISS RAG 파이프라인 구현 완료 (DP-218)**
-             **+ AI 질문 개선 프롬프트 + RefineService + POST /internal/refine 구현 완료 (DP-231)**
-             **+ AI 1차 답변 프롬프트 + AnswerService + POST /internal/answer 구현 완료 (DP-234)**
-             **+ 질문 임베딩 저장 (rag_questions + FAISS questions 인덱스) 구현 완료 (DP-234)**
-             **+ 유사 질문 탐색 SimilarQuestionService + POST /internal/similar-questions 구현 완료 (DP-235)**
-             **+ 4레벨 동시 요약 AllLevelsSummaryService + POST /internal/summaries 구현 완료 (DP-300)**
-             **+ AI 처리 이벤트 로그 DynamoDB 저장 (event_logs) + 일별 중복 제거 구현 완료 (DP-252)**
-             **+ 주간 인사이트 InsightService + InsightRepository + POST /internal/report 구현 완료 (DP-259, DP-260)**
-             **+ 과거 글 백필 크롤러 (카카오/네이버D2/토스/미디엄/올리브영) + 스케줄러 통합 구현 완료 (DP-199)**
-             **+ html_helpers 공통 파싱 유틸 추가 (BeautifulSoup 기반, curl_cffi 도입)**
-             **+ RSS 파이프라인 제거 → 통합 수집기(백필+incremental) 단일화 (중복 수집 문제 해결)**
+* 현재 상태:
+  - RSS/크롤 수집 파이프라인 + SentIdStore dedup 구현 완료 (DP-199)
+  - /internal 라우터 + X-Internal-Key 인증 + 에러 핸들러 세팅 완료 (DP-215)
+  - PreprocessService (HTML→텍스트) + SummaryResponse 스키마 구현 완료 (DP-216)
+  - SummaryService (Tool Use + Prompt Caching) 구현 완료 (DP-219)
+  - AI 요약 결과 DynamoDB ai_summaries 저장 구현 완료 (DP-220)
+  - NormalizedContent 썸네일 필드 추가 및 본문 이미지 fallback 추출 완료 (DP-291)
+  - AI 요약 실패 시 에러 분류 + 재시도 가능 응답 구현 완료 (DP-223)
+  - LangChain + FAISS RAG 파이프라인 구현 완료 (DP-218)
+  - AI 질문 개선 프롬프트 + RefineService + POST /internal/refine 구현 완료 (DP-231)
+  - AI 1차 답변 프롬프트 + AnswerService + POST /internal/answer 구현 완료 (DP-234)
+  - 질문 임베딩 저장 (rag_questions + FAISS questions 인덱스) 구현 완료 (DP-234)
+  - 유사 질문 탐색 SimilarQuestionService + POST /internal/similar-questions 구현 완료 (DP-235)
+  - 4레벨 동시 요약 AllLevelsSummaryService + POST /internal/summaries 구현 완료 (DP-300)
+  - AI 처리 이벤트 로그 DynamoDB 저장 (event_logs) + 일별 중복 제거 구현 완료 (DP-252)
+  - 주간 인사이트 InsightService + InsightRepository + POST /internal/report 구현 완료 (DP-259, DP-260)
+  - **AI 레포 직접 PostgreSQL 저장 구조로 전환 (ContentRepository + ContentPipeline)**
+  - **RSS 파이프라인 제거 → 통합 수집기(백필+incremental) 단일화 (중복 수집 문제 해결)**
+  - **4레벨 퀴즈 생성 QuizService + QuizRepository + POST /internal/quiz 구현 완료 (DP-265)**
+  - **수집 직후 ContentPipeline에서 요약 + 퀴즈 자동 생성 통합**
 
 ---
 
@@ -48,34 +49,35 @@
 → Redis (:6379)
 → FastAPI AI 서버 (:8000)
 → DynamoDB (AWS)
+→ FAISS (로컬 인덱스, data/vectors/)
 ```
 
 ---
 
 ## 3. 이 레포의 핵심 책임
 
-1. **콘텐츠 수집 및 정규화** — RSS/크롤링 + 백필(과거 글) → `NormalizedContent`
-2. **Backend ingest push** — `POST /internal/contents`
-3. **AI 요약** — SummaryService (Tool Use + Prompt Caching, DP-219 구현 완료) / 질문·리포트 (Epic D, F — 향후 구현)
-4. **출력 JSON 스키마 검증 + 파싱 실패 대응**
-5. **캐시/저장/로그 기록**
-6. **실패 대응 및 품질 평가(Eval)**
+1. **콘텐츠 수집 및 정규화** — 통합 수집기(백필+incremental) → `NormalizedContent`
+2. **PostgreSQL 직접 저장** — `ContentRepository` (Backend push 없음)
+3. **AI 요약 + 퀴즈 자동 생성** — `ContentPipeline`: 저장 직후 4레벨 요약 + 4레벨 퀴즈 생성 → DynamoDB
+4. **AI 질문/답변/리포트** — RefineService, AnswerService, InsightService
+5. **출력 JSON 스키마 검증 + 파싱 실패 대응**
+6. **캐시/저장/로그 기록**
 
 ---
 
 ## 4. 기술 스택
 
-| 구분        | 기술                   | 비고                         |
-| --------- | -------------------- | -------------------------- |
-| 언어        | Python 3.12          |                            |
-| 프레임워크     | FastAPI              | `main.py` 최소 서버            |
-| 테스트       | pytest               | CI에서 자동 실행                 |
-| 린트/포맷     | ruff, black          | CI 체크 포함                   |
-| DB(비정형)   | DynamoDB             | AWS IAM 기반, 키 불필요             |
-| 캐시        | Redis                | 향후 summary / answer 캐시     |
-| 구조화 DB 연계 | PostgreSQL           | Backend가 담당                |
-| LLM       | Claude Sonnet 계열 우선  |                            |
-| RAG       | FAISS 또는 동급          | 추후 도입                      |
+| 구분        | 기술                   | 비고                                  |
+| --------- | -------------------- | ------------------------------------- |
+| 언어        | Python 3.12          |                                       |
+| 프레임워크     | FastAPI              | `main.py` 최소 서버                   |
+| 테스트       | pytest               | CI에서 자동 실행                       |
+| 린트/포맷     | ruff, black          | CI 체크 포함                           |
+| DB(관계형)   | PostgreSQL           | AI 레포가 직접 저장 (ContentRepository) |
+| DB(비정형)   | DynamoDB             | AWS IAM 기반, 키 불필요                |
+| 벡터 검색    | FAISS                | 로컬 인덱스 (data/vectors/)            |
+| 캐시        | Redis                | Backend가 요약/퀴즈 캐싱               |
+| LLM       | Claude Sonnet 계열    | AWS Bedrock Converse API              |
 
 ---
 
@@ -89,13 +91,13 @@ devpick-ai/
 │   │   └── internal/   # /internal/* 라우터
 │   ├── collectors/     # 통합 수집기 (backfill/ — 백필+incremental 단일 파이프라인)
 │   ├── configs/        # 수집 대상 소스 목록
-│   ├── core/           # 프롬프트 템플릿 + Tool Use 스키마 (DP-219~)
-│   │   └── prompts/    # 요약/질문/리포트 프롬프트
+│   ├── core/           # 프롬프트 템플릿 + Tool Use 스키마 + 공통 유틸
+│   │   └── prompts/    # 요약/질문/퀴즈/리포트 프롬프트
 │   ├── rag/            # RAG 파이프라인 (청킹/임베딩/FAISS, DP-218)
-│   ├── repositories/   # DynamoDB 접근 레이어 (DP-220~)
+│   ├── repositories/   # DynamoDB + PostgreSQL 접근 레이어
 │   ├── schemas/        # Pydantic 스키마
-│   ├── services/       # 비즈니스 로직 (ingest, normalize, push, summary, embedding)
-│   ├── stores/         # raw JSONL 저장 + SentIdStore + BackfillCursor
+│   ├── services/       # 비즈니스 로직 (수집, 요약, 퀴즈, 임베딩, 답변 등)
+│   ├── stores/         # SentIdStore + BackfillCursor
 │   └── utils/          # XML/HTML 파싱 헬퍼
 ├── docs/               # 운영/설계 문서
 ├── scripts/            # 일회성/운영 스크립트
@@ -120,7 +122,7 @@ git checkout -b feature/DP-{티켓번호}-{기능명}
 
 커밋 예시:
 ```text
-feat: add summary response schema (DP-221)
+feat: add quiz generation pipeline (DP-265)
 fix: handle invalid llm json output (DP-233)
 ```
 
@@ -150,17 +152,11 @@ ruff check . && black --check . && pytest -q
 # 개발 서버
 uvicorn main:app --reload
 
-# 1회 수집 실행 (백필 + incremental, Backend push)
-BACKEND_URL=http://localhost:8080 python scripts/run_backfill_batch.py
+# 1회 수집 실행 (백필 + incremental, PostgreSQL 직접 저장 + AI 처리)
+DATABASE_URL=postgresql://... python scripts/run_backfill_batch.py
 
 # 스케줄러 (6시간 간격, 통합 수집)
-BACKEND_URL=http://localhost:8080 python scripts/run_scheduler.py
-
-# 로컬 저장 (소스당 3개, Backend push 없음)
-python scripts/run_collect_and_save.py --batch-size 3
-
-# Mongo 초기화 (rag_documents 인덱스 포함)
-python scripts/init_mongo.py
+DATABASE_URL=postgresql://... python scripts/run_scheduler.py
 
 # FAISS 인덱스 초기화
 python scripts/init_vectors.py
@@ -188,7 +184,7 @@ pytest -q
 | `app/configs/` | [app/configs/CLAUDE.md](app/configs/CLAUDE.md) — 소스 설정 |
 | `app/utils/` | [app/utils/CLAUDE.md](app/utils/CLAUDE.md) — XML/HTML 헬퍼 |
 | `app/services/` | [app/services/CLAUDE.md](app/services/CLAUDE.md) — 서비스 레이어 |
-| `app/repositories/` | [app/repositories/CLAUDE.md](app/repositories/CLAUDE.md) — DynamoDB 접근 레이어 |
+| `app/repositories/` | [app/repositories/CLAUDE.md](app/repositories/CLAUDE.md) — DynamoDB/PostgreSQL 접근 레이어 |
 | `scripts/` | [scripts/CLAUDE.md](scripts/CLAUDE.md) — 운영 스크립트 |
 | `tests/` | [tests/CLAUDE.md](tests/CLAUDE.md) — 테스트 |
 | `docs/` | [docs/CLAUDE.md](docs/CLAUDE.md) — 설계/운영 문서 |
@@ -201,3 +197,4 @@ pytest -q
 * AI 품질만큼 **비용, 캐시, 실패 대응**이 중요하다.
 * `.env`는 절대 커밋 금지. API Key 하드코딩 금지.
 * AI 생성 코드라도 최종 책임은 PR 올린 사람에게 있다.
+* PostgreSQL 저장은 AI 레포 `ContentRepository`가 직접 담당 — Backend push 불필요.

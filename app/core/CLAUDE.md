@@ -8,9 +8,11 @@ AI 기능의 프롬프트 템플릿, 설정, 공통 유틸을 관리하는 레�
 
 ```text
 core/
+├── bedrock.py      # Bedrock Converse API 공통 유틸 (to_tool_config)
 ├── exceptions.py   # AI 서비스 커스텀 예외 계층 (DP-223)
 └── prompts/        # AI 기능별 프롬프트 + Tool Use 스키마
-    ├── summary.py  # 요약 프롬프트 (DP-219)
+    ├── summary.py  # 4레벨 요약 프롬프트 (DP-300)
+    ├── quiz.py     # 4레벨 퀴즈 프롬프트 (DP-265)
     ├── refine.py   # 질문 개선 프롬프트 (DP-231)
     ├── answer.py   # 1차 답변 프롬프트 (DP-234)
     └── insight.py  # 주간 인사이트 프롬프트 (DP-260)
@@ -25,33 +27,50 @@ AIServiceError (base, status_code + message)
 ├── AIBadRequestError  → 400  잘못된 입력 (level, text)
 ├── AIUpstreamError    → 502  LLM 연결 실패 / Rate Limit / API 에러
 ├── AITimeoutError     → 504  LLM 타임아웃
-└── AIInternalError    → 500  인증 실패 / 파싱 실패 / tool_use 없음
+└── AIInternalError    → 500  파싱 실패 / tool_use 없음
 ```
 
-백엔드(Spring Boot)가 HTTP 상태코드로 AI_001/002/003을 변환한다:
-- 400, 500 → AI_001 (재시도 불가)
-- 502 → AI_001 (재시도 가능)
-- 504 → AI_002 (타임아웃, 재시도 가능)
+---
 
-**규칙**: 에러는 HTTP 상태코드로만 표현한다. 별도 에러 코드 필드 없음.
+## bedrock.py
+
+```python
+to_tool_config(tool: dict, tool_name: str) -> dict
+```
+
+Anthropic Tool Use 스키마를 Bedrock Converse API `toolConfig` 형식으로 변환한다.
+모든 서비스에서 공통 사용.
 
 ---
 
 ## prompts/ 상세
 
-| 파일 | 내용 |
-|------|------|
-| `summary.py` | `SYSTEM_PROMPT`, `SUMMARY_TOOL` (Tool Use 스키마), `build_user_prompt()` (레벨별 지시문 생성) |
-| `refine.py` | `SYSTEM_PROMPT`, `REFINE_TOOL` (Tool Use 스키마), `build_user_prompt()` (레벨별 지시문 + 컨텍스트 청크) (DP-231) |
-| `answer.py` | `SYSTEM_PROMPT`, `ANSWER_TOOL` (Tool Use 스키마), `build_user_prompt()` (아티클 + RAG + 원본 질문 + 태그 섹션) (DP-234) |
-| `insight.py` | `SYSTEM_PROMPT`, `INSIGHT_TOOL` (Tool Use 스키마), `build_user_prompt()` (활동/읽은글/스크랩/질문/태그/AI이벤트 섹션) (DP-260) |
+| 파일 | 핵심 내용 |
+|------|-----------|
+| `summary.py` | `SYSTEM_PROMPT_ALL_LEVELS`, `SUMMARY_ALL_LEVELS_TOOL`, `build_user_prompt_all_levels()` — beginner/junior/mid/senior 4레벨 동시 요약 |
+| `quiz.py` | `SYSTEM_PROMPT_QUIZ`, `QUIZ_TOOL`, `build_user_prompt()` — 4레벨 동시 퀴즈 (같은 개념, 레벨별 용어·표현 조정) |
+| `refine.py` | `SYSTEM_PROMPT`, `REFINE_TOOL`, `build_user_prompt()` — 레벨별 질문 개선 + 컨텍스트 청크 |
+| `answer.py` | `SYSTEM_PROMPT`, `ANSWER_TOOL`, `build_user_prompt()` — 아티클+RAG 컨텍스트 기반 답변 |
+| `insight.py` | `SYSTEM_PROMPT`, `INSIGHT_TOOL`, `build_user_prompt()` — 주간 활동/읽은글/스크랩/질문 기반 인사이트 |
 
-### summary.py 구성 요소
+### quiz.py 구성 요소 (DP-265)
 
-- `SYSTEM_PROMPT` — 필드별 작성 기준을 포함한 시스템 프롬프트. Prompt Caching 대상
-- `SUMMARY_TOOL` — `save_summary` Tool Use input_schema. 9개 필드 required
-- `_LEVEL_INSTRUCTIONS` — junior/mid/senior 레벨별 요약 관점 지시문
-- `build_user_prompt(level, text)` — 레벨 지시문 + 본문을 결합하여 user 메시지 생성
+- `SYSTEM_PROMPT_QUIZ` — 4레벨 동시 출제 기준. 레벨별 용어 표현 기준 명시. Prompt Caching 대상
+- `_QUESTIONS_SCHEMA` — 레벨별 questions 배열 스키마 (재사용)
+- `QUIZ_TOOL` — `save_quiz` Tool Use input_schema. `beginner/junior/mid/senior` 4개 필드 required
+- `build_user_prompt(text)` — 4레벨 동시 출제 지시문 + 본문
+
+**레벨별 표현 기준:**
+- `beginner`: 기술 용어 첫 등장 시 괄호 설명. 예: "캐시(임시 저장공간)"
+- `junior`: 기본 용어 + 생소한 개념 한 문장 부연, 원리 위주 해설
+- `mid`: 표준 기술 용어, 간결
+- `senior`: 전문 용어·약어, 트레이드오프·심화 포함
+
+### summary.py 구성 요소 (DP-300)
+
+- `SYSTEM_PROMPT_ALL_LEVELS` — 4레벨 동시 요약 기준. Prompt Caching 대상
+- `SUMMARY_ALL_LEVELS_TOOL` — `save_all_summaries` Tool Use input_schema
+- `build_user_prompt_all_levels(text)` — 4레벨 지시문 + 본문
 
 ---
 
@@ -60,34 +79,3 @@ AIServiceError (base, status_code + message)
 - 프롬프트는 서비스 코드에 직접 쓰지 않는다. 반드시 `core/prompts/`에 분리한다
 - Tool Use 스키마(`input_schema`)와 Pydantic 스키마(`app/schemas/`)의 필드를 일치시킨다
 - 시스템 프롬프트는 Prompt Caching 효율을 위해 자주 변경하지 않는다
-- 레벨별 지시문은 `_LEVEL_INSTRUCTIONS` dict으로 관리하여 확장이 용이하게 한다
-
----
-
-### answer.py 구성 요소 (DP-234)
-
-- `SYSTEM_PROMPT` — "DevPick 기술 질문 답변 전문가". refined 질문 기반 정확한 답변, original로 눈높이 조절
-- `ANSWER_TOOL` — `save_answer` Tool Use input_schema. 5개 필드: `answer_content`, `key_points`, `suggested_tags`, `references`, `confidence`
-  - `references`: LLM이 활용한 content_id 리스트 (내부용 — AnswerResponse에는 미포함, 라우터가 related_contents로 변환)
-- `build_user_prompt(refined_title, refined_content, original_title?, original_content?, suggested_tags?, article_chunks?, rag_chunks?)`:
-  - 섹션 순서: `## 관련 아티클` → `## 참고 문서` → `## 원본 질문` → `## 관련 기술 태그` → `## 질문`
-  - 빈 refined_title/refined_content → `ValueError`
-
----
-
-### insight.py 구성 요소 (DP-260)
-
-- `SYSTEM_PROMPT` — DevPick 주간 학습 인사이트 분석가 역할. 스크랩한 글 > 읽은 글 가중치. Prompt Caching 대상
-- `INSIGHT_TOOL` — `save_insight` Tool Use input_schema. 3개 필드: `well_done`, `lacking`, `next_week`
-- `build_user_prompt(activities, ai_events, read_summaries, scrapped_summaries, question_texts, week_start, week_end)`:
-  - 섹션: 기간 → 기본활동 → 읽은 글 → 스크랩한 글(별도 강조) → 작성한 질문 → 요일별 활동 → 관심 태그 → AI 기능 활용
-  - 스크랩 섹션은 "유저가 중요하다고 판단한 글" 명시
-
----
-
-## 향후 추가 예정
-
-| 파일 | 역할 |
-|------|------|
-| `config.py` | 공통 설정 (모델명, temperature 등) |
-| `logging.py` | 로깅 설정 |

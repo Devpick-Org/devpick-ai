@@ -1,148 +1,140 @@
 # CLAUDE.md — app/repositories/
 
-MongoDB 접근 레이어. 각 도메인별 저장/조회 로직을 서비스와 분리하여 관리한다.
+DynamoDB + PostgreSQL 접근 레이어. 각 도메인별 저장/조회 로직을 서비스와 분리하여 관리한다.
+모든 DynamoDB 레포지토리는 AWS IAM 기반 인증 (키 불필요), `aws_region` 파라미터로 초기화한다.
 
 ---
 
 ## 현재 구조
 
-| 파일 | 클래스 | 역할 |
-|------|--------|------|
-| `summary_repository.py` | `SummaryRepository` | AI 요약 결과를 `ai_summaries` 컬렉션에 upsert 저장. `find_by_content_ids()` 제공 (DP-220, DP-234) |
-| `vector_repository.py` | `VectorRepository` | RAG 청크 + 임베딩 벡터를 `rag_documents` 컬렉션에 저장 (DP-218) |
-| `answer_repository.py` | `AnswerRepository` | AI 답변 결과를 `ai_answers` 컬렉션에 저장 (DP-234) |
-| `question_vector_repository.py` | `QuestionVectorRepository` | 질문 임베딩을 `rag_questions` 컬렉션에 upsert 저장 (DP-234) |
+| 파일 | 클래스 | DB | 테이블/컬렉션 | 역할 |
+|------|--------|-----|--------------|------|
+| `content_repository.py` | `ContentRepository` | PostgreSQL | `contents` | 정규화된 콘텐츠 저장 (DP-199) |
+| `summary_repository.py` | `SummaryRepository` | DynamoDB | `ai_summaries` | AI 요약 결과 upsert/조회 (DP-220, DP-300) |
+| `quiz_repository.py` | `QuizRepository` | DynamoDB | `ai_quizzes` | AI 퀴즈 결과 upsert/조회 (DP-265) |
+| `vector_repository.py` | `VectorRepository` | DynamoDB | `rag_documents` | RAG 청크 + 임베딩 저장 (DP-218) |
+| `answer_repository.py` | `AnswerRepository` | DynamoDB | `ai_answers` | AI 답변 결과 저장 (DP-234) |
+| `question_vector_repository.py` | `QuestionVectorRepository` | DynamoDB | `rag_questions` | 질문 임베딩 upsert 저장 (DP-234) |
+| `event_repository.py` | `EventRepository` | DynamoDB | `event_logs` | AI 처리 이벤트 로그 + 일별 dedup (DP-252) |
+| `insight_repository.py` | `InsightRepository` | DynamoDB | `weekly_report_insights` | 주간 인사이트 upsert 저장 (DP-259) |
 
 ---
 
-## 사용 패턴
+## ContentRepository 상세
 
 ```python
-SummaryRepository(mongo_uri=MONGO_URI, db_name="devpick")
-save(summary: SummaryResponse) -> None
+ContentRepository(database_url: str)
+save_contents(items: list[NormalizedContent]) -> SaveResult
+close() -> None
 ```
 
-- `(content_id, level)` 복합 unique index 기준 upsert
-- `updated_at`: 매 저장 시 갱신
-- `created_at`: 최초 삽입 시에만 설정 (`$setOnInsert`)
+- PostgreSQL 직접 저장 (Backend push 불필요)
+- `SaveResult.inserted`: 신규 저장된 `(content_id, NormalizedContent)` 목록 — ContentPipeline 입력
+- `SaveResult.saved` / `SaveResult.skipped`: 저장/중복 스킵 카운트
 
 ---
 
-## 작성 원칙
+## SummaryRepository 상세 (DP-220, DP-300)
 
-- Repository는 DB 접근만 담당. 비즈니스 로직은 `app/services/`에 위치
-- 생성자에서 `mongo_uri`, `db_name` 주입 (서비스 레이어 패턴과 동일)
-- 예외는 삼키지 않는다. 호출부(라우터)에서 처리
+```python
+SummaryRepository(aws_region: str)
+save_all_levels(content_id, response: AllLevelsSummaryResponse) -> None
+find_by_content_ids(content_ids: list[str]) -> list[dict]
+find_all_levels(content_id: str) -> list[dict]
+```
+
+- DynamoDB `ai_summaries` 테이블
+- `(content_id, level)` 복합 기준 4개 아이템 upsert
+- `find_by_content_ids`: content_id당 첫 번째 결과 반환 (related_contents 생성용)
 
 ---
+
+## QuizRepository 상세 (DP-265)
+
+```python
+QuizRepository(aws_region: str)
+save(response: AllLevelsQuizResponse) -> None
+find_by_content_id(content_id: str) -> dict | None
+```
+
+- DynamoDB `ai_quizzes` 테이블
+- PK: `content_id` — content_id당 1개 아이템 (4레벨 중첩 저장)
+- 저장 구조: `{ content_id, quiz_id, beginner: {questions}, junior: {questions}, mid: {questions}, senior: {questions}, generated_at, updated_at, created_at }`
+- upsert — 재생성 시 덮어씌워짐 (`created_at` 제외)
 
 ---
 
 ## VectorRepository 상세 (DP-218)
 
 ```python
-VectorRepository(mongo_uri: str, db_name: str = "devpick")
-save_chunks(chunks: list[dict]) -> None      # bulk upsert — (content_id, chunk_index) 기준
+VectorRepository(aws_region: str)
+save_chunks(chunks: list[dict]) -> None
 find_by_content_id(content_id: str) -> list[dict]
-find_all() -> Iterator[dict]                 # FAISS 재빌드용
+find_all() -> Iterator[dict]
 delete_by_content_id(content_id: str) -> int
 ```
 
-- `(content_id, chunk_index)` unique index 기준 upsert
-- `updated_at` 매 저장 시 갱신, `created_at` 최초 삽입 시만 설정
-- FAISS 인덱스 유실 시 `find_all()`로 재빌드 (`scripts/reindex_vectors.py`)
-
----
-
----
-
-## SummaryRepository 확장 (DP-234)
-
-```python
-find_by_content_ids(content_ids: list[str]) -> list[dict]
-# 반환: [{"content_id": ..., "one_line_summary": ...}, ...]
-# content_id당 첫 번째 결과만 반환 (level이 여러 개일 수 있으므로)
-```
-
-related_contents 생성 시 LLM이 references로 반환한 content_id 리스트를 조회한다.
-
----
-
-## SummaryRepository 확장 (DP-300)
-
-```python
-save_all_levels(content_id: str, response: AllLevelsSummaryResponse) -> None
-# common 필드 + level 필드 merge → 기존 ai_summaries 스키마 호환 4개 문서 bulk upsert
-
-find_all_levels(content_id: str) -> list[dict]
-# content_id에 대한 4개 레벨 문서 전부 조회
-```
+- DynamoDB `rag_documents` 테이블
+- `(content_id, chunk_index)` 기준 upsert
+- `find_all()`: FAISS 재빌드용 (`scripts/reindex_vectors.py`)
 
 ---
 
 ## AnswerRepository 상세 (DP-234)
 
 ```python
-AnswerRepository(mongo_uri: str, db_name: str = "devpick")
+AnswerRepository(aws_region: str)
 save(answer: AnswerResponse, question_id: str | None, content_id: str | None) -> None
 ```
 
-- 컬렉션: `ai_answers`
-- question_id 있으면 upsert (질문 기준 단일 답변 관리), 없으면 insert
-- 인덱스: `(question_id, 1)` unique sparse, `(content_id, 1)`, `(updated_at, -1)`
+- DynamoDB `ai_answers` 테이블
+- question_id 있으면 upsert, 없으면 insert
 
 ---
 
 ## QuestionVectorRepository 상세 (DP-234)
 
 ```python
-QuestionVectorRepository(mongo_uri: str, db_name: str = "devpick")
+QuestionVectorRepository(aws_region: str)
 save_question(question_id, text, embedding, suggested_tags=None, content_id=None) -> None
-find_all() -> Iterator[dict]  # FAISS 재빌드용
+find_all() -> Iterator[dict]
+find_texts_by_ids(question_ids: list[str]) -> list[str]
 ```
 
-- 컬렉션: `rag_questions`
+- DynamoDB `rag_questions` 테이블
 - question_id 기준 upsert
-- 인덱스: `(question_id, 1)` unique, `(content_id, 1)`, `(updated_at, -1)`
+- `find_texts_by_ids`: 주간 인사이트 생성 시 질문 텍스트 조회
 
 ---
 
 ## EventRepository 상세 (DP-252)
 
 ```python
-EventRepository(mongo_uri: str, db_name: str = "devpick")
-save_event(user_id, event_type, content_id?, question_id?, metadata?) -> None
-find_by_user(user_id, start?, end?, event_type?) -> list[dict]
+EventRepository(aws_region: str)
+save_event(user_id, event_type, content_id=None, question_id=None, metadata=None) -> None
+find_by_user(user_id, start=None, end=None, event_type=None) -> list[dict]
 ```
 
-- 컬렉션: `event_logs`
-- `save_event`: 저장 전 오늘 UTC 기준 `(user_id, event_type, content_id, question_id)` 중복 확인 → 있으면 스킵
-- `find_by_user`: 유저별 시간순 이벤트 조회 (Epic F 주간 리포트용)
-- 인덱스: `(user_id, event_type, content_id, question_id)` dedup, `(user_id, timestamp -1)`, `(created_at)` TTL 90일
+- DynamoDB `event_logs` 테이블
+- 저장 전 오늘 UTC 기준 `(user_id, event_type, content_id, question_id)` 중복 확인 → 있으면 스킵
 
 ---
 
 ## InsightRepository 상세 (DP-259)
 
 ```python
-InsightRepository(mongo_uri: str, db_name: str = "devpick")
+InsightRepository(aws_region: str)
 save(report_id: str, user_id: str, response: InsightResponse) -> None
 find_by_report_id(report_id: str) -> dict | None
 ```
 
-- 컬렉션: `weekly_report_insights`
+- DynamoDB `weekly_report_insights` 테이블
 - report_id 기준 upsert
-- MongoDB 필드명이 백엔드 Java `ReportInsightDocument`와 1:1 대응 (snake_case):
-  `report_id`, `user_id`, `well_done`, `lacking`, `next_week`, `generated_at`
-- 인덱스: `(report_id, 1)` unique, `(user_id, 1)`
 
 ---
 
-## QuestionVectorRepository 확장 (DP-259)
+## 작성 원칙
 
-```python
-find_texts_by_ids(question_ids: list[str]) -> list[str]
-# 반환: 질문 텍스트 목록 (순서 보장 없음, 없는 ID 무시)
-```
-
-주간 인사이트 생성 시 question_ids → rag_questions 컬렉션에서 텍스트 조회.
+- Repository는 DB 접근만 담당. 비즈니스 로직은 `app/services/`에 위치
+- 생성자에서 `aws_region` 주입 (DynamoDB), `database_url` 주입 (PostgreSQL)
+- 예외는 삼키지 않는다. 호출부(라우터, 파이프라인)에서 처리

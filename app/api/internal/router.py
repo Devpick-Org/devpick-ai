@@ -14,11 +14,13 @@ from app.repositories.answer_repository import AnswerRepository
 from app.repositories.event_repository import EventRepository
 from app.repositories.insight_repository import InsightRepository
 from app.repositories.question_vector_repository import QuestionVectorRepository
+from app.repositories.quiz_repository import QuizRepository
 from app.repositories.summary_repository import SummaryRepository
 from app.repositories.vector_repository import VectorRepository
 from app.schemas.answer import AnswerRequest, AnswerResponse, RelatedContent
 from app.schemas.event import EventType
 from app.schemas.insight import InsightRequest, InsightResponse
+from app.schemas.quiz import AllLevelsQuizResponse, QuizRequest
 from app.schemas.refine import RefineRequest, RefineResponse
 from app.schemas.similar_question import SimilarQuestionRequest, SimilarQuestionResponse
 from app.schemas.summary import (
@@ -28,6 +30,7 @@ from app.schemas.summary import (
 from app.services.all_levels_summary_service import AllLevelsSummaryService
 from app.services.answer_service import AnswerService
 from app.services.embedding_service import EmbeddingOrchestrator
+from app.services.quiz_service import QuizService
 from app.services.insight_service import InsightService
 from app.services.preprocess_service import PreprocessService
 from app.services.question_embedding_service import QuestionEmbeddingOrchestrator
@@ -375,5 +378,46 @@ def create_insight(body: InsightRequest) -> InsightResponse:
         )
     except Exception:
         logger.exception("Failed to save insight event log")
+
+    return result
+
+
+@router.post(
+    "/quiz",
+    response_model=AllLevelsQuizResponse,
+    dependencies=[Depends(verify_internal_key)],
+)
+def create_quiz(body: QuizRequest) -> AllLevelsQuizResponse:
+    """콘텐츠 AI 퀴즈 생성 (DP-265).
+
+    content_id당 3문제(객관식 2 + 주관식 1)를 생성하고 ai_quizzes에 저장한다.
+    에러는 전역 핸들러(AIServiceError)가 처리한다.
+    """
+    try:
+        preprocessed = PreprocessService().preprocess(body.text)
+    except ValueError as exc:
+        raise AIBadRequestError(str(exc)) from exc
+
+    result = QuizService(aws_region=_AWS_REGION, model=_BEDROCK_MODEL).generate_all(
+        content_id=body.content_id,
+        text=preprocessed,
+    )
+
+    # DynamoDB 저장 (fire-and-forget)
+    try:
+        QuizRepository(aws_region=_AWS_REGION).save(result)
+    except Exception:
+        logger.exception("Failed to save quiz to DynamoDB")
+
+    # 이벤트 로그 저장 (fire-and-forget)
+    if body.user_id:
+        try:
+            EventRepository(aws_region=_AWS_REGION).save_event(
+                user_id=body.user_id,
+                event_type=EventType.QUIZ_GENERATED,
+                content_id=body.content_id,
+            )
+        except Exception:
+            logger.exception("Failed to save quiz event log")
 
     return result

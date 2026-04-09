@@ -32,7 +32,7 @@ class QuizRepository:
         PK: content_id (S)
         SK: level (S)               — beginner / junior / mid / senior
         quiz_id (S)                 — 고유 식별자 (UUID)
-        questions (L)               — 퀴즈 문제 리스트
+        q1 / q2 / q3 (M)           — 문제별 개별 필드 (type/question/options/answer/explanation)
     """
 
     def __init__(
@@ -60,18 +60,23 @@ class QuizRepository:
         }
 
         for level_name, level_quiz in levels.items():
+            questions = level_quiz.questions
             self._table.update_item(
                 Key={"content_id": response.content_id, "level": level_name},
                 UpdateExpression=(
                     "SET quiz_id = :quiz_id"
-                    ", questions = :questions"
+                    ", q1 = :q1"
+                    ", q2 = :q2"
+                    ", q3 = :q3"
                     ", generated_at = :generated_at"
                     ", updated_at = :updated_at"
                     ", created_at = if_not_exists(created_at, :created_at)"
                 ),
                 ExpressionAttributeValues={
                     ":quiz_id": response.quiz_id,
-                    ":questions": _sanitize(level_quiz.model_dump()),
+                    ":q1": _sanitize(questions[0].model_dump()),
+                    ":q2": _sanitize(questions[1].model_dump()),
+                    ":q3": _sanitize(questions[2].model_dump()),
                     ":generated_at": response.generated_at,
                     ":updated_at": now,
                     ":created_at": now,

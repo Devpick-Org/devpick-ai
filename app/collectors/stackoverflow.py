@@ -13,7 +13,7 @@ from __future__ import annotations
 
 import logging
 import re
-from datetime import datetime, timezone
+from datetime import datetime
 
 import requests
 from requests.adapters import HTTPAdapter

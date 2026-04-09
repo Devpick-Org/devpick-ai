@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import logging
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
@@ -121,12 +122,14 @@ class ContentRepository:
                             id, source_id, title, author, canonical_url,
                             preview, thumbnail_url, is_original_visible, license_type,
                             original_content, published_at, is_available, is_answered,
-                            score, view_count, created_at, updated_at
+                            score, view_count, question_content, accepted_answer,
+                            top_answers, created_at, updated_at
                         ) VALUES (
                             :id, :source_id, :title, :author, :canonical_url,
                             :preview, :thumbnail_url, :is_original_visible, :license_type,
                             :original_content, :published_at, :is_available, :is_answered,
-                            :score, :view_count, :created_at, :updated_at
+                            :score, :view_count, :question_content, :accepted_answer,
+                            :top_answers, :created_at, :updated_at
                         )
                         ON CONFLICT (canonical_url) DO NOTHING
                         RETURNING id
@@ -145,9 +148,20 @@ class ContentRepository:
                         "original_content": item.body_candidate,
                         "published_at": published_at,
                         "is_available": True,
-                        "is_answered": False,
+                        "is_answered": item.is_answered,
                         "score": item.likes,
                         "view_count": item.view_count,
+                        "question_content": item.question_content,
+                        "accepted_answer": (
+                            json.dumps(item.accepted_answer, ensure_ascii=False)
+                            if item.accepted_answer is not None
+                            else None
+                        ),
+                        "top_answers": (
+                            json.dumps(item.top_answers, ensure_ascii=False)
+                            if item.top_answers
+                            else None
+                        ),
                         "created_at": now,
                         "updated_at": now,
                     },

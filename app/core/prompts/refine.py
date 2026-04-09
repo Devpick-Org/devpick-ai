@@ -24,6 +24,7 @@ save_refined_question 도구를 호출하여 결과를 저장하세요.
 - 질문의 배경, 문제 상황, 시도한 내용, 기대 결과를 포함
 - 원본에 없는 정보를 추측해서 추가하지 않음
 - 원본의 핵심 내용을 구조화하여 재작성
+- **반드시 Markdown 형식**으로 작성: 항목 목록(`-`), 인라인 코드(`` `code` ``), 코드 블록(` ```언어 `), 강조(**bold**) 등 Markdown 문법을 적극 활용
 
 ### suggested_tags
 - 질문의 기술 스택/주제에 해당하는 태그 2~5개
@@ -47,7 +48,7 @@ REFINE_TOOL = {
             },
             "refined_content": {
                 "type": "string",
-                "description": "개선된 질문 본문",
+                "description": "개선된 질문 본문 (Markdown 형식)",
             },
             "suggested_tags": {
                 "type": "array",

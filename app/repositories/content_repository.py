@@ -152,8 +152,16 @@ class ContentRepository:
                         "score": item.likes,
                         "view_count": item.view_count,
                         "question_content": item.question_content,
-                        "accepted_answer": json.dumps(item.accepted_answer, ensure_ascii=False) if item.accepted_answer is not None else None,
-                        "top_answers": json.dumps(item.top_answers, ensure_ascii=False) if item.top_answers else None,
+                        "accepted_answer": (
+                            json.dumps(item.accepted_answer, ensure_ascii=False)
+                            if item.accepted_answer is not None
+                            else None
+                        ),
+                        "top_answers": (
+                            json.dumps(item.top_answers, ensure_ascii=False)
+                            if item.top_answers
+                            else None
+                        ),
                         "created_at": now,
                         "updated_at": now,
                     },

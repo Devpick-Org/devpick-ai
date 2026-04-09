@@ -56,19 +56,88 @@ Base URL: `http://ai-server:8000/internal`
 | 메서드 | 경로 | 설명 |
 |--------|------|------|
 | GET | `/internal/health` | AI 서버 내부 헬스체크 |
+| POST | `/internal/summaries` | 4레벨 동시 요약 생성 — DynamoDB ai_summaries 저장 + RAG 임베딩 (DP-300) |
+| POST | `/internal/quiz` | 4레벨 퀴즈 생성 — DynamoDB ai_quizzes 저장 (DP-265) |
+| POST | `/internal/refine` | AI 질문 개선 (DP-231) |
+| POST | `/internal/answer` | AI 1차 답변 생성 (DP-234) |
+| POST | `/internal/similar-questions` | 유사 질문 검색 (DP-235) |
+| POST | `/internal/report` | 주간 리포트 AI 인사이트 생성 (DP-259) |
 
-### 호출 예시
+> **summaries / quiz 엔드포인트는 fallback 용도**다. 정상 운영 시에는 배치 수집 파이프라인이 자동으로 생성한다.
+
+## 콘텐츠 수집 + AI 처리 파이프라인
+
+AI 서버가 수집부터 PostgreSQL 저장, AI 처리까지 직접 담당한다.
+
+```
+통합 수집기 (Backfill + Incremental)
+    ↓
+NormalizeService → NormalizedContent
+    ↓
+ContentRepository → PostgreSQL 직접 저장
+    ↓ (신규 저장된 콘텐츠만)
+ContentPipeline.process_content()
+    ├─ Step 1: PreprocessService  — HTML → 구조 보존 텍스트
+    ├─ Step 2: AllLevelsSummaryService  — 4레벨 요약 생성 (Bedrock 1회 호출)
+    ├─ Step 3: SummaryRepository  — DynamoDB ai_summaries 저장
+    ├─ Step 4: QuizService  — 4레벨 퀴즈 생성 (Bedrock 1회 호출)
+    │          QuizRepository  — DynamoDB ai_quizzes 저장
+    └─ Step 5: EmbeddingOrchestrator  — RAG 임베딩 → DynamoDB + FAISS
+```
+
+- 요약(Step 2~3)과 퀴즈(Step 4)는 독립 실행 — 요약 실패해도 퀴즈는 생성
+- Backend는 Redis → DynamoDB 순서로 조회, miss 시 fallback 엔드포인트 호출
+
+### 수집 소스
+
+| 소스 | 수집 전략 |
+|------|----------|
+| Kakao Tech | 순차 post ID 열거 |
+| NAVER D2 | REST API 리스팅 + 개별 글 fetch |
+| Toss Tech | 리스팅 페이지네이션 |
+| OliveYoung Tech | 리스팅 페이지네이션 |
+| Medium (daangn/musinsa-tech 등) | Medium API 직접 fetch |
+| Stack Overflow | SO API |
+| Velog | GraphQL API |
+
+### 스크립트
+
+| 스크립트 | 설명 |
+|----------|------|
+| `scripts/run_backfill_batch.py` | 1회 수집 실행 — PostgreSQL 저장 + AI 처리 (요약+퀴즈+임베딩) |
+| `scripts/run_scheduler.py` | 6시간 간격 자동 반복 실행 |
+| `scripts/run_collect_and_save.py` | 로컬 JSONL 저장 전용 (AI 처리 없음, 개발용) |
+| `scripts/init_vectors.py` | FAISS 인덱스 초기화 |
+| `scripts/reindex_vectors.py` | FAISS 인덱스 재빌드 (인덱스 유실 시) |
+| `scripts/inspect_preprocess.py` | URL 기반 전처리 출력 확인 |
+
+## 주요 실행 명령
 
 ```bash
-# 헤더 없음 → 422
-curl http://localhost:8000/internal/health
+# 1회 수집 실행 (PostgreSQL 저장 + 요약+퀴즈 자동 생성)
+DATABASE_URL=postgresql://... python scripts/run_backfill_batch.py
 
-# 잘못된 키 → 401
-curl -H "X-Internal-Key: wrong" http://localhost:8000/internal/health
+# 스케줄러 (6시간 간격 자동 반복)
+DATABASE_URL=postgresql://... python scripts/run_scheduler.py
 
-# 올바른 키 → 200 {"status": "ok"}
-curl -H "X-Internal-Key: {키값}" http://localhost:8000/internal/health
+# 개발 서버
+uvicorn main:app --reload
+
+# FAISS 재빌드 (인덱스 유실 시)
+python scripts/reindex_vectors.py
 ```
+
+## DynamoDB 테이블 목록
+
+| 테이블 | 내용 |
+|--------|------|
+| `ai_summaries` | 4레벨 요약 결과 (content_id + level 기준) |
+| `ai_quizzes` | 4레벨 퀴즈 결과 (content_id 기준, 4레벨 중첩) |
+| `rag_documents` | RAG 청크 + 임베딩 (content_id + chunk_index 기준) |
+| `rag_questions` | 질문 임베딩 (question_id 기준) |
+| `ai_answers` | AI 답변 결과 (question_id 기준) |
+| `event_logs` | AI 처리 이벤트 로그 (일별 dedup) |
+| `weekly_report_insights` | 주간 인사이트 (report_id 기준) |
 
 ## CI 파이프라인 (PR 체크)
 
@@ -76,15 +145,12 @@ GitHub Actions 워크플로 `AI PR Checks`가 아래 조건에서 실행됩니�
 
 - `develop` 브랜치 대상 Pull Request
 - `develop` 브랜치로의 Push
-- 관련 파일 변경 시: `**/*.py`, `requirements.txt`, `requirements-dev.txt`, `.github/workflows/ai-pr-check.yml`
 
 체크 항목:
 
 - `ruff check .`
 - `black --check .`
 - `pytest -q`
-
-워크플로 파일: [.github/workflows/ai-pr-check.yml](.github/workflows/ai-pr-check.yml)
 
 로컬에서 PR 전 동일하게 확인하려면:
 
@@ -93,119 +159,3 @@ pip install -r requirements.txt
 pip install -r requirements-dev.txt
 ruff check . && black --check . && pytest -q
 ```
-
-## 콘텐츠 수집 파이프라인
-
-수집 → 중복 제거 → 정규화 → Backend 전송 흐름으로 동작합니다.
-
-```
-RSS/Atom Feed
-    ↓ Collector (RSSCollector / RSSCrawlCollector)
-    ↓ NormalizeService (RawEntry → NormalizedContent)
-    ↓ SentIdStore (이미 전송된 항목 dedup)
-    ↓ PushService (POST {BACKEND_URL}/internal/contents)
-    ↓ Backend → PostgreSQL
-    ↓ PreprocessService (HTML → 구조 보존 텍스트)
-    ↓ SummaryService (Tool Use + Prompt Caching) → Claude API
-```
-
-### 수집 소스 목록
-
-#### RSS 소스 (최신 글 수집)
-
-| 소스 | 수집기 | 비고 |
-|------|--------|------|
-| 카카오 테크 | RSSCrawlCollector | RSS + HTML 크롤링 보강 |
-| 네이버 D2 | RSSCollector | Atom 피드 |
-| 토스 테크 | RSSCollector | RSS |
-| 올리브영 테크 | RSSCollector | RSS, 182개 전체 본문 포함 |
-| Medium daangn | RSSCollector | Medium RSS |
-| Medium zigbang | RSSCollector | Medium RSS (2023년 이후 비활성) |
-| Medium watcha | RSSCollector | Medium RSS |
-| Medium coupang-engineering | RSSCollector | Medium RSS |
-| Medium musinsa-tech | RSSCollector | Medium RSS |
-
-#### 백필 소스 (과거 글 수집, 2025.01~)
-
-| 소스 | 수집 전략 | 예상 글 수 |
-|------|----------|-----------|
-| 카카오 테크 | 순차 post ID 열거 (675~) | ~135개 |
-| 네이버 D2 | REST API 리스팅 + 개별 글 fetch | ~40개 |
-| 토스 테크 | 리스팅 페이지네이션 + article body | ~50개 |
-| Medium daangn | Wayback Machine CDX + 캐시 fetch | ~490개 |
-| Medium coupang-engineering | Wayback Machine CDX + 캐시 fetch | 미조사 |
-| Medium musinsa-tech | Wayback Machine CDX + 캐시 fetch | 미조사 |
-| Medium watcha | Wayback Machine CDX + 캐시 fetch | ~172개 |
-| LY Corp | 리스팅 페이지네이션 + article body | 미조사 |
-| 우아한형제들 | Wayback Machine CDX + 캐시 fetch | 미조사 |
-
-### 주요 모듈
-
-- `app/collectors`: RSS / RSS+크롤링 수집기 + 백필 크롤러 (`backfill/`)
-- `app/stores`: SentIdStore(전송 완료 ID 관리) + BackfillCursor(백필 진행 상태)
-- `app/schemas`: SourceConfig, RawEntry, NormalizedContent 스키마
-- `app/schemas/summary.py`: SectionSummary, SummaryResponse 스키마 (AI 요약 출력 계약)
-- `app/services`: IngestService, NormalizeService, PushService, SummaryService
-- `app/services/summary_service.py`: Claude Tool Use 기반 레벨별 AI 요약 생성
-- `app/services/preprocess_service.py`: HTML → 구조 보존 텍스트 전처리
-- `app/core/prompts/summary.py`: 요약 시스템 프롬프트 + Tool Use 스키마 + 레벨별 지시문
-- `app/configs`: 수집 대상 목록 (`get_default_sources()`, `get_crawl_sources()`, `get_backfill_sources()`)
-- `app/utils`: RSS/Atom 파싱, HTML 본문 추출 보조 유틸 (BeautifulSoup 기반 공통 함수 포함)
-- `data/raw/sent_ids`: 소스별 전송 완료 ID 텍스트 파일
-- `data/raw/backfill_cursor`: 소스별 백필 진행 상태 JSON 파일
-
-현재 레포의 수집 범위는 **RSS / RSS+크롤링 + 백필(과거 글)**입니다.
-PostgreSQL 저장은 Backend가 담당하며, 이 레포는 수집/정규화/전송만 수행합니다.
-
-### 스크립트
-
-| 스크립트 | 설명 |
-|----------|------|
-| `scripts/run_collect_and_save.py` | 수집 → 정규화 → 로컬 JSONL 저장 (push 없음). `--backfill` 플래그로 백필 수집 지원 |
-| `scripts/run_collect_and_push.py` | 수집 → 정규화 → Backend push 통합 실행 |
-| `scripts/run_backfill_batch.py` | 백필 1회 배치 실행 — 소스당 20개 과거 글 수집 → push |
-| `scripts/run_scheduler.py` | 6시간 간격으로 RSS + 백필 배치 자동 반복 실행 |
-| `scripts/inspect_preprocess.py` | 전처리 출력 확인 (`--url` 또는 `--raw` 모드) |
-
-
-## 통합 파이프라인 실행
-
-```bash
-# RSS + Crawl 1회 실행 (로컬 저장, push 없음)
-python scripts/run_collect_and_save.py
-
-# 백필 포함 로컬 저장 (소스당 3개 기본)
-python scripts/run_collect_and_save.py --backfill
-
-# 특정 백필 소스만 로컬 저장
-python scripts/run_collect_and_save.py --backfill --source LY_Corp --batch-size 5
-
-# RSS 1회 실행 + Backend push
-BACKEND_URL=http://localhost:8080 python scripts/run_collect_and_push.py
-
-# 백필 1회 배치 실행 (소스당 20개) + Backend push
-BACKEND_URL=http://localhost:8080 python scripts/run_backfill_batch.py
-
-# 6시간 간격 자동 반복 실행 (RSS + 백필)
-BACKEND_URL=http://localhost:8080 python scripts/run_scheduler.py
-```
-
-## 백필 (과거 글 수집)
-
-RSS 피드가 최근 10~20개만 반환하기 때문에, 과거 글(2025.01~)은 백필 크롤러로 수집합니다.
-
-| 소스 | 수집 전략 | 예상 글 수 |
-|------|----------|-----------|
-| 카카오 테크 | 순차 post ID 열거 | ~135개 |
-| 네이버 D2 | 내부 REST API | ~40개 |
-| 토스 테크 | 리스팅 페이지네이션 | ~50개 |
-| Medium daangn | Wayback Machine CDX + 캐시 | ~490개 |
-| Medium coupang-engineering | Wayback Machine CDX + 캐시 | 미조사 |
-| Medium musinsa-tech | Wayback Machine CDX + 캐시 | 미조사 |
-| Medium watcha | Wayback Machine CDX + 캐시 | ~172개 |
-| LY Corp | 리스팅 페이지네이션 | 미조사 |
-| 우아한형제들 | Wayback Machine CDX + 캐시 | 미조사 |
-
-- 스케줄러에 통합되어 6시간마다 소스당 20개씩 점진적 수집
-- 커서 파일(`data/raw/backfill_cursor/`)로 진행 상태 관리
-- 전체 완료 시 자동 skip, `BackfillCursor.reset()`으로 재시작 가능

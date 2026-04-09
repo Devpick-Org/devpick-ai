@@ -1,6 +1,6 @@
 # CLAUDE.md — app/schemas/
 
-Pydantic 기반 데이터 계약. 수집부터 전송까지 모든 데이터 형태를 정의한다.
+Pydantic 기반 데이터 계약. 수집부터 AI 처리까지 모든 데이터 형태를 정의한다.
 
 ---
 
@@ -8,44 +8,52 @@ Pydantic 기반 데이터 계약. 수집부터 전송까지 모든 데이터 형
 
 | 파일 | 클래스 | 역할 |
 |------|--------|------|
-| `source.py` | `SourceConfig` | 수집 대상 소스 설정 (URL, 레벨, 활성 여부, parser_type: rss/atom/auto/backfill) |
+| `source.py` | `SourceConfig` | 수집 대상 소스 설정 |
 | `raw_content.py` | `RawEntry` | 수집기가 반환하는 원시 항목 |
-| `raw_content.py` | `RawFeedMeta` | 피드 메타 정보 (제목, 수집 시각 등) |
-| `normalized_content.py` | `NormalizedContent` | Backend로 전송하는 최종 정규화 항목 (DP-292: author/thumbnail/tags/is_original_visible 반영) |
-| `summary.py` | `SummaryRequest` | AI 요약 요청 스키마 (content_id, level, text, thumbnail_url) |
+| `raw_content.py` | `RawFeedMeta` | 피드 메타 정보 |
+| `normalized_content.py` | `NormalizedContent` | PostgreSQL 저장 + AI 처리 입력 스키마 |
 | `summary.py` | `SectionSummary` | 소제목별 요약 항목 (heading + content) |
-| `summary.py` | `SummaryResponse` | AI 요약 출력 스키마 (LLM 응답 계약) |
-| `refine.py` | `RefineRequest` | AI 질문 개선 요청 스키마 (title, content, level, content_id?) (DP-231) |
-| `refine.py` | `RefineResponse` | AI 질문 개선 출력 스키마 (LLM 응답 계약) (DP-231) |
-| `answer.py` | `AnswerRequest` | AI 1차 답변 요청 스키마 (refined/original 질문 + content_id + question_id) (DP-234) |
-| `answer.py` | `RelatedContent` | 참고 기술 블로그 항목 (content_id + one_line_summary) (DP-234) |
-| `answer.py` | `AnswerResponse` | AI 1차 답변 출력 스키마 (answer_content, key_points, related_contents 등) (DP-234) |
-| `similar_question.py` | `SimilarQuestionRequest` | 유사 질문 검색 요청 스키마 (text, question_id, top_k) (DP-235) |
-| `similar_question.py` | `SimilarQuestion` | 유사 질문 개별 항목 (question_id, text, score, tags) (DP-235) |
-| `similar_question.py` | `SimilarQuestionResponse` | 유사 질문 검색 결과 (results 리스트 + total) (DP-235) |
-| `summary.py` | `CommonSummary` | 레벨 무관 공통 요약 필드 (one_line_summary, keywords, tags, difficulty) (DP-300) |
-| `summary.py` | `LevelSummary` | 레벨별 요약 필드 (core_summary, key_points, study_questions, next_recommendation, confidence) (DP-300) |
-| `summary.py` | `AllLevelsSummaryRequest` | 4레벨 동시 요약 요청 스키마 (content_id, text, thumbnail_url) (DP-300) |
-| `summary.py` | `AllLevelsSummaryResponse` | 4레벨 동시 요약 응답 스키마 (common + beginner/junior/mid/senior) (DP-300) |
+| `summary.py` | `SummaryResponse` | 단일 레벨 AI 요약 출력 스키마 |
+| `summary.py` | `CommonSummary` | 레벨 무관 공통 요약 필드 (DP-300) |
+| `summary.py` | `LevelSummary` | 레벨별 요약 필드 (DP-300) |
+| `summary.py` | `AllLevelsSummaryRequest` | 4레벨 동시 요약 요청 스키마 (DP-300) |
+| `summary.py` | `AllLevelsSummaryResponse` | 4레벨 동시 요약 응답 스키마 (DP-300) |
+| `quiz.py` | `QuizQuestion` | 퀴즈 문제 한 개 (type/question/options/answer/explanation) |
+| `quiz.py` | `LevelQuiz` | 레벨별 퀴즈 3문제 컨테이너 |
+| `quiz.py` | `QuizRequest` | POST /internal/quiz 요청 스키마 (content_id + text + user_id?) |
+| `quiz.py` | `AllLevelsQuizResponse` | 4레벨 동시 퀴즈 응답 스키마 (beginner/junior/mid/senior) |
+| `refine.py` | `RefineRequest` | AI 질문 개선 요청 스키마 (DP-231) |
+| `refine.py` | `RefineResponse` | AI 질문 개선 출력 스키마 (DP-231) |
+| `answer.py` | `AnswerRequest` | AI 1차 답변 요청 스키마 (DP-234) |
+| `answer.py` | `RelatedContent` | 참고 기술 블로그 항목 (DP-234) |
+| `answer.py` | `AnswerResponse` | AI 1차 답변 출력 스키마 (DP-234) |
+| `similar_question.py` | `SimilarQuestionRequest` | 유사 질문 검색 요청 스키마 (DP-235) |
+| `similar_question.py` | `SimilarQuestion` | 유사 질문 개별 항목 (DP-235) |
+| `similar_question.py` | `SimilarQuestionResponse` | 유사 질문 검색 결과 (DP-235) |
+| `event.py` | `EventType` | AI 처리 이벤트 유형 enum (DP-252) |
+| `insight.py` | `ActivityData` | 주간 활동 데이터 |
+| `insight.py` | `InsightRequest` | 주간 인사이트 요청 스키마 (DP-259) |
+| `insight.py` | `InsightResponse` | 주간 인사이트 응답 스키마 (DP-259) |
+
+---
+
+## EventType 목록 (event.py)
+
+| 값 | 트리거 |
+|----|--------|
+| `SUMMARY_GENERATED` | POST /internal/summary (legacy) |
+| `ALL_LEVELS_SUMMARY_GENERATED` | POST /internal/summaries |
+| `QUESTION_REFINED` | POST /internal/refine |
+| `ANSWER_GENERATED` | POST /internal/answer |
+| `SIMILAR_QUESTIONS_SEARCHED` | POST /internal/similar-questions |
+| `INSIGHT_GENERATED` | POST /internal/report |
+| `QUIZ_GENERATED` | POST /internal/quiz (fallback) |
 
 ---
 
 ## 스키마 설계 원칙
 
 - 모든 스키마는 Pydantic `BaseModel`을 상속한다.
-- 필드는 타입 힌트 필수. `Optional` 필드는 명시적으로 `= None` 처리.
-- `RawEntry` → `NormalizedContent` 변환은 `NormalizeService`가 담당하며, 스키마 자체에 로직을 두지 않는다.
-- 스키마 변경 시 관련 테스트(`test_normalize_service.py` 등)도 함께 업데이트한다.
-
----
-
-| `event.py` | `EventType` | AI 처리 이벤트 유형 enum (SUMMARY_GENERATED 등 6종) (DP-252) |
-| `insight.py` | `ActivityData`, `InsightRequest`, `InsightResponse` | 주간 인사이트 요청/응답 스키마 (DP-259) |
-
-## 향후 추가 예정
-
-| 파일 | 클래스 | 역할 |
-|------|--------|------|
-| `report.py` | `ReportResponse` | 주간 리포트 출력 스키마 |
-
-AI 출력 스키마는 반드시 먼저 정의하고 구현한다. 스키마 없는 AI 출력은 허용하지 않는다.
+- 필드는 타입 힌트 필수. Optional 필드는 명시적으로 `= None` 처리.
+- AI 출력 스키마는 구현 전에 먼저 정의한다. 스키마 없는 AI 출력은 허용하지 않는다.
+- `RawEntry` → `NormalizedContent` 변환은 `NormalizeService`가 담당. 스키마에 로직 없음.

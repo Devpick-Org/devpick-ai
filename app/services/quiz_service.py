@@ -62,7 +62,6 @@ class QuizService:
                 modelId=self._model,
                 system=[
                     {"text": SYSTEM_PROMPT_QUIZ},
-                    {"cachePoint": {"type": "default"}},
                 ],
                 messages=[{"role": "user", "content": [{"text": user_prompt}]}],
                 toolConfig=to_tool_config(QUIZ_TOOL, _TOOL_NAME),

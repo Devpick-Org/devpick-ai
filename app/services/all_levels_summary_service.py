@@ -71,7 +71,6 @@ class AllLevelsSummaryService:
                 modelId=self._model,
                 system=[
                     {"text": SYSTEM_PROMPT_ALL_LEVELS},
-                    {"cachePoint": {"type": "default"}},
                 ],
                 messages=[{"role": "user", "content": [{"text": user_prompt}]}],
                 toolConfig=to_tool_config(SUMMARY_ALL_LEVELS_TOOL, _TOOL_NAME),

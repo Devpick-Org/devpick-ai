@@ -15,9 +15,11 @@
   backfill:    {"phase": "backfill", "fetched": false}
   incremental: {"phase": "incremental"}
 
-ADR-006 정책: SUMMARY_ONLY
-  - is_original_visible = False
-  - body_candidate = None
+본문 수집 전략:
+- trendingPosts 수집 후 각 포스트에 대해 post(input) GraphQL로 markdown 본문 개별 fetch
+- body_candidate = markdown 본문 (AI 요약에 사용)
+- is_original_visible = True
+- 본문 fetch 실패 시 해당 포스트는 body_candidate=None으로 저장 (요약 스킵)
 """
 
 from __future__ import annotations
@@ -59,6 +61,14 @@ query TrendingPosts($input: TrendingPostsInput!) {
     user {
       username
     }
+  }
+}
+"""
+
+_POST_BODY_QUERY = """
+query GetPost($input: ReadPostInput!) {
+  post(input: $input) {
+    body
   }
 }
 """
@@ -126,6 +136,7 @@ class VelogBackfillCollector:
             logger.info("Velog backfill: GraphQL empty, falling back to crawl")
             posts = self._crawl_trending(batch_size)
 
+        posts = self._enrich_with_body(posts)
         items = [
             c for post in posts if (c := self._to_normalized_content(post)) is not None
         ]
@@ -146,6 +157,7 @@ class VelogBackfillCollector:
             logger.info("Velog incremental: GraphQL empty, falling back to crawl")
             posts = self._crawl_trending(batch_size)
 
+        posts = self._enrich_with_body(posts)
         items = [
             c for post in posts if (c := self._to_normalized_content(post)) is not None
         ]
@@ -155,6 +167,48 @@ class VelogBackfillCollector:
     # ------------------------------------------------------------------
     # GraphQL 호출
     # ------------------------------------------------------------------
+
+    def _fetch_post_body(self, username: str, url_slug: str) -> str | None:
+        """Fetch full markdown body for a single post via GraphQL."""
+        payload = {
+            "operationName": "GetPost",
+            "query": _POST_BODY_QUERY,
+            "variables": {"input": {"username": username, "url_slug": url_slug}},
+        }
+        try:
+            resp = self.session.post(
+                _GRAPHQL_URL,
+                json=payload,
+                headers={
+                    "Content-Type": "application/json",
+                    "Origin": "https://velog.io",
+                    "User-Agent": _DEFAULT_USER_AGENT,
+                },
+                timeout=self.timeout,
+            )
+            resp.raise_for_status()
+            body = (resp.json().get("data") or {}).get("post", {}).get("body")
+            return body or None
+        except Exception:
+            logger.warning(
+                "Velog post body fetch failed: @%s/%s",
+                username,
+                url_slug,
+                exc_info=True,
+            )
+            return None
+
+    def _enrich_with_body(self, posts: list[dict]) -> list[dict]:
+        """Fetch and inject body into each post dict."""
+        enriched = []
+        for post in posts:
+            username = (post.get("user") or {}).get("username") or ""
+            url_slug = post.get("url_slug") or ""
+            if username and url_slug:
+                body = self._fetch_post_body(username, url_slug)
+                post = {**post, "_body": body}
+            enriched.append(post)
+        return enriched
 
     def _fetch_graphql(self, timeframe: str, limit: int) -> list[dict]:
         payload = {
@@ -335,6 +389,8 @@ class VelogBackfillCollector:
         comments_raw = post.get("comments_count")
         comments_count = int(comments_raw) if comments_raw is not None else None
 
+        body_candidate: str | None = post.get("_body")
+
         return NormalizedContent(
             source_name="Velog",
             title=post.get("title"),
@@ -342,8 +398,8 @@ class VelogBackfillCollector:
             canonical_url=canonical_url,
             published_at=published_at,
             preview=preview,
-            body_candidate=None,  # ADR-006: SUMMARY_ONLY
-            is_original_visible=False,
+            body_candidate=body_candidate,
+            is_original_visible=True,
             license_type=None,
             tags=tags,
             likes=likes,

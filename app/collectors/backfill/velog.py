@@ -27,9 +27,11 @@ from __future__ import annotations
 import json
 import logging
 import re
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timezone
 
 import requests
+from bs4 import BeautifulSoup
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 
@@ -199,15 +201,23 @@ class VelogBackfillCollector:
             return None
 
     def _enrich_with_body(self, posts: list[dict]) -> list[dict]:
-        """Fetch and inject body into each post dict."""
-        enriched = []
-        for post in posts:
+        """Fetch and inject body into each post dict (parallel, max 5 workers)."""
+        enriched = [None] * len(posts)
+
+        def _fetch(idx: int, post: dict) -> tuple[int, dict]:
             username = (post.get("user") or {}).get("username") or ""
             url_slug = post.get("url_slug") or ""
             if username and url_slug:
                 body = self._fetch_post_body(username, url_slug)
-                post = {**post, "_body": body}
-            enriched.append(post)
+                return idx, {**post, "_body": body}
+            return idx, post
+
+        with ThreadPoolExecutor(max_workers=5) as pool:
+            futures = {pool.submit(_fetch, i, p): i for i, p in enumerate(posts)}
+            for future in as_completed(futures):
+                idx, post = future.result()
+                enriched[idx] = post
+
         return enriched
 
     def _fetch_graphql(self, timeframe: str, limit: int) -> list[dict]:
@@ -311,31 +321,32 @@ class VelogBackfillCollector:
             return []
 
     def _extract_from_html(self, html: str, limit: int) -> list[dict]:
-        """Extract post metadata from rendered HTML as fallback."""
+        """Extract post metadata from rendered HTML as fallback (BeautifulSoup)."""
+        soup = BeautifulSoup(html, "html.parser")
         posts: list[dict] = []
-
-        # 포스트 카드 URL 패턴: /@username/slug
-        urls = re.findall(r'href="(/@[^/]+/[^"?]+)"', html)
-        titles = re.findall(r'class="[^"]*title[^"]*"[^>]*>([^<]+)</[^>]+>', html)
-
         seen_urls: set[str] = set()
-        for i, url in enumerate(urls):
-            if url in seen_urls or not url.startswith("/@"):
-                continue
-            seen_urls.add(url)
 
-            parts = url.lstrip("/").split("/")
+        for a in soup.find_all("a", href=True):
+            href = a["href"]
+            if not href.startswith("/@") or href in seen_urls:
+                continue
+
+            parts = href.lstrip("/").split("/")
             if len(parts) < 2:
                 continue
 
+            seen_urls.add(href)
             username = parts[0].lstrip("@")
             url_slug = "/".join(parts[1:])
-            title = titles[i] if i < len(titles) else url_slug.replace("-", " ")
+
+            # 제목: class에 'title' 포함한 자식 태그 우선, 없으면 링크 전체 텍스트
+            title_tag = a.find(class_=lambda c: c and "title" in " ".join(c).lower())
+            title = (title_tag or a).get_text(strip=True) or url_slug.replace("-", " ")
 
             posts.append(
                 {
-                    "id": url,
-                    "title": title.strip(),
+                    "id": href,
+                    "title": title,
                     "short_description": None,
                     "url_slug": url_slug,
                     "released_at": None,

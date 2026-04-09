@@ -326,7 +326,7 @@ class StackOverflowCollector:
             canonical_url=canonical_url,
             published_at=scraped.get("published_at"),
             preview=scraped.get("preview"),
-            body_candidate=question_content,  # 본문 호환성 유지
+            body_candidate=_build_body_candidate(question_content, accepted_answer, top_answers),
             is_original_visible=True,
             license_type=_LICENSE_TYPE,
             tags=tags,

@@ -332,7 +332,8 @@ def test_to_normalized_content_question_content_from_api_body() -> None:
 
     assert result is not None
     assert result.question_content == "<p>Detailed question</p>"
-    assert result.body_candidate == "<p>Detailed question</p>"
+    # body_candidate는 질문 + 답변을 합친 포맷 (answers 없으면 질문만)
+    assert result.body_candidate == "## Question\n<p>Detailed question</p>"
 
 
 def test_to_normalized_content_accepted_answer_structured() -> None:

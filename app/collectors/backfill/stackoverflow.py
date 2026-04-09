@@ -254,7 +254,9 @@ class StackOverflowBackfillCollector:
             canonical_url=canonical_url,
             published_at=published_at,
             preview=preview,
-            body_candidate=_build_body_candidate(question_body, accepted_answer, top_answers),
+            body_candidate=_build_body_candidate(
+                question_body, accepted_answer, top_answers
+            ),
             is_original_visible=True,
             license_type=_LICENSE_TYPE,
             tags=tags,

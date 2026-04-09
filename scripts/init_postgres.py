@@ -59,6 +59,16 @@ def main() -> None:
             )
             print("[init_postgres] idx_content_sources_name — OK")
 
+            conn.execute(
+                text(
+                    """
+                    CREATE UNIQUE INDEX IF NOT EXISTS idx_contents_source_title
+                    ON contents (source_id, lower(title))
+                """
+                )
+            )
+            print("[init_postgres] idx_contents_source_title — OK")
+
         print("[init_postgres] 초기화 완료")
 
     except Exception as error:

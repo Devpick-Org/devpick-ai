@@ -131,7 +131,7 @@ class ContentRepository:
                             :score, :view_count, :question_content, :accepted_answer,
                             :top_answers, :created_at, :updated_at
                         )
-                        ON CONFLICT (canonical_url) DO NOTHING
+                        ON CONFLICT DO NOTHING
                         RETURNING id
                     """
                     ),

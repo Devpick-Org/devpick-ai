@@ -36,6 +36,7 @@ query TrendingPosts($input: TrendingPostsInput!) {
     id
     title
     short_description
+    thumbnail
     url_slug
     released_at
     tags
@@ -63,6 +64,7 @@ query Posts {
     id
     title
     short_description
+    thumbnail
     url_slug
     released_at
     tags
@@ -274,6 +276,9 @@ class VelogCollector:
         if preview and len(preview) > _PREVIEW_MAX_LENGTH:
             preview = preview[:_PREVIEW_MAX_LENGTH]
 
+        tags: list[str] = post.get("tags") or []
+        thumbnail_url: str | None = post.get("thumbnail") or None
+
         likes_raw = post.get("likes")
         likes = int(likes_raw) if likes_raw is not None else None
 
@@ -292,6 +297,8 @@ class VelogCollector:
             body_candidate=body_candidate,
             is_original_visible=True,
             license_type=None,
+            tags=tags,
+            thumbnail_url=thumbnail_url,
             likes=likes,
             comments_count=comments_count,
         )

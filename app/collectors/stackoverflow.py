@@ -337,3 +337,27 @@ class StackOverflowCollector:
             accepted_answer=accepted_answer,
             top_answers=top_answers,
         )
+
+
+def _build_body_candidate(
+    question: str | None,
+    accepted: dict | None,
+    top: list[dict],
+) -> str | None:
+    """Build a markdown-formatted body candidate from question + answers.
+
+    Returns None if all inputs are empty/None.
+    """
+    parts: list[str] = []
+
+    if question:
+        parts.append(f"## Question\n{question}")
+
+    if accepted and accepted.get("body"):
+        parts.append(f"## Accepted Answer\n{accepted['body']}")
+
+    valid_top = [a["body"] for a in top if a.get("body")]
+    if valid_top:
+        parts.append("## Top Answers\n" + "\n\n".join(valid_top))
+
+    return "\n\n".join(parts) if parts else None

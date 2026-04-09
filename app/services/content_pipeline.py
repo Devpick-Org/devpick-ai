@@ -84,9 +84,7 @@ class ContentPipeline:
                     summary=summary,
                 )
             except Exception:
-                logger.exception(
-                    "[pipeline] content_id=%s 임베딩 실패", content_id
-                )
+                logger.exception("[pipeline] content_id=%s 임베딩 실패", content_id)
 
         # Step 5: 퀴즈 생성 + DynamoDB 저장 (fire-and-forget, 요약과 독립)
         try:

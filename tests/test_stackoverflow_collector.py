@@ -1,4 +1,4 @@
-"""Unit tests for StackOverflowCollector — mocks HTTP to test collection behavior."""
+"""Unit tests for StackOverflowCollector — mocks HTTP to test hybrid crawl+API behavior."""
 
 from __future__ import annotations
 
@@ -9,368 +9,365 @@ import requests
 from app.collectors.stackoverflow import StackOverflowCollector, _build_body_candidate
 from app.schemas.normalized_content import NormalizedContent
 
-# ── Helpers ──────────────────────────────────────────────────────────────────
+# ── HTML 픽스처 ─────────────────────────────────────────────────────────────
+
+# 실제 SO trending 페이지 HTML 구조를 최대한 반영한 픽스처
+_TRENDING_HTML = (
+    '<html><body>'
+    '<div class="s-post-summary js-post-summary" data-post-id="12345" data-post-type-id="1" itemprop="item" itemscope>'
+    '<div class="s-post-summary--stats js-post-summary-stats">'
+    '<div class="s-post-summary--stats-item s-post-summary--stats-item__emphasized" title="Score of 15">'
+    '<span class="s-post-summary--stats-item-number" itemprop="upvoteCount">15</span>'
+    '<span class="s-post-summary--stats-item-unit">votes</span>'
+    '</div>'
+    '<div class="s-post-summary--stats-item" title="1,200 views">'
+    '<span class="s-post-summary--stats-item-number">1,200</span>'
+    '<span class="s-post-summary--stats-item-unit">views</span>'
+    '</div>'
+    '<meta itemprop="dateCreated" content="2026-03-15T10:00:00Z" />'
+    '</div>'
+    '<div class="s-post-summary--content">'
+    '<h3 class="s-post-summary--content-title">'
+    '<a href="/questions/12345/how-to-use-spring-boot" class="s-link" itemprop="url">'
+    '<span itemprop="name">How to use Spring Boot?</span></a>'
+    '</h3>'
+    '<div class="s-post-summary--content-excerpt" itemprop="text">This is a preview of the question body.</div>'
+    '<div class="s-post-summary--meta">'
+    '<a href="/users/9999/devuser" class="s-avatar s-avatar__16" data-user-id="9999"></a>'
+    '</div>'
+    '</div>'
+    '</div>'
+    '</body></html>'
+)
+
+_API_QUESTION = {
+    "question_id": 12345,
+    "title": "How to use Spring Boot?",
+    "link": "https://stackoverflow.com/questions/12345/how-to-use-spring-boot",
+    "body": "<p>Detailed question body</p>",
+    "tags": ["java", "spring-boot"],
+    "is_answered": True,
+    "creation_date": 1_700_000_000,
+    "owner": {"display_name": "devuser"},
+    "score": 15,
+    "view_count": 1200,
+}
+
+_API_ANSWER = {
+    "question_id": 12345,
+    "body": "<p>Accepted answer body.</p>",
+    "is_accepted": True,
+    "score": 30,
+}
 
 
-def make_question(
-    question_id: int = 1,
-    title: str = "How to use Spring Boot?",
-    link: str = "https://stackoverflow.com/questions/1/how-to-use-spring-boot",
-    body: str = "Detailed question body here.",
-    tags: list[str] | None = None,
-    is_answered: bool = True,
-    creation_date: int = 1_700_000_000,
-    owner_display_name: str = "devuser",
-    score: int = 15,
-    view_count: int = 1200,
-) -> dict:
-    return {
-        "question_id": question_id,
-        "title": title,
-        "link": link,
-        "body": body,
-        "tags": tags if tags is not None else ["java", "spring-boot"],
-        "is_answered": is_answered,
-        "creation_date": creation_date,
-        "owner": {"display_name": owner_display_name},
-        "score": score,
-        "view_count": view_count,
-    }
-
-
-def make_answer(
-    question_id: int = 1,
-    body: str = "Accepted answer body.",
-    is_accepted: bool = True,
-    score: int = 30,
-) -> dict:
-    return {
-        "question_id": question_id,
-        "body": body,
-        "is_accepted": is_accepted,
-        "score": score,
-    }
-
-
-def mock_get_response(json_data: dict) -> MagicMock:
+def mock_response(json_data: dict | None = None, text: str = "") -> MagicMock:
     resp = MagicMock()
-    resp.json.return_value = json_data
+    resp.json.return_value = json_data or {}
+    resp.text = text
     resp.raise_for_status.return_value = None
     return resp
 
 
-# ── fetch() — top-level pipeline ─────────────────────────────────────────────
+# ── fetch() — 전체 파이프라인 ─────────────────────────────────────────────────
 
 
 def test_fetch_returns_normalized_contents() -> None:
-    collector = StackOverflowCollector(min_score=5, min_views=500)
-    question = make_question(score=15, view_count=1200)
-    answer = make_answer()
+    collector = StackOverflowCollector()
 
-    q_resp = mock_get_response({"items": [question], "quota_remaining": 290})
-    a_resp = mock_get_response({"items": [answer]})
+    html_resp = mock_response(text=_TRENDING_HTML)
+    body_resp = mock_response(
+        json_data={"items": [_API_QUESTION], "quota_remaining": 290}
+    )
+    ans_resp = mock_response(json_data={"items": [_API_ANSWER]})
 
-    with patch.object(collector.session, "get", side_effect=[q_resp, a_resp]):
-        results = collector.fetch(tags=["java"])
+    with patch.object(collector.session, "get", side_effect=[html_resp, body_resp, ans_resp]):
+        results = collector.fetch()
 
     assert len(results) == 1
     content = results[0]
     assert isinstance(content, NormalizedContent)
     assert content.source_name == "Stack Overflow"
     assert content.title == "How to use Spring Boot?"
-    assert (
-        content.canonical_url
-        == "https://stackoverflow.com/questions/1/how-to-use-spring-boot"
-    )
-    assert content.author == "devuser"
+    assert content.canonical_url == "https://stackoverflow.com/questions/12345/how-to-use-spring-boot"
     assert content.is_original_visible is True
     assert content.license_type == "CC BY-SA 4.0"
     assert content.view_count == 1200
-    assert content.likes == 15  # SO score → likes
+    assert content.likes == 15
 
 
-def test_fetch_filters_out_low_view_count() -> None:
-    """Questions with view_count < min_views must be filtered out."""
-    collector = StackOverflowCollector(min_score=5, min_views=500)
-    question = make_question(score=15, view_count=100)  # below min_views=500
-
-    q_resp = mock_get_response({"items": [question], "quota_remaining": 290})
-
-    with patch.object(collector.session, "get", return_value=q_resp):
-        results = collector.fetch(tags=["java"])
-
-    assert results == []
-
-
-def test_fetch_keeps_question_with_exact_min_views() -> None:
-    """view_count == min_views should pass the filter."""
-    collector = StackOverflowCollector(min_score=5, min_views=500)
-    question = make_question(score=10, view_count=500, is_answered=False)
-
-    q_resp = mock_get_response({"items": [question], "quota_remaining": 290})
-
-    with patch.object(collector.session, "get", return_value=q_resp):
-        results = collector.fetch(tags=["java"])
-
-    assert len(results) == 1
-
-
-def test_fetch_returns_empty_on_empty_api_response() -> None:
+def test_fetch_returns_empty_when_trending_page_empty() -> None:
     collector = StackOverflowCollector()
-    q_resp = mock_get_response({"items": [], "quota_remaining": 290})
+    html_resp = mock_response(text="<html><body></body></html>")
 
-    with patch.object(collector.session, "get", return_value=q_resp):
-        results = collector.fetch(tags=["java"])
+    with patch.object(collector.session, "get", return_value=html_resp):
+        results = collector.fetch()
 
     assert results == []
 
 
-def test_fetch_returns_empty_on_exception() -> None:
+def test_fetch_returns_empty_on_connection_error() -> None:
     collector = StackOverflowCollector()
 
     with patch.object(
         collector.session, "get", side_effect=requests.ConnectionError("refused")
     ):
-        results = collector.fetch(tags=["java"])
+        results = collector.fetch()
 
     assert results == []
 
 
-def test_fetch_skips_question_without_link() -> None:
-    collector = StackOverflowCollector(min_views=0)
-    question = make_question()
-    question.pop("link")
-    question["is_answered"] = False
+def test_fetch_continues_when_body_api_fails() -> None:
+    """body API 실패해도 HTML 메타데이터로 NormalizedContent 생성."""
+    collector = StackOverflowCollector()
 
-    q_resp = mock_get_response({"items": [question]})
+    html_resp = mock_response(text=_TRENDING_HTML)
+    body_resp = MagicMock()
+    body_resp.raise_for_status.side_effect = requests.HTTPError("500")
 
-    with patch.object(collector.session, "get", return_value=q_resp):
-        results = collector.fetch(tags=["java"])
+    with patch.object(collector.session, "get", side_effect=[html_resp, body_resp]):
+        results = collector.fetch()
 
-    assert results == []
+    # body 없이도 canonical_url이 있으면 결과 생성
+    assert len(results) == 1
+    assert results[0].body_candidate is None
 
 
-def test_fetch_continues_when_answer_fetch_fails() -> None:
-    collector = StackOverflowCollector(min_views=0)
-    question = make_question(is_answered=True)
+def test_fetch_continues_when_answer_api_fails() -> None:
+    """answer API 실패해도 question만으로 결과 생성."""
+    collector = StackOverflowCollector()
 
-    q_resp = mock_get_response({"items": [question], "quota_remaining": 100})
-    a_resp = MagicMock()
-    a_resp.raise_for_status.side_effect = requests.HTTPError("500")
+    html_resp = mock_response(text=_TRENDING_HTML)
+    body_resp = mock_response(
+        json_data={"items": [_API_QUESTION], "quota_remaining": 100}
+    )
+    ans_resp = MagicMock()
+    ans_resp.raise_for_status.side_effect = requests.HTTPError("500")
 
-    with patch.object(collector.session, "get", side_effect=[q_resp, a_resp]):
-        results = collector.fetch(tags=["java"])
+    with patch.object(collector.session, "get", side_effect=[html_resp, body_resp, ans_resp]):
+        results = collector.fetch()
 
     assert len(results) == 1
-    assert results[0].canonical_url == question["link"]
+    assert results[0].accepted_answer is None
+    assert results[0].top_answers == []
 
 
-# ── _fetch_questions — parameter checks ──────────────────────────────────────
+# ── _scrape_trending_page ────────────────────────────────────────────────────
 
 
-def test_fetch_questions_uses_hot_sort() -> None:
-    """sort parameter must be 'hot' (not 'votes')."""
+def test_scrape_trending_page_extracts_post_id() -> None:
     collector = StackOverflowCollector()
-    q_resp = mock_get_response({"items": []})
+    html_resp = mock_response(text=_TRENDING_HTML)
 
-    with patch.object(collector.session, "get", return_value=q_resp) as mock_get:
-        collector._fetch_questions(tags=["python"])
+    with patch.object(collector.session, "get", return_value=html_resp):
+        items = collector._scrape_trending_page()
 
-    call_params = mock_get.call_args.kwargs["params"]
-    assert call_params["sort"] == "hot"
-
-
-def test_fetch_questions_uses_default_days_back_7() -> None:
-    """Default fromdate should be ~7 days ago."""
-    from datetime import datetime, timezone, timedelta
-
-    collector = StackOverflowCollector(days_back=7)
-    q_resp = mock_get_response({"items": []})
-
-    with patch.object(collector.session, "get", return_value=q_resp) as mock_get:
-        collector._fetch_questions(tags=["python"])
-
-    call_params = mock_get.call_args.kwargs["params"]
-    expected_approx = int((datetime.now(timezone.utc) - timedelta(days=7)).timestamp())
-    assert abs(call_params["fromdate"] - expected_approx) < 5  # within 5 seconds
+    assert len(items) == 1
+    assert items[0]["post_id"] == 12345
 
 
-def test_fetch_questions_sends_min_score() -> None:
-    collector = StackOverflowCollector(min_score=5)
-    q_resp = mock_get_response({"items": []})
-
-    with patch.object(collector.session, "get", return_value=q_resp) as mock_get:
-        collector._fetch_questions(tags=["python"])
-
-    call_params = mock_get.call_args.kwargs["params"]
-    assert call_params["min"] == 5
-
-
-def test_fetch_questions_includes_api_key_when_set() -> None:
-    collector = StackOverflowCollector(api_key="mykey123")
-    q_resp = mock_get_response({"items": []})
-
-    with patch.object(collector.session, "get", return_value=q_resp) as mock_get:
-        collector._fetch_questions(tags=["python"])
-
-    call_params = mock_get.call_args.kwargs["params"]
-    assert call_params["key"] == "mykey123"
-
-
-def test_fetch_questions_omits_api_key_when_not_set() -> None:
-    collector = StackOverflowCollector(api_key=None)
-    q_resp = mock_get_response({"items": []})
-
-    with patch.object(collector.session, "get", return_value=q_resp) as mock_get:
-        collector._fetch_questions(tags=["python"])
-
-    call_params = mock_get.call_args.kwargs["params"]
-    assert "key" not in call_params
-
-
-def test_fetch_questions_joins_tags_with_semicolon() -> None:
+def test_scrape_trending_page_extracts_title_and_url() -> None:
     collector = StackOverflowCollector()
-    q_resp = mock_get_response({"items": []})
+    html_resp = mock_response(text=_TRENDING_HTML)
 
-    with patch.object(collector.session, "get", return_value=q_resp) as mock_get:
-        collector._fetch_questions(tags=["java", "spring-boot"])
+    with patch.object(collector.session, "get", return_value=html_resp):
+        items = collector._scrape_trending_page()
 
-    call_params = mock_get.call_args.kwargs["params"]
-    assert call_params["tagged"] == "java;spring-boot"
+    assert items[0]["title"] == "How to use Spring Boot?"
+    assert items[0]["canonical_url"] == "https://stackoverflow.com/questions/12345/how-to-use-spring-boot"
 
 
-def test_fetch_questions_omits_tagged_when_empty() -> None:
+def test_scrape_trending_page_extracts_score_and_view_count() -> None:
     collector = StackOverflowCollector()
-    q_resp = mock_get_response({"items": []})
+    html_resp = mock_response(text=_TRENDING_HTML)
 
-    with patch.object(collector.session, "get", return_value=q_resp) as mock_get:
-        collector._fetch_questions(tags=[])
+    with patch.object(collector.session, "get", return_value=html_resp):
+        items = collector._scrape_trending_page()
 
-    call_params = mock_get.call_args.kwargs["params"]
-    assert "tagged" not in call_params
-
-
-# ── _fetch_answers_batch ──────────────────────────────────────────────────────
+    assert items[0]["score"] == 15
+    assert items[0]["view_count"] == 1200
 
 
-def test_fetch_answers_batch_groups_by_question_id() -> None:
+def test_scrape_trending_page_extracts_published_at() -> None:
     collector = StackOverflowCollector()
-    a1 = make_answer(question_id=1, body="Answer 1", is_accepted=True)
-    a2 = make_answer(question_id=2, body="Answer 2", is_accepted=False)
-    a3 = make_answer(question_id=1, body="Top answer", is_accepted=False, score=10)
+    html_resp = mock_response(text=_TRENDING_HTML)
 
-    a_resp = mock_get_response({"items": [a1, a2, a3]})
+    with patch.object(collector.session, "get", return_value=html_resp):
+        items = collector._scrape_trending_page()
 
-    with patch.object(collector.session, "get", return_value=a_resp):
-        result = collector._fetch_answers_batch([1, 2])
-
-    assert len(result[1]) == 2
-    assert len(result[2]) == 1
+    assert items[0]["published_at"] is not None
+    assert "2026" in items[0]["published_at"]
 
 
-def test_fetch_answers_batch_returns_empty_dict_on_error() -> None:
+def test_scrape_trending_page_extracts_preview() -> None:
     collector = StackOverflowCollector()
+    html_resp = mock_response(text=_TRENDING_HTML)
 
-    with patch.object(
-        collector.session, "get", side_effect=requests.Timeout("timeout")
-    ):
-        result = collector._fetch_answers_batch([1, 2])
+    with patch.object(collector.session, "get", return_value=html_resp):
+        items = collector._scrape_trending_page()
 
-    assert result == {}
+    assert items[0]["preview"] is not None
+    assert "preview" in items[0]["preview"].lower()
+
+
+def test_scrape_trending_page_returns_empty_on_empty_html() -> None:
+    collector = StackOverflowCollector()
+    html_resp = mock_response(text="<html></html>")
+
+    with patch.object(collector.session, "get", return_value=html_resp):
+        items = collector._scrape_trending_page()
+
+    assert items == []
 
 
 # ── _to_normalized_content ────────────────────────────────────────────────────
 
 
-def test_to_normalized_content_includes_view_count_and_likes() -> None:
-    collector = StackOverflowCollector()
-    q = make_question(score=42, view_count=3000)
+def _make_scraped(
+    post_id: int = 1,
+    title: str = "Test Question",
+    canonical_url: str = "https://stackoverflow.com/questions/1/test",
+    score: int = 15,
+    view_count: int = 1000,
+    published_at: str = "2026-03-15T10:00:00+00:00",
+    preview: str = "Short preview.",
+    author: str = "devuser",
+) -> dict:
+    return {
+        "post_id": post_id,
+        "title": title,
+        "canonical_url": canonical_url,
+        "score": score,
+        "view_count": view_count,
+        "published_at": published_at,
+        "preview": preview,
+        "author": author,
+    }
 
-    result = collector._to_normalized_content(q, [])
+
+def _make_api_data(
+    body: str = "<p>Question body</p>",
+    tags: list[str] | None = None,
+    is_answered: bool = True,
+) -> dict:
+    return {
+        "body": body,
+        "tags": tags or ["java", "spring-boot"],
+        "is_answered": is_answered,
+    }
+
+
+def _make_answer(
+    body: str = "Answer body",
+    is_accepted: bool = True,
+    score: int = 20,
+) -> dict:
+    return {"body": body, "is_accepted": is_accepted, "score": score}
+
+
+def test_to_normalized_content_basic_fields() -> None:
+    collector = StackOverflowCollector()
+    scraped = _make_scraped()
+    api_data = _make_api_data()
+
+    result = collector._to_normalized_content(scraped, api_data, [])
 
     assert result is not None
-    assert result.view_count == 3000
-    assert result.likes == 42
+    assert result.source_name == "Stack Overflow"
+    assert result.title == "Test Question"
+    assert result.author == "devuser"
+    assert result.view_count == 1000
+    assert result.likes == 15
+    assert result.is_original_visible is True
+    assert result.license_type == "CC BY-SA 4.0"
 
 
-def test_to_normalized_content_missing_link_returns_none() -> None:
+def test_to_normalized_content_missing_canonical_url_returns_none() -> None:
     collector = StackOverflowCollector()
-    q = make_question()
-    q.pop("link")
+    scraped = _make_scraped(canonical_url=None)
 
-    result = collector._to_normalized_content(q, [])
+    result = collector._to_normalized_content(scraped, {}, [])
 
     assert result is None
 
 
-def test_to_normalized_content_null_owner_uses_unknown() -> None:
+def test_to_normalized_content_tags_from_api() -> None:
     collector = StackOverflowCollector()
-    q = make_question()
-    q["owner"] = None
+    scraped = _make_scraped()
+    api_data = _make_api_data(tags=["python", "django"])
 
-    result = collector._to_normalized_content(q, [])
+    result = collector._to_normalized_content(scraped, api_data, [])
 
     assert result is not None
-    assert result.author == "Unknown"
+    assert result.tags == ["python", "django"]
 
 
-def test_to_normalized_content_null_tags_ignored() -> None:
+def test_to_normalized_content_is_answered() -> None:
     collector = StackOverflowCollector()
-    q = make_question()
-    q["tags"] = None
+    scraped = _make_scraped()
+    api_data = _make_api_data(is_answered=True)
 
-    result = collector._to_normalized_content(q, [])
+    result = collector._to_normalized_content(scraped, api_data, [])
 
     assert result is not None
+    assert result.is_answered is True
 
 
-def test_to_normalized_content_preview_truncated_at_300_chars() -> None:
+def test_to_normalized_content_question_content_from_api_body() -> None:
     collector = StackOverflowCollector()
-    q = make_question(body="x" * 400)
+    scraped = _make_scraped()
+    api_data = _make_api_data(body="<p>Detailed question</p>")
 
-    result = collector._to_normalized_content(q, [])
+    result = collector._to_normalized_content(scraped, api_data, [])
 
     assert result is not None
-    assert result.preview is not None
-    assert len(result.preview) == 303  # 300 + "..."
-    assert result.preview.endswith("...")
+    assert result.question_content == "<p>Detailed question</p>"
+    assert result.body_candidate == "<p>Detailed question</p>"
 
 
-def test_to_normalized_content_short_body_no_truncation() -> None:
+def test_to_normalized_content_accepted_answer_structured() -> None:
     collector = StackOverflowCollector()
-    q = make_question(body="Short body")
+    scraped = _make_scraped()
+    api_data = _make_api_data()
+    answers = [_make_answer(body="Best answer", is_accepted=True, score=50)]
 
-    result = collector._to_normalized_content(q, [])
+    result = collector._to_normalized_content(scraped, api_data, answers)
 
     assert result is not None
-    assert result.preview == "Short body"
+    assert result.accepted_answer == {"body": "Best answer", "score": 50}
 
 
-def test_to_normalized_content_published_at_from_unix_timestamp() -> None:
+def test_to_normalized_content_top_answers_structured() -> None:
     collector = StackOverflowCollector()
-    q = make_question(creation_date=1_700_000_000)
-
-    result = collector._to_normalized_content(q, [])
-
-    assert result is not None
-    assert result.published_at is not None
-    assert "2023" in result.published_at
-
-
-def test_to_normalized_content_body_candidate_includes_question_and_answers() -> None:
-    collector = StackOverflowCollector()
-    q = make_question(body="Question body")
+    scraped = _make_scraped()
+    api_data = _make_api_data()
     answers = [
-        make_answer(body="Accepted answer", is_accepted=True, score=50),
-        make_answer(body="Top answer", is_accepted=False, score=20),
+        _make_answer(body="Top 1", is_accepted=False, score=30),
+        _make_answer(body="Top 2", is_accepted=False, score=20),
+        _make_answer(body="Top 3", is_accepted=False, score=10),
     ]
 
-    result = collector._to_normalized_content(q, answers)
+    result = collector._to_normalized_content(scraped, api_data, answers)
 
     assert result is not None
-    assert "## Question" in result.body_candidate
-    assert "## Accepted Answer" in result.body_candidate
-    assert "## Top Answers" in result.body_candidate
+    assert len(result.top_answers) == 2  # max 2
+    assert result.top_answers[0]["body"] == "Top 1"
+    assert result.top_answers[0]["score"] == 30
+
+
+def test_to_normalized_content_no_api_data_returns_content() -> None:
+    """API 데이터 없어도 HTML 스크랩 데이터만으로 NormalizedContent 생성."""
+    collector = StackOverflowCollector()
+    scraped = _make_scraped()
+
+    result = collector._to_normalized_content(scraped, {}, [])
+
+    assert result is not None
+    assert result.body_candidate is None
+    assert result.tags == []
+    assert result.is_answered is None
+    assert result.accepted_answer is None
+    assert result.top_answers == []
 
 
 # ── _build_body_candidate ─────────────────────────────────────────────────────

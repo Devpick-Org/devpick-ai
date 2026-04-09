@@ -257,7 +257,7 @@ def test_fetch_posts_sends_to_correct_endpoint() -> None:
     with patch.object(collector.session, "post", return_value=resp) as mock_post:
         collector._fetch_posts()
 
-    assert mock_post.call_args.args[0] == "https://v2.velog.io/graphql"
+    assert mock_post.call_args.args[0] == "https://v3.velog.io/graphql"
 
 
 def test_fetch_posts_returns_empty_on_missing_data_key() -> None:

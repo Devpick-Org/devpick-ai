@@ -169,10 +169,8 @@ class StackOverflowBackfillCollector:
                 )
                 return []
 
-            answered_ids = [q["question_id"] for q in questions if q.get("is_answered")]
-            answers_map: dict[int, list[dict]] = {}
-            if answered_ids:
-                answers_map = self._trending._fetch_answers_batch(answered_ids)
+            question_ids = [q["question_id"] for q in questions]
+            answers_map = self._trending._fetch_answers_batch(question_ids)
 
             results: list[NormalizedContent] = []
             for q in questions:

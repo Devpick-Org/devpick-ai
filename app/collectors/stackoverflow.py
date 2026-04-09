@@ -85,15 +85,7 @@ class StackOverflowCollector:
             post_ids = [item["post_id"] for item in scraped]
 
             bodies_map = self._fetch_bodies_batch(post_ids)
-
-            answered_ids = [
-                item["post_id"]
-                for item in scraped
-                if bodies_map.get(item["post_id"], {}).get("is_answered")
-            ]
-            answers_map: dict[int, list[dict]] = {}
-            if answered_ids:
-                answers_map = self._fetch_answers_batch(answered_ids)
+            answers_map = self._fetch_answers_batch(post_ids)
 
             results: list[NormalizedContent] = []
             for item in scraped:
@@ -202,6 +194,7 @@ class StackOverflowCollector:
                 }
             )
 
+        results = results[:20]
         logger.info("StackOverflow trending scrape: %d questions", len(results))
         return results
 

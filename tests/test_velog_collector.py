@@ -70,8 +70,8 @@ def test_fetch_returns_normalized_contents() -> None:
     assert content.title == "Spring Boot 팁 모음"
     assert content.canonical_url == "https://velog.io/@devuser/spring-boot-tips"
     assert content.author == "devuser"
-    assert content.is_original_visible is False  # ADR-006
-    assert content.body_candidate is None  # ADR-006
+    assert content.is_original_visible is True
+    assert content.body_candidate is None  # _body 키 없으면 None
     assert content.license_type is None
     assert content.likes == 42
     assert content.comments_count == 7
@@ -85,7 +85,9 @@ def test_fetch_tries_trending_posts_first() -> None:
 
     with patch.object(
         collector.session, "post", return_value=trending_resp
-    ) as mock_post:
+    ) as mock_post, patch.object(
+        collector, "_enrich_with_body", side_effect=lambda posts: posts
+    ):
         collector.fetch()
 
     # Only one call should have been made (trendingPosts), not two
@@ -103,7 +105,9 @@ def test_fetch_falls_back_to_posts_when_trending_returns_empty() -> None:
 
     with patch.object(
         collector.session, "post", side_effect=[trending_empty, posts_resp]
-    ) as mock_post:
+    ) as mock_post, patch.object(
+        collector, "_enrich_with_body", side_effect=lambda posts: posts
+    ):
         results = collector.fetch()
 
     assert len(results) == 1
@@ -167,7 +171,7 @@ def test_fetch_returns_empty_on_http_error() -> None:
 
 
 def test_fetch_trending_posts_sends_correct_variables() -> None:
-    """trendingPosts must send limit=30, offset=0, timeframe='week'."""
+    """trendingPosts must send limit=20, offset=0, timeframe='week'."""
     collector = VelogCollector()
     resp = mock_trending_response([])
     posts_resp = mock_posts_response([])
@@ -179,7 +183,7 @@ def test_fetch_trending_posts_sends_correct_variables() -> None:
 
     call_payload = mock_post.call_args.kwargs["json"]
     variables = call_payload["variables"]
-    assert variables["input"]["limit"] == 30
+    assert variables["input"]["limit"] == 20
     assert variables["input"]["offset"] == 0
     assert variables["input"]["timeframe"] == "week"
 
@@ -392,26 +396,31 @@ def test_to_normalized_content_null_tags_ignored() -> None:
     assert result is not None
 
 
-def test_to_normalized_content_body_candidate_always_none() -> None:
-    """ADR-006: SUMMARY_ONLY — body_candidate must always be None for Velog."""
+def test_to_normalized_content_body_candidate_from_body_key() -> None:
+    """body_candidate는 _body 키 값이 없으면 None, 있으면 해당 값."""
+    collector = VelogCollector()
+    post_no_body = make_post()
+    post_with_body = {**make_post(), "_body": "# 본문 마크다운"}
+
+    result_no_body = collector._to_normalized_content(post_no_body)
+    result_with_body = collector._to_normalized_content(post_with_body)
+
+    assert result_no_body is not None
+    assert result_no_body.body_candidate is None
+
+    assert result_with_body is not None
+    assert result_with_body.body_candidate == "# 본문 마크다운"
+
+
+def test_to_normalized_content_is_original_visible_true() -> None:
+    """is_original_visible은 항상 True — 원문 링크 + AI 요약 모두 제공."""
     collector = VelogCollector()
     post = make_post()
 
     result = collector._to_normalized_content(post)
 
     assert result is not None
-    assert result.body_candidate is None
-
-
-def test_to_normalized_content_is_original_visible_always_false() -> None:
-    """ADR-006: SUMMARY_ONLY — is_original_visible must always be False for Velog."""
-    collector = VelogCollector()
-    post = make_post()
-
-    result = collector._to_normalized_content(post)
-
-    assert result is not None
-    assert result.is_original_visible is False
+    assert result.is_original_visible is True
 
 
 def test_to_normalized_content_likes_and_comments_count() -> None:

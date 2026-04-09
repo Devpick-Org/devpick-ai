@@ -1,19 +1,19 @@
 """Velog GraphQL API collector for Korean developer blog posts.
 
 수집 전략:
-- trendingPosts 쿼리 먼저 시도 (timeframe="week")
+- trendingPosts 쿼리 먼저 시도 (timeframe="week", limit=20)
   → 빈 배열이면 posts 쿼리로 fallback (Velog SSR 전환 이후 이슈)
 - POST https://v3.velog.io/graphql, Origin: https://velog.io 헤더 필수
 - released_at >= VELOG_MIN_DATE (기본값 2026-01-01) 필터링
-- ADR-006 정책: SUMMARY_ONLY
-  - is_original_visible = False
-  - body_candidate = None (short_description만 preview로 저장)
+- 각 포스트 본문 병렬 fetch (max 5) → body_candidate 채워 AI 요약 가능
+- is_original_visible = True (원문 링크 + 요약 모두 제공)
 - likes, comments_count 수집 (NormalizedContent 확장 필드)
 """
 
 from __future__ import annotations
 
 import logging
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timezone
 
 import requests
@@ -27,8 +27,9 @@ logger = logging.getLogger(__name__)
 _GRAPHQL_URL = "https://v3.velog.io/graphql"
 _PREVIEW_MAX_LENGTH = 260
 _DEFAULT_MIN_DATE = "2026-01-01"
+_TRENDING_LIMIT = 20
 
-# trendingPosts 쿼리 (timeframe=week, 최대 30개)
+# trendingPosts 쿼리 (timeframe=week, 최대 20개)
 _TRENDING_QUERY = """
 query TrendingPosts($input: TrendingPostsInput!) {
   trendingPosts(input: $input) {
@@ -43,6 +44,14 @@ query TrendingPosts($input: TrendingPostsInput!) {
     user {
       username
     }
+  }
+}
+"""
+
+_POST_BODY_QUERY = """
+query GetPost($input: ReadPostInput!) {
+  post(input: $input) {
+    body
   }
 }
 """
@@ -71,13 +80,10 @@ class VelogCollector:
     """Collects trending Korean developer posts from Velog GraphQL API.
 
     수집 전략:
-    1. trendingPosts(timeframe="week") 쿼리 시도
+    1. trendingPosts(timeframe="week", limit=20) 쿼리 시도
     2. 빈 배열 반환 시 posts 쿼리로 fallback
     3. released_at >= min_date 필터링 (기본값 2026-01-01)
-
-    ADR-006 정책: SUMMARY_ONLY
-    - is_original_visible = False
-    - body_candidate = None (preview만 저장, 원문 미표시)
+    4. 각 포스트 본문 병렬 fetch (max 5) → body_candidate 채워 AI 요약 가능
 
     Usage:
         collector = VelogCollector(min_date="2026-01-01")
@@ -127,6 +133,8 @@ class VelogCollector:
                 )
                 posts = self._fetch_posts()
 
+            posts = self._enrich_with_body(posts)
+
             results = [
                 content
                 for post in posts
@@ -149,7 +157,9 @@ class VelogCollector:
         payload = {
             "operationName": "TrendingPosts",
             "query": _TRENDING_QUERY,
-            "variables": {"input": {"limit": 30, "offset": 0, "timeframe": "week"}},
+            "variables": {
+                "input": {"limit": _TRENDING_LIMIT, "offset": 0, "timeframe": "week"}
+            },
         }
         try:
             resp = self.session.post(
@@ -190,6 +200,55 @@ class VelogCollector:
         data = resp.json()
         return (data.get("data") or {}).get("posts") or []
 
+    def _fetch_post_body(self, username: str, url_slug: str) -> str | None:
+        """Fetch full markdown body for a single post via GraphQL."""
+        payload = {
+            "operationName": "GetPost",
+            "query": _POST_BODY_QUERY,
+            "variables": {"input": {"username": username, "url_slug": url_slug}},
+        }
+        try:
+            resp = self.session.post(
+                _GRAPHQL_URL,
+                json=payload,
+                headers={
+                    "Content-Type": "application/json",
+                    "Origin": "https://velog.io",
+                },
+                timeout=self.timeout,
+            )
+            resp.raise_for_status()
+            body = (resp.json().get("data") or {}).get("post", {}).get("body")
+            return body or None
+        except Exception:
+            logger.warning(
+                "Velog post body fetch failed: @%s/%s",
+                username,
+                url_slug,
+                exc_info=True,
+            )
+            return None
+
+    def _enrich_with_body(self, posts: list[dict]) -> list[dict]:
+        """Fetch and inject body into each post dict (parallel, max 5 workers)."""
+        enriched = [None] * len(posts)
+
+        def _fetch(idx: int, post: dict) -> tuple[int, dict]:
+            username = (post.get("user") or {}).get("username") or ""
+            url_slug = post.get("url_slug") or ""
+            if username and url_slug:
+                body = self._fetch_post_body(username, url_slug)
+                return idx, {**post, "_body": body}
+            return idx, post
+
+        with ThreadPoolExecutor(max_workers=5) as pool:
+            futures = {pool.submit(_fetch, i, p): i for i, p in enumerate(posts)}
+            for future in as_completed(futures):
+                idx, post = future.result()
+                enriched[idx] = post
+
+        return enriched
+
     def _to_normalized_content(self, post: dict) -> NormalizedContent | None:
         # released_at 파싱 & min_date 필터링
         released_at = post.get("released_at")
@@ -221,6 +280,8 @@ class VelogCollector:
         comments_raw = post.get("comments_count")
         comments_count = int(comments_raw) if comments_raw is not None else None
 
+        body_candidate: str | None = post.get("_body")
+
         return NormalizedContent(
             source_name="Velog",
             title=post.get("title"),
@@ -228,8 +289,8 @@ class VelogCollector:
             canonical_url=canonical_url,
             published_at=published_at,
             preview=preview,
-            body_candidate=None,  # ADR-006: SUMMARY_ONLY
-            is_original_visible=False,
+            body_candidate=body_candidate,
+            is_original_visible=True,
             license_type=None,
             likes=likes,
             comments_count=comments_count,

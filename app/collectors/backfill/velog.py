@@ -35,7 +35,7 @@ from app.schemas.normalized_content import NormalizedContent
 
 logger = logging.getLogger(__name__)
 
-_GRAPHQL_URL = "https://v2.velog.io/graphql"
+_GRAPHQL_URL = "https://v3.velog.io/graphql"
 _TRENDING_URL = "https://velog.io/trending"
 _PREVIEW_MAX_LENGTH = 260
 _DEFAULT_MIN_DATE = "2026-01-01"
@@ -46,7 +46,7 @@ _DEFAULT_USER_AGENT = (
 )
 
 _TRENDING_QUERY = """
-query TrendingPosts($input: TrendingPostsInput) {
+query TrendingPosts($input: TrendingPostsInput!) {
   trendingPosts(input: $input) {
     id
     title

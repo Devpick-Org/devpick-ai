@@ -27,4 +27,6 @@ class NormalizedContent(BaseModel):
     is_answered: bool | None = None
     question_content: str | None = None  # SO 질문 본문 (body_candidate와 별도)
     accepted_answer: dict | None = None  # {"body": str, "score": int}
-    top_answers: list[dict] = Field(default_factory=list)  # [{"body": str, "score": int}]
+    top_answers: list[dict] = Field(
+        default_factory=list
+    )  # [{"body": str, "score": int}]

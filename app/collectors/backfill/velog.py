@@ -127,12 +127,12 @@ class VelogBackfillCollector:
             posts = self._crawl_trending(batch_size)
 
         items = [
-            c
-            for post in posts
-            if (c := self._to_normalized_content(post)) is not None
+            c for post in posts if (c := self._to_normalized_content(post)) is not None
         ]
 
-        logger.info("Velog backfill collected=%d (min_date=%s)", len(items), self.min_date)
+        logger.info(
+            "Velog backfill collected=%d (min_date=%s)", len(items), self.min_date
+        )
         return items, {"phase": "incremental"}
 
     # ------------------------------------------------------------------
@@ -147,9 +147,7 @@ class VelogBackfillCollector:
             posts = self._crawl_trending(batch_size)
 
         items = [
-            c
-            for post in posts
-            if (c := self._to_normalized_content(post)) is not None
+            c for post in posts if (c := self._to_normalized_content(post)) is not None
         ]
         logger.info("Velog incremental collected=%d", len(items))
         return items
@@ -162,7 +160,9 @@ class VelogBackfillCollector:
         payload = {
             "operationName": "TrendingPosts",
             "query": _TRENDING_QUERY,
-            "variables": {"input": {"limit": limit, "offset": 0, "timeframe": timeframe}},
+            "variables": {
+                "input": {"limit": limit, "offset": 0, "timeframe": timeframe}
+            },
         }
         try:
             resp = self.session.post(
@@ -179,11 +179,15 @@ class VelogBackfillCollector:
             data = resp.json()
             posts = (data.get("data") or {}).get("trendingPosts") or []
             logger.info(
-                "Velog GraphQL trendingPosts(timeframe=%s): %d posts", timeframe, len(posts)
+                "Velog GraphQL trendingPosts(timeframe=%s): %d posts",
+                timeframe,
+                len(posts),
             )
             return posts
         except Exception:
-            logger.warning("Velog GraphQL failed (timeframe=%s)", timeframe, exc_info=True)
+            logger.warning(
+                "Velog GraphQL failed (timeframe=%s)", timeframe, exc_info=True
+            )
             return []
 
     # ------------------------------------------------------------------
@@ -233,19 +237,14 @@ class VelogBackfillCollector:
         try:
             next_data = json.loads(match.group(1))
             # Velog Next.js 구조: props.pageProps.data 또는 dehydratedState 내부
-            page_props = (
-                next_data.get("props", {}).get("pageProps", {})
-            )
+            page_props = next_data.get("props", {}).get("pageProps", {})
 
             # 경로 1: pageProps.posts
             raw_posts = page_props.get("posts") or []
 
             # 경로 2: dehydratedState queries 내부
             if not raw_posts:
-                queries = (
-                    page_props.get("dehydratedState", {})
-                    .get("queries", [])
-                )
+                queries = page_props.get("dehydratedState", {}).get("queries", [])
                 for query in queries:
                     data = query.get("state", {}).get("data", {})
                     if isinstance(data, dict):

@@ -13,31 +13,31 @@ from app.schemas.normalized_content import NormalizedContent
 
 # 실제 SO trending 페이지 HTML 구조를 최대한 반영한 픽스처
 _TRENDING_HTML = (
-    '<html><body>'
+    "<html><body>"
     '<div class="s-post-summary js-post-summary" data-post-id="12345" data-post-type-id="1" itemprop="item" itemscope>'
     '<div class="s-post-summary--stats js-post-summary-stats">'
     '<div class="s-post-summary--stats-item s-post-summary--stats-item__emphasized" title="Score of 15">'
     '<span class="s-post-summary--stats-item-number" itemprop="upvoteCount">15</span>'
     '<span class="s-post-summary--stats-item-unit">votes</span>'
-    '</div>'
+    "</div>"
     '<div class="s-post-summary--stats-item" title="1,200 views">'
     '<span class="s-post-summary--stats-item-number">1,200</span>'
     '<span class="s-post-summary--stats-item-unit">views</span>'
-    '</div>'
+    "</div>"
     '<meta itemprop="dateCreated" content="2026-03-15T10:00:00Z" />'
-    '</div>'
+    "</div>"
     '<div class="s-post-summary--content">'
     '<h3 class="s-post-summary--content-title">'
     '<a href="/questions/12345/how-to-use-spring-boot" class="s-link" itemprop="url">'
     '<span itemprop="name">How to use Spring Boot?</span></a>'
-    '</h3>'
+    "</h3>"
     '<div class="s-post-summary--content-excerpt" itemprop="text">This is a preview of the question body.</div>'
     '<div class="s-post-summary--meta">'
     '<a href="/users/9999/devuser" class="s-avatar s-avatar__16" data-user-id="9999"></a>'
-    '</div>'
-    '</div>'
-    '</div>'
-    '</body></html>'
+    "</div>"
+    "</div>"
+    "</div>"
+    "</body></html>"
 )
 
 _API_QUESTION = {
@@ -81,7 +81,9 @@ def test_fetch_returns_normalized_contents() -> None:
     )
     ans_resp = mock_response(json_data={"items": [_API_ANSWER]})
 
-    with patch.object(collector.session, "get", side_effect=[html_resp, body_resp, ans_resp]):
+    with patch.object(
+        collector.session, "get", side_effect=[html_resp, body_resp, ans_resp]
+    ):
         results = collector.fetch()
 
     assert len(results) == 1
@@ -89,7 +91,10 @@ def test_fetch_returns_normalized_contents() -> None:
     assert isinstance(content, NormalizedContent)
     assert content.source_name == "Stack Overflow"
     assert content.title == "How to use Spring Boot?"
-    assert content.canonical_url == "https://stackoverflow.com/questions/12345/how-to-use-spring-boot"
+    assert (
+        content.canonical_url
+        == "https://stackoverflow.com/questions/12345/how-to-use-spring-boot"
+    )
     assert content.is_original_visible is True
     assert content.license_type == "CC BY-SA 4.0"
     assert content.view_count == 1200
@@ -144,7 +149,9 @@ def test_fetch_continues_when_answer_api_fails() -> None:
     ans_resp = MagicMock()
     ans_resp.raise_for_status.side_effect = requests.HTTPError("500")
 
-    with patch.object(collector.session, "get", side_effect=[html_resp, body_resp, ans_resp]):
+    with patch.object(
+        collector.session, "get", side_effect=[html_resp, body_resp, ans_resp]
+    ):
         results = collector.fetch()
 
     assert len(results) == 1
@@ -174,7 +181,10 @@ def test_scrape_trending_page_extracts_title_and_url() -> None:
         items = collector._scrape_trending_page()
 
     assert items[0]["title"] == "How to use Spring Boot?"
-    assert items[0]["canonical_url"] == "https://stackoverflow.com/questions/12345/how-to-use-spring-boot"
+    assert (
+        items[0]["canonical_url"]
+        == "https://stackoverflow.com/questions/12345/how-to-use-spring-boot"
+    )
 
 
 def test_scrape_trending_page_extracts_score_and_view_count() -> None:

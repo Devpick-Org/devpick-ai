@@ -132,10 +132,7 @@ class StackOverflowCollector:
         resp.raise_for_status()
         html = resp.text
 
-        post_ids = [
-            int(pid)
-            for pid in re.findall(r'data-post-id="(\d+)"', html)
-        ]
+        post_ids = [int(pid) for pid in re.findall(r'data-post-id="(\d+)"', html)]
 
         title_url_pairs = re.findall(
             r'href="(/questions/\d+/[^"]+)"\s+class="s-link"[^>]*>'
@@ -156,9 +153,7 @@ class StackOverflowCollector:
             for v in re.findall(r'title="([\d,]+)\s+views?"', html)
         ]
 
-        dates = re.findall(
-            r'itemprop="dateCreated"\s+content="([^"]+)"', html
-        )
+        dates = re.findall(r'itemprop="dateCreated"\s+content="([^"]+)"', html)
 
         previews = [
             p.strip()
@@ -185,9 +180,7 @@ class StackOverflowCollector:
             published_at: str | None = None
             if i < len(dates):
                 try:
-                    dt = datetime.fromisoformat(
-                        dates[i].replace("Z", "+00:00")
-                    )
+                    dt = datetime.fromisoformat(dates[i].replace("Z", "+00:00"))
                     published_at = dt.isoformat()
                 except (ValueError, AttributeError):
                     pass

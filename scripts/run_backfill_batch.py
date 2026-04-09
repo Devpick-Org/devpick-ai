@@ -235,9 +235,7 @@ def _run_direct_source(
     ]
 
     if not new_items:
-        logger.info(
-            "[SKIP] %s all %d items already sent", source.name, len(items)
-        )
+        logger.info("[SKIP] %s all %d items already sent", source.name, len(items))
         cursor_store.save(source.name, new_cursor)
         return
 
@@ -249,9 +247,7 @@ def _run_direct_source(
         return
 
     # 처리 완료 ID 기록 + 커서 갱신
-    pushed_ids = {
-        item.canonical_url for item in new_items if item.canonical_url
-    }
+    pushed_ids = {item.canonical_url for item in new_items if item.canonical_url}
     sent_id_store.add(source.name, pushed_ids)
     cursor_store.save(source.name, new_cursor)
 

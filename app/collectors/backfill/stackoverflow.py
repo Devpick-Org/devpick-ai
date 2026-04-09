@@ -168,9 +168,7 @@ class StackOverflowBackfillCollector:
                 )
                 return []
 
-            answered_ids = [
-                q["question_id"] for q in questions if q.get("is_answered")
-            ]
+            answered_ids = [q["question_id"] for q in questions if q.get("is_answered")]
             answers_map: dict[int, list[dict]] = {}
             if answered_ids:
                 answers_map = self._trending._fetch_answers_batch(answered_ids)
@@ -192,9 +190,7 @@ class StackOverflowBackfillCollector:
             return results
 
         except Exception:
-            logger.exception(
-                "StackOverflow backfill %d-%02d fetch failed", year, month
-            )
+            logger.exception("StackOverflow backfill %d-%02d fetch failed", year, month)
             return []
 
     def _api_question_to_normalized(
@@ -219,9 +215,14 @@ class StackOverflowBackfillCollector:
         preview: str | None = None
         if question_body:
             import re
+
             plain = re.sub(r"<[^>]+>", " ", question_body)
             plain = re.sub(r"\s+", " ", plain).strip()
-            preview = plain[:_PREVIEW_MAX_LENGTH] + "..." if len(plain) > _PREVIEW_MAX_LENGTH else plain
+            preview = (
+                plain[:_PREVIEW_MAX_LENGTH] + "..."
+                if len(plain) > _PREVIEW_MAX_LENGTH
+                else plain
+            )
 
         tags: list[str] = q.get("tags") or []
         is_answered: bool | None = q.get("is_answered")

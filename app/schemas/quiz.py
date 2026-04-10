@@ -10,7 +10,7 @@ from pydantic import BaseModel, Field
 class QuizOption(BaseModel):
     """객관식 선지."""
 
-    id: str   # "A" ~ "E"
+    id: str  # "A" ~ "E"
     text: str
 
 

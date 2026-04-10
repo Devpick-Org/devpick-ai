@@ -57,7 +57,10 @@ _QUESTIONS_SCHEMA = {
                         "items": {
                             "type": "object",
                             "properties": {
-                                "id": {"type": "string", "description": "선지 ID (A~E)"},
+                                "id": {
+                                    "type": "string",
+                                    "description": "선지 ID (A~E)",
+                                },
                                 "text": {"type": "string", "description": "선지 내용"},
                             },
                             "required": ["id", "text"],
@@ -66,14 +69,20 @@ _QUESTIONS_SCHEMA = {
                     },
                     "correct_option_id": {
                         "type": "string",
-                        "description": "정답 선지 ID (A~E). 주관식이면 빈 문자열 \"\"",
+                        "description": '정답 선지 ID (A~E). 주관식이면 빈 문자열 ""',
                     },
                     "explanation": {
                         "type": "string",
                         "description": "정답 이유 설명 (2~3문장)",
                     },
                 },
-                "required": ["type", "question", "options", "correct_option_id", "explanation"],
+                "required": [
+                    "type",
+                    "question",
+                    "options",
+                    "correct_option_id",
+                    "explanation",
+                ],
             },
         }
     },

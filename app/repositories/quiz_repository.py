@@ -32,7 +32,10 @@ class QuizRepository:
         PK: content_id (S)
         SK: level (S)               — beginner / junior / mid / senior
         quiz_id (S)                 — 고유 식별자 (UUID)
-        q1 / q2 / q3 (M)           — 문제별 개별 필드 (type/question/options/answer/explanation)
+        title (S)                   — 퀴즈 제목 (4레벨 공통)
+        questions (L)               — 문제 배열 (id/type/question/options/correct_option_id/explanation)
+        passing_count (N)           — 통과 기준 문제 수 (고정값 2)
+        estimated_minutes (N)       — 레벨별 예상 풀이 시간(분)
     """
 
     def __init__(
@@ -64,16 +67,22 @@ class QuizRepository:
                 Key={"content_id": response.content_id, "level": level_name},
                 UpdateExpression=(
                     "SET quiz_id = :quiz_id"
+                    ", title = :title"
                     ", questions = :questions"
+                    ", passing_count = :passing_count"
+                    ", estimated_minutes = :estimated_minutes"
                     ", generated_at = :generated_at"
                     ", updated_at = :updated_at"
                     ", created_at = if_not_exists(created_at, :created_at)"
                 ),
                 ExpressionAttributeValues={
                     ":quiz_id": response.quiz_id,
+                    ":title": response.title,
                     ":questions": _sanitize(
                         [q.model_dump() for q in level_quiz.questions]
                     ),
+                    ":passing_count": level_quiz.passing_count,
+                    ":estimated_minutes": level_quiz.estimated_minutes,
                     ":generated_at": response.generated_at,
                     ":updated_at": now,
                     ":created_at": now,

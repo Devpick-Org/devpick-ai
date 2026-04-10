@@ -94,6 +94,10 @@ class QuizService:
                 "quiz_id": str(uuid.uuid4()),
                 "generated_at": datetime.now(tz=timezone.utc).isoformat(),
             }
+            # question.id는 LLM이 생성하지 않으므로 서비스에서 주입 ("q1"~"q3")
+            for level_key in ("beginner", "junior", "mid", "senior"):
+                for i, q in enumerate(payload[level_key]["questions"]):
+                    q["id"] = f"q{i + 1}"
             return AllLevelsQuizResponse.model_validate(payload)
         except pydantic.ValidationError as exc:
             logger.error("AllLevelsQuizResponse 파싱 실패: %s", exc)

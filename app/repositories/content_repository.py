@@ -53,13 +53,15 @@ class ContentRepository:
         else:
             source_id = str(uuid4())
             conn.execute(
-                text("""
+                text(
+                    """
                     INSERT INTO content_sources
                         (id, name, url, collect_method, is_active, created_at)
                     VALUES
                         (:id, :name, '', 'AI_PIPELINE', true, :now)
                     ON CONFLICT (name) DO NOTHING
-                """),
+                """
+                ),
                 {
                     "id": source_id,
                     "name": source_name,
@@ -114,7 +116,8 @@ class ContentRepository:
                         )
 
                 row = conn.execute(
-                    text("""
+                    text(
+                        """
                         INSERT INTO contents (
                             id, source_id, title, author, canonical_url,
                             preview, thumbnail_url, thumbnail_width, thumbnail_height,
@@ -132,7 +135,8 @@ class ContentRepository:
                         )
                         ON CONFLICT (canonical_url) DO NOTHING
                         RETURNING id
-                    """),
+                    """
+                    ),
                     {
                         "id": content_id,
                         "source_id": source_id,

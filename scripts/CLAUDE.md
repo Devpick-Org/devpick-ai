@@ -33,9 +33,8 @@
 
 | 파일 | 설명 |
 |------|------|
-| `init_mongo.py` | Mongo ping 확인, 최소 컬렉션/인덱스 생성, seed upsert |
-| `init_vectors.py` | FAISS 인덱스 초기화 |
-| `reindex_vectors.py` | FAISS 인덱스 재빌드 (인덱스 유실 시) |
+| `init_vectors.py` | FAISS 벡터 디렉터리 초기화 (Bedrock Titan v2 기반) |
+| `reindex_vectors.py` | FAISS 인덱스 재빌드 — DynamoDB rag_documents 기반 (인덱스 유실 시) |
 | `run_collect_and_save.py` | 수집 → 정규화 → dedup → 로컬 JSONL 저장 (백서버 미연동 환경). `--backfill` 플래그로 백필 수집도 지원 |
 | `run_collect_and_push.py` | 수집 → 정규화 → dedup → Backend push 통합 파이프라인 (DP-199) |
 | `run_backfill_batch.py` | 백필 1회 배치 실행 — 소스당 20개 수집 → push (DP-199) |

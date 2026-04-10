@@ -82,12 +82,15 @@ class EventRepository:
             "user_id": user_id,
             "sk": sk,
             "event_type": event_type.value,
-            "content_id": content_id,
-            "question_id": question_id,
-            "metadata": metadata,
             "timestamp": now_iso,
             "created_at": now_iso,
         }
+        if content_id is not None:
+            item["content_id"] = content_id
+        if question_id is not None:
+            item["question_id"] = question_id
+        if metadata is not None:
+            item["metadata"] = metadata
         self._table.put_item(Item=item)
         logger.info(
             "Saved event log: user_id=%s, event_type=%s, content_id=%s",

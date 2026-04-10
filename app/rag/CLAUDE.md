@@ -16,8 +16,9 @@ AI 요약 완료 후 전처리된 원문을 벡터화하여 저장하고, 이후
 |------|--------|------|
 | `schemas.py` | `RAGDocument`, `ChunkMetadata` | 청크 문서 + 메타데이터 Pydantic 모델 |
 | `chunker.py` | `DocumentChunker` | `RecursiveCharacterTextSplitter` 기반 body 청킹 |
-| `embeddings.py` | `EmbeddingService` | OpenAI `text-embedding-3-small` 래퍼 |
+| `embeddings.py` | `EmbeddingService`, `BedrockEmbeddingsAdapter` | Bedrock Titan Embeddings v2 래퍼 (1024차원) |
 | `vector_store.py` | `VectorStoreManager` | FAISS 인덱스 생성/추가/검색/저장 (threading.Lock) |
+| `store_manager.py` | `get_store()` | VectorStoreManager 싱글턴 관리 — 매 요청 파일 로드 방지 |
 | `retriever.py` | `RAGRetriever` | 검색 인터페이스 (DP-233 등 후속 티켓 사용) |
 
 ---
@@ -38,9 +39,9 @@ AI 요약 완료 후 전처리된 원문을 벡터화하여 저장하고, 이후
 
 | 저장소 | 역할 |
 |--------|------|
-| **MongoDB `rag_documents`** | 아티클 청크 영구 저장 — 텍스트 + 임베딩 벡터 + 메타데이터 |
-| **FAISS** (`data/vectors/devpick`) | 아티클 검색 인덱스 (캐시) — MongoDB에서 언제든 재빌드 가능 |
-| **MongoDB `rag_questions`** | 질문 임베딩 영구 저장 — question_id + 텍스트 + 임베딩 (DP-234) |
+| **DynamoDB `rag_documents`** | 아티클 청크 영구 저장 — 텍스트 + 임베딩 벡터 + 메타데이터 |
+| **FAISS** (`data/vectors/devpick`) | 아티클 검색 인덱스 (캐시) — DynamoDB에서 언제든 재빌드 가능 |
+| **DynamoDB `rag_questions`** | 질문 임베딩 영구 저장 — question_id + 텍스트 + 임베딩 (DP-234) |
 | **FAISS** (`data/vectors/questions`) | 질문 검색 인덱스 (캐시) — 유사 질문 추천용 (DP-234) |
 
 FAISS 유실 시: `python scripts/reindex_vectors.py`로 완전 복구 (아티클 인덱스).
@@ -56,7 +57,7 @@ FAISS 유실 시: `python scripts/reindex_vectors.py`로 완전 복구 (아티�
 EmbeddingOrchestrator.embed_and_store(content_id, preprocessed_text, summary)
   ├─ DocumentChunker.chunk() → list[RAGDocument]
   ├─ EmbeddingService.embed(texts) → list[list[float]]
-  ├─ VectorRepository.save_chunks() → MongoDB
+  ├─ VectorRepository.save_chunks() → DynamoDB rag_documents
   ├─ VectorStoreManager.add_documents() → FAISS 추가
   └─ VectorStoreManager.save() → FAISS 파일 저장
 ```
@@ -66,7 +67,7 @@ EmbeddingOrchestrator.embed_and_store(content_id, preprocessed_text, summary)
 ```python
 from app.rag.retriever import RAGRetriever
 
-retriever = RAGRetriever(openai_api_key=OPENAI_API_KEY)
+retriever = RAGRetriever(aws_region="ap-northeast-2")
 results = retriever.search("Redis TTL이란?", top_k=5)
 context = "\n\n".join(doc.text for doc, _ in results)
 ```
@@ -77,9 +78,7 @@ context = "\n\n".join(doc.text for doc, _ in results)
 from app.services.question_embedding_service import QuestionEmbeddingOrchestrator
 
 QuestionEmbeddingOrchestrator(
-    openai_api_key=OPENAI_API_KEY,
-    mongo_uri=MONGO_URI,
-    mongo_db="devpick",
+    aws_region="ap-northeast-2",
     index_path="data/vectors/questions",  # 아티클과 분리된 별도 인덱스
 ).embed_and_store(
     question_id="q_001",
@@ -97,7 +96,8 @@ QuestionEmbeddingOrchestrator(
 
 ## 설계 결정
 
-- **LangChain 최소 사용**: `OpenAIEmbeddings`, `RecursiveCharacterTextSplitter`, `FAISS` wrapper만 사용. Chain/Prompt Template은 사용하지 않음 (기존 Anthropic SDK 직접 호출 패턴 유지)
-- **임베딩 모델**: OpenAI `text-embedding-3-small` (1536차원, $0.02/1M 토큰). `EmbeddingService`만 수정하면 self-hosted로 교체 가능
+- **LangChain 최소 사용**: `RecursiveCharacterTextSplitter`, `FAISS` wrapper만 사용. Chain/Prompt Template은 사용하지 않음 (기존 Anthropic SDK 직접 호출 패턴 유지)
+- **임베딩 모델**: Bedrock Titan Embeddings v2 (`amazon.titan-embed-text-v2:0`, 1024차원). EC2 IAM Role 인증 — API 키 불필요
+- **싱글턴 관리**: `store_manager.get_store()`로 VectorStoreManager를 프로세스당 1회만 초기화. 매 요청 파일 I/O 방지
 - **동시 쓰기 안전**: `VectorStoreManager`의 add/save에 `threading.Lock` 적용
 - **Fire-and-forget**: 임베딩 실패해도 요약 응답은 정상 반환 (router.py 패턴 동일)

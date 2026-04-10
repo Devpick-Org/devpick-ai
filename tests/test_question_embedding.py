@@ -9,13 +9,14 @@ from app.services.question_embedding_service import QuestionEmbeddingOrchestrato
 
 def _make_orchestrator() -> tuple[QuestionEmbeddingOrchestrator, MagicMock, MagicMock]:
     """mock 의존성을 주입한 QuestionEmbeddingOrchestrator를 반환한다."""
+    mock_store = MagicMock()
     with (
         patch(
             "app.services.question_embedding_service.EmbeddingService"
         ) as mock_emb_cls,
         patch(
-            "app.services.question_embedding_service.VectorStoreManager"
-        ) as mock_store_cls,
+            "app.services.question_embedding_service.get_store", return_value=mock_store
+        ),
         patch(
             "app.services.question_embedding_service.QuestionVectorRepository"
         ) as mock_repo_cls,
@@ -24,9 +25,6 @@ def _make_orchestrator() -> tuple[QuestionEmbeddingOrchestrator, MagicMock, Magi
         mock_emb = MagicMock()
         mock_emb.embed.return_value = [[0.1] * 1024]
         mock_emb_cls.return_value = mock_emb
-
-        mock_store = MagicMock()
-        mock_store_cls.return_value = mock_store
 
         mock_repo = MagicMock()
         mock_repo_cls.return_value = mock_repo

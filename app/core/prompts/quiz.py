@@ -4,7 +4,13 @@ from __future__ import annotations
 
 SYSTEM_PROMPT_QUIZ = """\
 당신은 개발자 학습을 돕는 기술 블로그 퀴즈 출제 전문가입니다.
-주어진 글을 분석하고, save_quiz 도구를 호출하여 4개 레벨(beginner · junior · mid · senior)별 퀴즈를 저장하세요.
+주어진 글을 분석하고, save_quiz 도구를 호출하여 퀴즈 제목과 4개 레벨(beginner · junior · mid · senior)별 퀴즈를 저장하세요.
+
+## 퀴즈 제목 (title)
+
+글의 핵심 주제를 담은 퀴즈 제목을 20자 이내 한국어로 작성하세요.
+예: "Redis 캐시 전략의 핵심", "Spring AOP 동작 원리"
+기술 용어(라이브러리명, 프레임워크명 등)는 원어 그대로 사용하세요.
 
 ## 공통 출제 원칙
 
@@ -19,6 +25,11 @@ SYSTEM_PROMPT_QUIZ = """\
 - 주관식 답은 단어 또는 짧은 구절이어야 합니다. 문장형 정답은 출제하지 마세요.
 - 문제 순서는 반드시 1번·2번 객관식, 3번 주관식 순서를 지키세요.
 - 모든 문제는 한국어로 작성하되, 기술 용어(라이브러리명, API명 등)는 원어 그대로 사용하세요.
+
+## 예상 풀이 시간 (estimated_minutes)
+
+각 레벨의 난이도에 맞게 예상 풀이 시간(분)을 정수로 입력하세요.
+기준: beginner=10, junior=8, mid=6, senior=5 수준으로 조정하되, 글의 복잡도에 따라 ±2분 범위에서 조정하세요.
 
 ## 레벨별 용어·표현 기준
 
@@ -39,6 +50,10 @@ explanation에는 트레이드오프나 심화 내용을 포함해 간결하게 
 _QUESTIONS_SCHEMA = {
     "type": "object",
     "properties": {
+        "estimated_minutes": {
+            "type": "integer",
+            "description": "이 레벨 퀴즈의 예상 풀이 시간(분). beginner=10, junior=8, mid=6, senior=5 수준",
+        },
         "questions": {
             "type": "array",
             "minItems": 3,
@@ -84,23 +99,27 @@ _QUESTIONS_SCHEMA = {
                     "explanation",
                 ],
             },
-        }
+        },
     },
-    "required": ["questions"],
+    "required": ["estimated_minutes", "questions"],
 }
 
 QUIZ_TOOL = {
     "name": "save_quiz",
-    "description": "4개 레벨(beginner·junior·mid·senior)별 퀴즈 3문제(객관식 2 + 주관식 1)를 저장합니다.",
+    "description": "퀴즈 제목과 4개 레벨(beginner·junior·mid·senior)별 퀴즈 3문제(객관식 2 + 주관식 1)를 저장합니다.",
     "input_schema": {
         "type": "object",
         "properties": {
+            "title": {
+                "type": "string",
+                "description": "글의 핵심 주제를 담은 퀴즈 제목 (20자 이내, 한국어)",
+            },
             "beginner": _QUESTIONS_SCHEMA,
             "junior": _QUESTIONS_SCHEMA,
             "mid": _QUESTIONS_SCHEMA,
             "senior": _QUESTIONS_SCHEMA,
         },
-        "required": ["beginner", "junior", "mid", "senior"],
+        "required": ["title", "beginner", "junior", "mid", "senior"],
     },
 }
 
@@ -117,10 +136,11 @@ def build_user_prompt(text: str) -> str:
     if not text:
         raise ValueError("퀴즈를 생성할 텍스트가 없습니다")
     return (
-        "아래 기술 블로그 글을 읽고, 핵심 내용을 검증하는 퀴즈 3문제를 "
+        "아래 기술 블로그 글을 읽고, 퀴즈 제목과 핵심 내용을 검증하는 퀴즈 3문제를 "
         "4개 레벨(beginner·junior·mid·senior)로 출제하세요.\n"
         "1번·2번은 객관식 5지선다, 3번은 주관식 단답형으로 출제하세요.\n"
-        "각 레벨은 같은 핵심 개념을 다루되, 용어와 표현 방식만 레벨에 맞게 조정하세요.\n\n"
+        "각 레벨은 같은 핵심 개념을 다루되, 용어와 표현 방식만 레벨에 맞게 조정하세요.\n"
+        "각 레벨의 난이도에 맞는 예상 풀이 시간도 함께 입력하세요.\n\n"
         "---\n\n"
         f"{text}"
     )

@@ -39,7 +39,7 @@ SYSTEM_PROMPT_ALL_LEVELS = """\
 각 레벨 공통 필드:
 - core_summary: 소제목 단위로 핵심 내용 요약 (레벨별 관점 차이 반영). heading은 원문 소제목 또는 AI 생성. content는 2~4줄
 - key_points: 해당 레벨 독자에게 중요한 포인트 3~5개
-- study_questions: 해당 레벨에 맞는 이해/적용 점검 질문 3~5개
+- additional_questions: 해당 레벨에 맞는 이해/적용 점검 질문 3~5개
 - next_recommendation: 이 글 다음에 학습할 주제 1가지. "~에 대해 알아보세요" 형태
 - confidence: 요약 품질 자체 평가 0.0~1.0 (1.0=전문 분야/구조 명확, 0.7=일반 기술 글, 0.7 미만=짧거나 모호)
 """
@@ -64,7 +64,7 @@ _LEVEL_SUMMARY_SCHEMA = {
             "items": {"type": "string"},
             "description": "핵심 포인트 3~5개",
         },
-        "study_questions": {
+        "additional_questions": {
             "type": "array",
             "items": {"type": "string"},
             "description": "학습 점검 질문 3~5개",
@@ -81,7 +81,7 @@ _LEVEL_SUMMARY_SCHEMA = {
     "required": [
         "core_summary",
         "key_points",
-        "study_questions",
+        "additional_questions",
         "next_recommendation",
         "confidence",
     ],

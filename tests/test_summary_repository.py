@@ -10,9 +10,9 @@ from app.repositories.summary_repository import SummaryRepository
 from app.schemas.summary import AllLevelsSummaryResponse
 
 _LEVEL_PAYLOAD = {
-    "core_summary": [{"heading": "소제목", "content": "요약 내용"}],
+    "core_summary": "소제목\n요약 내용",
     "key_points": ["포인트1"],
-    "study_questions": ["질문1"],
+    "additional_questions": ["질문1"],
     "next_recommendation": "다음 학습 주제",
     "confidence": 0.85,
 }

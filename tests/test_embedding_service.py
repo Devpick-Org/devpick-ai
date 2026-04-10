@@ -8,9 +8,9 @@ from app.schemas.summary import AllLevelsSummaryResponse
 from app.services.embedding_service import EmbeddingOrchestrator
 
 _LEVEL_PAYLOAD = {
-    "core_summary": [{"heading": "주제", "content": "내용"}],
+    "core_summary": "주제\n내용",
     "key_points": ["포인트1"],
-    "study_questions": ["질문1"],
+    "additional_questions": ["질문1"],
     "next_recommendation": "다음 학습",
     "confidence": 0.9,
 }

@@ -12,9 +12,9 @@ from main import app
 _VALID_KEY = "test-internal-key"
 
 _LEVEL_SUMMARY = {
-    "core_summary": [{"heading": "개요", "content": "내용 요약."}],
+    "core_summary": "개요\n내용 요약.",
     "key_points": ["포인트1"],
-    "study_questions": ["질문1"],
+    "additional_questions": ["질문1"],
     "next_recommendation": "다음 학습 주제",
     "confidence": 0.85,
 }

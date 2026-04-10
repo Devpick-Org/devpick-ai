@@ -7,13 +7,20 @@ from typing import Literal
 from pydantic import BaseModel, Field
 
 
+class QuizOption(BaseModel):
+    """객관식 선지."""
+
+    id: str  # "A" ~ "E"
+    text: str
+
+
 class QuizQuestion(BaseModel):
     """퀴즈 문제 한 개."""
 
     type: Literal["multiple_choice", "short_answer"]
     question: str
-    options: list[str]
-    answer: str
+    options: list[QuizOption]
+    correct_option_id: str  # 객관식: "A"~"E", 주관식: ""
     explanation: str
 
 

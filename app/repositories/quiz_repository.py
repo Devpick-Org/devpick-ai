@@ -60,23 +60,20 @@ class QuizRepository:
         }
 
         for level_name, level_quiz in levels.items():
-            questions = level_quiz.questions
             self._table.update_item(
                 Key={"content_id": response.content_id, "level": level_name},
                 UpdateExpression=(
                     "SET quiz_id = :quiz_id"
-                    ", q1 = :q1"
-                    ", q2 = :q2"
-                    ", q3 = :q3"
+                    ", questions = :questions"
                     ", generated_at = :generated_at"
                     ", updated_at = :updated_at"
                     ", created_at = if_not_exists(created_at, :created_at)"
                 ),
                 ExpressionAttributeValues={
                     ":quiz_id": response.quiz_id,
-                    ":q1": _sanitize(questions[0].model_dump()),
-                    ":q2": _sanitize(questions[1].model_dump()),
-                    ":q3": _sanitize(questions[2].model_dump()),
+                    ":questions": _sanitize(
+                        [q.model_dump() for q in level_quiz.questions]
+                    ),
                     ":generated_at": response.generated_at,
                     ":updated_at": now,
                     ":created_at": now,

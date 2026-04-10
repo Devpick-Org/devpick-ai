@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Literal
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 # ── 4레벨 동시 생성 스키마 (DP-300) ──────────────────────────────────────────

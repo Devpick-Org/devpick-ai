@@ -21,7 +21,7 @@ _LEVEL_PAYLOAD = {
         {"heading": "개요", "content": "Redis는 인메모리 키-값 저장소다."}
     ],
     "key_points": ["TTL로 자동 만료", "Write-Through 패턴"],
-    "study_questions": ["TTL이란 무엇인가?", "캐시 무효화 전략의 종류는?"],
+    "additional_questions": ["TTL이란 무엇인가?", "캐시 무효화 전략의 종류는?"],
     "next_recommendation": "Redis Pub/Sub 패턴도 학습해보세요.",
     "confidence": 0.88,
 }
@@ -96,8 +96,8 @@ def test_summarize_all_four_levels_present() -> None:
     assert result.junior.confidence == pytest.approx(0.88)
     assert result.mid.confidence == pytest.approx(0.88)
     assert result.senior.confidence == pytest.approx(0.88)
-    assert len(result.beginner.core_summary) == 1
-    assert result.beginner.core_summary[0].heading == "개요"
+    assert isinstance(result.beginner.core_summary, str)
+    assert "개요" in result.beginner.core_summary
 
 
 def test_summarize_all_generated_at_is_set() -> None:

@@ -99,7 +99,9 @@ class AllLevelsSummaryService:
         try:
             raw = tool_use_block["toolUse"]["input"]
             for level in ("beginner", "junior", "mid", "senior"):
-                sections = raw.get(level, {}).get("core_summary", [])
+                if level not in raw:
+                    continue
+                sections = raw[level].get("core_summary", [])
                 if isinstance(sections, list):
                     raw[level]["core_summary"] = "\n\n".join(
                         f"{s['heading']}\n{s['content']}" for s in sections

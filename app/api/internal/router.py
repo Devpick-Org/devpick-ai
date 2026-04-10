@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import logging
 import os
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 
 from dotenv import load_dotenv
 from fastapi import APIRouter, Depends
@@ -300,9 +300,7 @@ def create_insight(body: InsightRequest) -> InsightResponse:
         week_start_dt = datetime.fromisoformat(body.week_start).replace(
             tzinfo=timezone.utc
         )
-        week_end_dt = datetime.fromisoformat(body.week_end).replace(
-            tzinfo=timezone.utc
-        ) + timedelta(days=1)
+        week_end_dt = datetime.fromisoformat(body.week_end).replace(tzinfo=timezone.utc)
         events = EventRepository(aws_region=_AWS_REGION).find_by_user(
             user_id=body.user_id,
             start=week_start_dt,

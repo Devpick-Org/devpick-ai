@@ -5,8 +5,8 @@ from __future__ import annotations
 import logging
 
 from app.rag.chunker import DocumentChunker
-from app.rag.embeddings import BedrockEmbeddingsAdapter, EmbeddingService
-from app.rag.vector_store import VectorStoreManager
+from app.rag.embeddings import EmbeddingService
+from app.rag.store_manager import get_store
 from app.repositories.vector_repository import VectorRepository
 from app.schemas.summary import AllLevelsSummaryResponse
 
@@ -16,7 +16,7 @@ _DEFAULT_INDEX_PATH = "data/vectors/devpick"
 
 
 class EmbeddingOrchestrator:
-    """요약 완료 후 원문 청킹 → 임베딩 → MongoDB + FAISS 저장을 순서대로 수행한다.
+    """요약 완료 후 원문 청킹 → 임베딩 → DynamoDB + FAISS 저장을 순서대로 수행한다.
 
     router.py에서 fire-and-forget 패턴으로 호출한다.
     실패 시 예외를 raise — 호출부에서 로그 후 무시.
@@ -29,17 +29,12 @@ class EmbeddingOrchestrator:
         chunk_size: int = 1000,
         chunk_overlap: int = 200,
     ) -> None:
-        embedding_svc = EmbeddingService(aws_region=aws_region)
-        self._embedding_svc = embedding_svc
+        self._embedding_svc = EmbeddingService(aws_region=aws_region)
         self._chunker = DocumentChunker(
             chunk_size=chunk_size, chunk_overlap=chunk_overlap
         )
-        self._vector_store = VectorStoreManager(
-            embedding_model=BedrockEmbeddingsAdapter(service=embedding_svc),
-            index_path=index_path,
-        )
+        self._vector_store = get_store(index_path, aws_region)
         self._vector_repo = VectorRepository(aws_region=aws_region)
-        self._vector_store.load_or_create()
 
     def embed_and_store(
         self,
@@ -47,7 +42,7 @@ class EmbeddingOrchestrator:
         preprocessed_text: str,
         summary: AllLevelsSummaryResponse,
     ) -> None:
-        """원문을 청킹하고 임베딩하여 MongoDB와 FAISS에 저장한다.
+        """원문을 청킹하고 임베딩하여 DynamoDB와 FAISS에 저장한다.
 
         Args:
             content_id: 콘텐츠 식별자
@@ -71,7 +66,7 @@ class EmbeddingOrchestrator:
         texts = [doc.text for doc in docs]
         embeddings = self._embedding_svc.embed(texts)
 
-        # MongoDB 영구 저장
+        # DynamoDB 영구 저장
         mongo_chunks = [
             {
                 "content_id": doc.metadata.content_id,

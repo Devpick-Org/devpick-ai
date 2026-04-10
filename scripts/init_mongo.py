@@ -1,3 +1,7 @@
+# DEPRECATED: MongoDB는 더 이상 사용하지 않습니다.
+# 아티클/질문 벡터는 DynamoDB(rag_documents, rag_questions)에 저장됩니다.
+# 이 스크립트는 삭제 예정입니다.
+
 import os
 import sys
 from datetime import datetime, timezone

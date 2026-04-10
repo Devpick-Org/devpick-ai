@@ -1,11 +1,11 @@
-"""질문 임베딩 오케스트레이터 — 임베딩 → MongoDB + FAISS 저장 (DP-234)."""
+"""질문 임베딩 오케스트레이터 — 임베딩 → DynamoDB + FAISS 저장 (DP-234)."""
 
 from __future__ import annotations
 
 import logging
 
-from app.rag.embeddings import BedrockEmbeddingsAdapter, EmbeddingService
-from app.rag.vector_store import VectorStoreManager
+from app.rag.embeddings import EmbeddingService
+from app.rag.store_manager import get_store
 from app.rag.schemas import ChunkMetadata, RAGDocument
 from app.repositories.question_vector_repository import QuestionVectorRepository
 
@@ -15,7 +15,7 @@ _DEFAULT_INDEX_PATH = "data/vectors/questions"
 
 
 class QuestionEmbeddingOrchestrator:
-    """질문 텍스트를 임베딩하여 MongoDB와 FAISS에 저장한다.
+    """질문 텍스트를 임베딩하여 DynamoDB와 FAISS에 저장한다.
 
     아티클 EmbeddingOrchestrator와 달리 청킹이 없다.
     질문은 짧으므로 전체 텍스트를 단일 문서로 임베딩한다.
@@ -29,14 +29,9 @@ class QuestionEmbeddingOrchestrator:
         aws_region: str = "ap-northeast-2",
         index_path: str = _DEFAULT_INDEX_PATH,
     ) -> None:
-        embedding_svc = EmbeddingService(aws_region=aws_region)
-        self._embedding_svc = embedding_svc
-        self._vector_store = VectorStoreManager(
-            embedding_model=BedrockEmbeddingsAdapter(service=embedding_svc),
-            index_path=index_path,
-        )
+        self._embedding_svc = EmbeddingService(aws_region=aws_region)
+        self._vector_store = get_store(index_path, aws_region)
         self._question_repo = QuestionVectorRepository(aws_region=aws_region)
-        self._vector_store.load_or_create()
 
     def embed_and_store(
         self,
@@ -45,7 +40,7 @@ class QuestionEmbeddingOrchestrator:
         suggested_tags: list[str] | None = None,
         content_id: str | None = None,
     ) -> None:
-        """질문 텍스트를 임베딩하여 MongoDB와 FAISS에 저장한다.
+        """질문 텍스트를 임베딩하여 DynamoDB와 FAISS에 저장한다.
 
         Args:
             question_id: 질문 식별자.
@@ -64,7 +59,7 @@ class QuestionEmbeddingOrchestrator:
 
         embedding = embeddings[0]
 
-        # MongoDB 영구 저장
+        # DynamoDB 영구 저장
         self._question_repo.save_question(
             question_id=question_id,
             text=text,

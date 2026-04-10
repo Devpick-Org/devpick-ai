@@ -38,7 +38,7 @@ def _make_orchestrator() -> EmbeddingOrchestrator:
     with (
         patch("app.services.embedding_service.EmbeddingService"),
         patch("app.services.embedding_service.DocumentChunker"),
-        patch("app.services.embedding_service.VectorStoreManager"),
+        patch("app.services.embedding_service.get_store", return_value=MagicMock()),
         patch("app.services.embedding_service.VectorRepository"),
         patch("boto3.client"),
     ):

@@ -4,9 +4,8 @@ from __future__ import annotations
 
 import logging
 
-from app.rag.embeddings import BedrockEmbeddingsAdapter, EmbeddingService
 from app.rag.schemas import RAGDocument
-from app.rag.vector_store import VectorStoreManager
+from app.rag.store_manager import get_store
 
 logger = logging.getLogger(__name__)
 
@@ -28,13 +27,7 @@ class RAGRetriever:
         aws_region: str = "ap-northeast-2",
         index_path: str = _DEFAULT_INDEX_PATH,
     ) -> None:
-        embedding_svc = EmbeddingService(aws_region=aws_region)
-        adapter = BedrockEmbeddingsAdapter(service=embedding_svc)
-        self._store = VectorStoreManager(
-            embedding_model=adapter,
-            index_path=index_path,
-        )
-        self._store.load_or_create()
+        self._store = get_store(index_path, aws_region)
 
     def search(
         self,

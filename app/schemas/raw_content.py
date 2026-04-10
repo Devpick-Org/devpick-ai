@@ -46,6 +46,8 @@ class RawEntry(BaseModel):
     html_body_raw: str | None = None
     html_text_raw: str | None = None
     thumbnail_url: str | None = None
+    thumbnail_width: int | None = None
+    thumbnail_height: int | None = None
     categories_raw: list[str] = Field(default_factory=list)
     raw_xml_fragment: str | None = None
     fetched_at: datetime = Field(default_factory=utc_now)

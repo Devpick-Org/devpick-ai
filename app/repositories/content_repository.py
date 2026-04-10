@@ -120,13 +120,15 @@ class ContentRepository:
                         """
                         INSERT INTO contents (
                             id, source_id, title, author, canonical_url,
-                            preview, thumbnail_url, is_original_visible, license_type,
+                            preview, thumbnail_url, thumbnail_width, thumbnail_height,
+                            is_original_visible, license_type,
                             original_content, published_at, is_available, is_answered,
                             score, view_count, question_content, accepted_answer,
                             top_answers, created_at, updated_at
                         ) VALUES (
                             :id, :source_id, :title, :author, :canonical_url,
-                            :preview, :thumbnail_url, :is_original_visible, :license_type,
+                            :preview, :thumbnail_url, :thumbnail_width, :thumbnail_height,
+                            :is_original_visible, :license_type,
                             :original_content, :published_at, :is_available, :is_answered,
                             :score, :view_count, :question_content, :accepted_answer,
                             :top_answers, :created_at, :updated_at
@@ -143,6 +145,8 @@ class ContentRepository:
                         "canonical_url": item.canonical_url,
                         "preview": item.preview,
                         "thumbnail_url": item.thumbnail_url,
+                        "thumbnail_width": item.thumbnail_width,
+                        "thumbnail_height": item.thumbnail_height,
                         "is_original_visible": item.is_original_visible,
                         "license_type": item.license_type,
                         "original_content": item.body_candidate,

@@ -310,6 +310,32 @@ def extract_og_image(html: str) -> str | None:
     return extract_og_meta(html, "og:image") or extract_og_meta(html, "twitter:image")
 
 
+def extract_og_image_dimensions(html: str) -> tuple[int | None, int | None]:
+    """Extract og:image:width and og:image:height from HTML meta tags.
+
+    Returns (width, height); each is None if the tag is absent or non-integer.
+    """
+    width: int | None = None
+    height: int | None = None
+
+    width_str = extract_og_meta(html, "og:image:width")
+    height_str = extract_og_meta(html, "og:image:height")
+
+    if width_str:
+        try:
+            width = int(width_str)
+        except ValueError:
+            pass
+
+    if height_str:
+        try:
+            height = int(height_str)
+        except ValueError:
+            pass
+
+    return width, height
+
+
 def extract_meta_author(html: str) -> str | None:
     """Extract author name from <meta name="author"> tag."""
     return extract_og_meta(html, "author")

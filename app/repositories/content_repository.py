@@ -53,15 +53,13 @@ class ContentRepository:
         else:
             source_id = str(uuid4())
             conn.execute(
-                text(
-                    """
+                text("""
                     INSERT INTO content_sources
                         (id, name, url, collect_method, is_active, created_at)
                     VALUES
                         (:id, :name, '', 'AI_PIPELINE', true, :now)
                     ON CONFLICT (name) DO NOTHING
-                """
-                ),
+                """),
                 {
                     "id": source_id,
                     "name": source_name,
@@ -116,25 +114,25 @@ class ContentRepository:
                         )
 
                 row = conn.execute(
-                    text(
-                        """
+                    text("""
                         INSERT INTO contents (
                             id, source_id, title, author, canonical_url,
-                            preview, thumbnail_url, is_original_visible, license_type,
+                            preview, thumbnail_url, thumbnail_width, thumbnail_height,
+                            is_original_visible, license_type,
                             original_content, published_at, is_available, is_answered,
                             score, view_count, question_content, accepted_answer,
                             top_answers, created_at, updated_at
                         ) VALUES (
                             :id, :source_id, :title, :author, :canonical_url,
-                            :preview, :thumbnail_url, :is_original_visible, :license_type,
+                            :preview, :thumbnail_url, :thumbnail_width, :thumbnail_height,
+                            :is_original_visible, :license_type,
                             :original_content, :published_at, :is_available, :is_answered,
                             :score, :view_count, :question_content, :accepted_answer,
                             :top_answers, :created_at, :updated_at
                         )
                         ON CONFLICT (canonical_url) DO NOTHING
                         RETURNING id
-                    """
-                    ),
+                    """),
                     {
                         "id": content_id,
                         "source_id": source_id,
@@ -143,6 +141,8 @@ class ContentRepository:
                         "canonical_url": item.canonical_url,
                         "preview": item.preview,
                         "thumbnail_url": item.thumbnail_url,
+                        "thumbnail_width": item.thumbnail_width,
+                        "thumbnail_height": item.thumbnail_height,
                         "is_original_visible": item.is_original_visible,
                         "license_type": item.license_type,
                         "original_content": item.body_candidate,

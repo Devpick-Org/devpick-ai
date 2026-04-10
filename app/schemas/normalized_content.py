@@ -17,6 +17,8 @@ class NormalizedContent(BaseModel):
     body_candidate: str | None = None
     is_original_visible: bool = False
     thumbnail_url: str | None = None
+    thumbnail_width: int | None = None
+    thumbnail_height: int | None = None
     license_type: str | None = None
     tags: list[str] = Field(default_factory=list)
     # 소스별 참여 지표 (수집 통계용, null for RSS sources)

@@ -17,6 +17,7 @@ from app.schemas.source import SourceConfig
 from app.utils.html_helpers import (
     extract_kakao_article_body_result,
     extract_og_image,
+    extract_og_image_dimensions,
     extract_og_meta,
 )
 from app.utils.xml_helpers import compute_entry_hash, sha256_text
@@ -214,6 +215,7 @@ class KakaoBackfillCollector(BackfillCollector):
 
         # Extract thumbnail
         thumbnail_url = extract_og_image(html)
+        thumbnail_width, thumbnail_height = extract_og_image_dimensions(html)
 
         entry_url = url
         entry_external_id = url
@@ -252,6 +254,8 @@ class KakaoBackfillCollector(BackfillCollector):
             html_body_raw=body_html,
             html_text_raw=body_text,
             thumbnail_url=thumbnail_url,
+            thumbnail_width=thumbnail_width,
+            thumbnail_height=thumbnail_height,
             categories_raw=[],
             fetched_at=datetime.now(timezone.utc),
             response_hash=response_hash,

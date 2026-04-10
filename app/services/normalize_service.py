@@ -111,4 +111,6 @@ class NormalizeService:
             preview=preview,
             body_candidate=body_candidate,
             thumbnail_url=self.resolve_thumbnail(raw_entry),
+            thumbnail_width=raw_entry.thumbnail_width,
+            thumbnail_height=raw_entry.thumbnail_height,
         )

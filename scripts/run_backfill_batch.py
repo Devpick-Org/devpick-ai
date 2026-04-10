@@ -343,4 +343,7 @@ if __name__ == "__main__":
         help="특정 소스만 실행 (여러 번 지정 가능). 예: --source Stack_Overflow --source Velog",
     )
     args = parser.parse_args()
-    main(batch_size=args.batch_size, only_sources=set(args.sources) if args.sources else None)
+    main(
+        batch_size=args.batch_size,
+        only_sources=set(args.sources) if args.sources else None,
+    )

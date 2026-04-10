@@ -97,8 +97,15 @@ class AllLevelsSummaryService:
             raise AIInternalError("LLM 응답에 tool_use 블록이 없습니다")
 
         try:
+            raw = tool_use_block["toolUse"]["input"]
+            for level in ("beginner", "junior", "mid", "senior"):
+                sections = raw.get(level, {}).get("core_summary", [])
+                if isinstance(sections, list):
+                    raw[level]["core_summary"] = "\n\n".join(
+                        f"{s['heading']}\n{s['content']}" for s in sections
+                    )
             payload = {
-                **tool_use_block["toolUse"]["input"],
+                **raw,
                 "content_id": content_id,
                 "generated_at": datetime.now(tz=timezone.utc).isoformat(),
                 "thumbnail_url": thumbnail_url,

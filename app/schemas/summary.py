@@ -4,14 +4,7 @@ from __future__ import annotations
 
 from typing import Literal
 
-from pydantic import BaseModel, Field
-
-
-class SectionSummary(BaseModel):
-    """소제목별 요약 항목."""
-
-    heading: str  # 소제목 (원문 heading 활용 또는 AI 자체 생성)
-    content: str  # 해당 섹션의 핵심 요약 (2~4줄)
+from pydantic import BaseModel
 
 
 # ── 4레벨 동시 생성 스키마 (DP-300) ──────────────────────────────────────────
@@ -30,9 +23,9 @@ class CommonSummary(BaseModel):
 class LevelSummary(BaseModel):
     """레벨별 차별화 필드."""
 
-    core_summary: list[SectionSummary] = Field(min_length=1)
+    core_summary: str
     key_points: list[str]
-    study_questions: list[str]
+    additional_questions: list[str]
     next_recommendation: str
     confidence: float = Field(ge=0.0, le=1.0)
 

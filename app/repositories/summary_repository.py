@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import logging
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 
 import boto3
@@ -63,6 +63,9 @@ class SummaryRepository:
                     "generated_at": response.generated_at or now,
                     "thumbnail_url": response.thumbnail_url,
                     "updated_at": now,
+                    "expires_at": (
+                        datetime.now(tz=timezone.utc) + timedelta(days=7)
+                    ).isoformat(),
                     **common,
                     **level_data,
                 }

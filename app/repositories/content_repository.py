@@ -182,9 +182,7 @@ class ContentRepository:
         )
         return result
 
-    def save_ai_metadata(
-        self, content_id: str, tags: list[str], category: str
-    ) -> None:
+    def save_ai_metadata(self, content_id: str, tags: list[str], category: str) -> None:
         """AI 요약에서 생성된 tags·category를 contents 테이블에 UPDATE한다."""
         with self._engine.begin() as conn:
             conn.execute(

@@ -123,14 +123,16 @@ class ContentRepository:
                             preview, thumbnail_url, thumbnail_width, thumbnail_height,
                             is_original_visible, license_type,
                             original_content, published_at, is_available, is_answered,
-                            score, view_count, question_content, accepted_answer,
+                            score, view_count, likes, comments_count,
+                            question_content, accepted_answer,
                             top_answers, created_at, updated_at
                         ) VALUES (
                             :id, :source_id, :title, :author, :canonical_url,
                             :preview, :thumbnail_url, :thumbnail_width, :thumbnail_height,
                             :is_original_visible, :license_type,
                             :original_content, :published_at, :is_available, :is_answered,
-                            :score, :view_count, :question_content, :accepted_answer,
+                            :score, :view_count, :likes, :comments_count,
+                            :question_content, :accepted_answer,
                             :top_answers, :created_at, :updated_at
                         )
                         ON CONFLICT DO NOTHING
@@ -155,6 +157,8 @@ class ContentRepository:
                         "is_answered": item.is_answered,
                         "score": item.score,
                         "view_count": item.view_count,
+                        "likes": item.likes,
+                        "comments_count": item.comments_count,
                         "question_content": item.question_content,
                         "accepted_answer": (
                             json.dumps(item.accepted_answer, ensure_ascii=False)

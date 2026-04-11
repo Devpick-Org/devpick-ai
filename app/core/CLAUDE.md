@@ -69,8 +69,10 @@ Anthropic Tool Use 스키마를 Bedrock Converse API `toolConfig` 형식으로 �
 ### summary.py 구성 요소 (DP-300)
 
 - `SYSTEM_PROMPT_ALL_LEVELS` — 4레벨 동시 요약 기준. Prompt Caching 대상
-- `SUMMARY_ALL_LEVELS_TOOL` — `save_all_summaries` Tool Use input_schema
-- `build_user_prompt_all_levels(text)` — 4레벨 지시문 + 본문
+  - 레벨별 독자 관점 차별화: beginner(스토리), junior(과정·판단 근거), mid(수치·패턴), senior(설계·트레이드오프)
+  - core_summary: 원본 소제목 구조 따르기, string 포맷(`heading\ncontent\n\n...`)
+- `SUMMARY_ALL_LEVELS_TOOL` — `save_all_summaries` Tool Use input_schema. `core_summary` 타입: string
+- `build_user_prompt_all_levels(text)` — 4레벨 지시문 + core_summary string 형식 리마인더 + 본문
 
 ---
 

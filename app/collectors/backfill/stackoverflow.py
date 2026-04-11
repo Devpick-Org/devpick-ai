@@ -221,7 +221,6 @@ class StackOverflowBackfillCollector:
                 else plain
             )
 
-        tags: list[str] = q.get("tags") or []
         is_answered: bool | None = q.get("is_answered")
 
         valid_answers = [a for a in answers if a.get("body")]
@@ -257,9 +256,9 @@ class StackOverflowBackfillCollector:
             ),
             is_original_visible=True,
             license_type=_LICENSE_TYPE,
-            tags=tags,
             view_count=q.get("view_count"),
-            likes=q.get("score"),
+            score=q.get("score"),
+            likes=None,
             is_answered=is_answered,
             question_content=question_body,
             accepted_answer=accepted_answer,

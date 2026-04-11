@@ -153,7 +153,7 @@ class ContentRepository:
                         "published_at": published_at,
                         "is_available": True,
                         "is_answered": item.is_answered,
-                        "score": item.likes,
+                        "score": item.score,
                         "view_count": item.view_count,
                         "question_content": item.question_content,
                         "accepted_answer": (
@@ -181,6 +181,33 @@ class ContentRepository:
             "PostgreSQL 저장 완료: saved=%d skipped=%d", result.saved, result.skipped
         )
         return result
+
+    def save_ai_metadata(
+        self, content_id: str, tags: list[str], category: str
+    ) -> None:
+        """AI 요약에서 생성된 tags·category를 contents 테이블에 UPDATE한다."""
+        with self._engine.begin() as conn:
+            conn.execute(
+                text(
+                    """
+                    UPDATE contents
+                       SET tags = :tags, category = :category, updated_at = :now
+                     WHERE id = :content_id
+                    """
+                ),
+                {
+                    "content_id": content_id,
+                    "tags": json.dumps(tags, ensure_ascii=False),
+                    "category": category,
+                    "now": datetime.now(tz=timezone.utc),
+                },
+            )
+        logger.debug(
+            "AI metadata 저장 완료: content_id=%s category=%s tags=%s",
+            content_id,
+            category,
+            tags,
+        )
 
     def close(self) -> None:
         self._engine.dispose()

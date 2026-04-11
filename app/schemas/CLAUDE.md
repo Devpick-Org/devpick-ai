@@ -11,7 +11,7 @@ Pydantic 기반 데이터 계약. 수집부터 AI 처리까지 모든 데이터 
 | `source.py` | `SourceConfig` | 수집 대상 소스 설정 |
 | `raw_content.py` | `RawEntry` | 수집기가 반환하는 원시 항목 |
 | `raw_content.py` | `RawFeedMeta` | 피드 메타 정보 |
-| `normalized_content.py` | `NormalizedContent` | PostgreSQL 저장 + AI 처리 입력 스키마 |
+| `normalized_content.py` | `NormalizedContent` | PostgreSQL 저장 + AI 처리 입력 스키마. `likes`(Velog), `score`(SO) 분리. `tags` 필드 없음 |
 | `summary.py` | `SectionSummary` | 소제목별 요약 항목 (heading + content) |
 | `summary.py` | `SummaryResponse` | 단일 레벨 AI 요약 출력 스키마 |
 | `summary.py` | `CommonSummary` | 레벨 무관 공통 요약 필드 (DP-300) |

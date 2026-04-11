@@ -17,9 +17,7 @@ from app.core.exceptions import (
 from app.services.all_levels_summary_service import AllLevelsSummaryService
 
 _LEVEL_PAYLOAD = {
-    "core_summary": [
-        {"heading": "개요", "content": "Redis는 인메모리 키-값 저장소다."}
-    ],
+    "core_summary": "개요\nRedis는 인메모리 키-값 저장소다.",
     "key_points": ["TTL로 자동 만료", "Write-Through 패턴"],
     "additional_questions": ["TTL이란 무엇인가?", "캐시 무효화 전략의 종류는?"],
     "next_recommendation": "Redis Pub/Sub 패턴도 학습해보세요.",

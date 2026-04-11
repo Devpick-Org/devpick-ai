@@ -31,13 +31,17 @@ SYSTEM_PROMPT_ALL_LEVELS = """\
 ### beginner / junior / mid / senior (레벨별 필드)
 각 레벨은 독립적인 독자를 대상으로 작성하세요:
 
-- beginner: 완전 입문자. 배경지식 없이도 이해 가능한 수준. 모든 용어에 설명 병기
-- junior: 초급 개발자. 비유/예시로 쉽게. '왜 중요한지' 맥락 포함
-- mid: 중급 실무자. 실무 적용/패턴/장단점 중심
-- senior: 시니어/아키텍트. 트레이드오프/확장성/한계점까지 분석
+- beginner: 완전 입문자. "이게 뭔가요? 왜 이 문제가 생겼나요? 어떻게 됐나요?" 스토리 중심. 기술 용어 첫 등장 시 괄호로 짧게 설명 (예: "트랜잭션(작업 묶음)"). 배경→문제→해결 흐름 유지
+- junior: 초급 개발자. "어떻게 접근했나요? 왜 이 방법을 선택했나요?" 과정과 판단 근거 중심. 비유/예시 활용. 실패한 시도가 있으면 왜 실패했는지 반드시 포함
+- mid: 중급 실무자. "이 패턴/구조의 실무적 의미는? 성능·비용 수치는? 다른 선택지와 비교하면?" 구체적 수치·패턴명·도입 시 고려사항 중심. 표준 기술 용어 사용
+- senior: 시니어/아키텍트. "왜 이 설계를 선택했나? 무엇을 포기했나? 이 접근이 틀리는 경우는?" 아키텍처 결정의 근거·전제조건·대안 트레이드오프 중심. 전문 용어·약어 사용
 
 각 레벨 공통 필드:
-- core_summary: 소제목 단위로 핵심 내용 요약 (레벨별 관점 차이 반영). heading은 원문 소제목 또는 AI 생성. content는 2~4줄
+- core_summary: 반드시 문자열(string)로 출력. 형식: {소제목}\n{내용}\n\n{소제목}\n{내용}
+  - 섹션 수: 원본 글 소제목 구조를 따라 3~6개. 임의로 줄이거나 합치지 말 것
+  - 소제목: 원본 소제목 우선 사용. 없을 경우에만 논지가 드러나는 제목 생성 ("프로젝트 배경" 같은 분류어 금지)
+  - 내용: 해당 섹션의 핵심 포인트를 2~4문장으로 작성. 수치·명칭·구체적 사실 포함. "~노력했습니다" 같이 내용 없는 결론 동사만 쓰는 문장 금지
+  - 마크다운 기호(#, -, *) 없이 plain text로 작성. 원문에 없는 사실·수치·고유명사 생성 금지
 - key_points: 해당 레벨 독자에게 중요한 포인트 3~5개
 - additional_questions: 해당 레벨에 맞는 이해/적용 점검 질문 3~5개
 - next_recommendation: 이 글 다음에 학습할 주제 1가지. "~에 대해 알아보세요" 형태
@@ -48,16 +52,8 @@ _LEVEL_SUMMARY_SCHEMA = {
     "type": "object",
     "properties": {
         "core_summary": {
-            "type": "array",
-            "description": "소제목별 요약",
-            "items": {
-                "type": "object",
-                "properties": {
-                    "heading": {"type": "string"},
-                    "content": {"type": "string"},
-                },
-                "required": ["heading", "content"],
-            },
+            "type": "string",
+            "description": "소제목+내용을 줄바꿈으로 연결한 문자열. 형식: heading\\ncontent\\n\\nheading\\ncontent",
         },
         "key_points": {
             "type": "array",
@@ -161,4 +157,8 @@ def build_user_prompt_all_levels(text: str) -> str:
     """
     if not text:
         raise ValueError("요약할 텍스트가 없습니다")
-    return f"아래 기술 글을 beginner/junior/mid/senior 4개 레벨로 동시에 요약하세요.\n\n---\n\n{text}"
+    return (
+        f"아래 기술 글을 beginner/junior/mid/senior 4개 레벨로 동시에 요약하세요.\n"
+        f"core_summary는 반드시 문자열 형식(heading\\ncontent\\n\\nheading\\ncontent)으로 작성하세요.\n\n"
+        f"---\n\n{text}"
+    )

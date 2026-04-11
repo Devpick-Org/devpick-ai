@@ -17,7 +17,6 @@ _POST = {
     "short_description": "AI 코딩 도구 가이드",
     "url_slug": "claude-code-guide",
     "released_at": "2026-03-15T10:00:00.000Z",
-    "tags": ["AI", "개발도구"],
     "likes": 150,
     "comments_count": 12,
     "user": {"username": "devuser"},
@@ -223,13 +222,13 @@ def test_normalized_content_no_url_slug_returns_none() -> None:
     assert result is None
 
 
-def test_normalized_content_tags_and_likes() -> None:
+def test_normalized_content_likes_and_score() -> None:
     collector = VelogBackfillCollector(min_date="")
     result = collector._to_normalized_content(_POST)
 
     assert result is not None
-    assert result.tags == ["AI", "개발도구"]
     assert result.likes == 150
+    assert result.score is None
     assert result.comments_count == 12
 
 

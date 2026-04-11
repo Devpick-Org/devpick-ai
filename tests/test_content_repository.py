@@ -16,6 +16,7 @@ def _make_item(
     published_at: str = "2026-03-01T00:00:00+00:00",
     thumbnail_url: str | None = "https://example.com/thumb.jpg",
     likes: int | None = None,
+    score: int | None = None,
     view_count: int | None = None,
 ) -> NormalizedContent:
     return NormalizedContent(
@@ -26,6 +27,7 @@ def _make_item(
         published_at=published_at,
         thumbnail_url=thumbnail_url,
         likes=likes,
+        score=score,
         view_count=view_count,
     )
 
@@ -150,11 +152,11 @@ def test_save_contents_maps_body_candidate_to_original_content() -> None:
     assert params["original_content"] == "<p>원본 HTML</p>"
 
 
-def test_save_contents_maps_likes_to_score() -> None:
+def test_save_contents_maps_score_field_to_db_score() -> None:
     repo, mock_engine = _make_repo()
     mock_conn = _setup_conn(mock_engine)
 
-    item = _make_item(likes=42)
+    item = _make_item(score=42)
     repo.save_contents([item])
 
     insert_call = mock_conn.execute.call_args_list[-1]

@@ -281,9 +281,6 @@ class StackOverflowCollector:
         if not canonical_url:
             return None
 
-        # API에서 tags 가져오기 (없으면 빈 리스트)
-        tags: list[str] = api_data.get("tags") or []
-
         # is_answered
         is_answered: bool | None = api_data.get("is_answered")
 
@@ -324,9 +321,9 @@ class StackOverflowCollector:
             ),
             is_original_visible=True,
             license_type=_LICENSE_TYPE,
-            tags=tags,
             view_count=scraped.get("view_count"),
-            likes=scraped.get("score"),
+            score=scraped.get("score"),
+            likes=None,
             is_answered=is_answered,
             question_content=question_content,
             accepted_answer=accepted_answer,

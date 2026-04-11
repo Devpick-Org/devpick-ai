@@ -432,6 +432,7 @@ def test_to_normalized_content_likes_and_comments_count() -> None:
 
     assert result is not None
     assert result.likes == 123
+    assert result.score is None
     assert result.comments_count == 45
 
 

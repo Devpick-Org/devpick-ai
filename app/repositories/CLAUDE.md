@@ -25,12 +25,14 @@ DynamoDB + PostgreSQL 접근 레이어. 각 도메인별 저장/조회 로직을
 ```python
 ContentRepository(database_url: str)
 save_contents(items: list[NormalizedContent]) -> SaveResult
+save_ai_metadata(content_id: str, tags: list[str], category: str) -> None
 close() -> None
 ```
 
 - PostgreSQL 직접 저장 (Backend push 불필요)
 - `SaveResult.inserted`: 신규 저장된 `(content_id, NormalizedContent)` 목록 — ContentPipeline 입력
 - `SaveResult.saved` / `SaveResult.skipped`: 저장/중복 스킵 카운트
+- `save_ai_metadata`: 요약 완료 후 AI 생성 tags·category를 contents 테이블에 UPDATE — ContentPipeline Step 3-1
 
 ---
 

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 
+from app.repositories.content_repository import ContentRepository
 from app.repositories.quiz_repository import QuizRepository
 from app.repositories.summary_repository import SummaryRepository
 from app.services.all_levels_summary_service import AllLevelsSummaryService
@@ -25,8 +26,12 @@ class ContentPipeline:
         self,
         aws_region: str = "ap-northeast-2",
         bedrock_model: str = "anthropic.claude-3-5-sonnet-20241022-v2:0",
+        database_url: str | None = None,
     ) -> None:
         self._preprocess = PreprocessService()
+        self._content_repo: ContentRepository | None = (
+            ContentRepository(database_url) if database_url else None
+        )
         self._summary_svc = AllLevelsSummaryService(
             aws_region=aws_region, model=bedrock_model
         )
@@ -73,6 +78,20 @@ class ContentPipeline:
             except Exception:
                 logger.exception(
                     "[pipeline] content_id=%s 요약 DynamoDB 저장 실패", content_id
+                )
+
+        # Step 3-1: AI 태그·카테고리 PostgreSQL 저장 (fire-and-forget)
+        if summary and self._content_repo:
+            try:
+                self._content_repo.save_ai_metadata(
+                    content_id=content_id,
+                    tags=summary.common.tags,
+                    category=summary.common.category,
+                )
+            except Exception:
+                logger.exception(
+                    "[pipeline] content_id=%s AI metadata PostgreSQL 저장 실패",
+                    content_id,
                 )
 
         # Step 4: 임베딩 (fire-and-forget)

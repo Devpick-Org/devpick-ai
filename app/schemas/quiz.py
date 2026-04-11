@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 
 class QuizOption(BaseModel):
@@ -23,6 +23,26 @@ class QuizQuestion(BaseModel):
     options: list[QuizOption]
     correct_option_id: str  # 객관식: "A"~"E", 주관식: ""
     explanation: str
+    # 주관식 단답 정답(자동 채점용). 객관식은 반드시 "".
+    correct_answer: str = ""
+
+    @model_validator(mode="after")
+    def validate_answer_fields(self) -> QuizQuestion:
+        if self.type == "multiple_choice":
+            if self.correct_answer.strip():
+                raise ValueError(
+                    "multiple_choice 문항은 correct_answer가 빈 문자열이어야 합니다"
+                )
+        elif self.type == "short_answer":
+            if not self.correct_answer.strip():
+                raise ValueError(
+                    "short_answer 문항은 correct_answer에 단답 정답이 필요합니다"
+                )
+            if self.correct_option_id.strip():
+                raise ValueError(
+                    "short_answer 문항은 correct_option_id가 빈 문자열이어야 합니다"
+                )
+        return self
 
 
 class LevelQuiz(BaseModel):

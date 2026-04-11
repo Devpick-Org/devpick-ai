@@ -1,0 +1,12 @@
+# EC2 배포용: FastAPI AI 서버만 컨테이너로 실행.
+# DB(PostgreSQL RDS), DynamoDB, FAISS 인덱스는 .env 또는 볼륨으로 연결.
+services:
+  app:
+    build: .
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env
+    volumes:
+      - ./data:/app/data
+    restart: unless-stopped

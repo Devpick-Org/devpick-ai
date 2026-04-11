@@ -17,6 +17,10 @@ RSS 파이프라인을 제거하고 **통합 수집기(백필 + incremental)** �
 | `backfill/toss.py` | `TossBackfillCollector` | 리스팅 페이지네이션 + article body 추출 |
 | `backfill/medium_direct.py` | `MediumDirectBackfillCollector` | Medium 내부 JSON API + curl_cffi |
 | `backfill/oliveyoung.py` | `OliveYoungBackfillCollector` | RSS 피드 파싱 (본문 전체 포함) |
+| `backfill/stackoverflow.py` | `StackOverflowBackfillCollector` | SO API — `NormalizedContent` 직접 반환. `score` 필드 매핑, `likes=None` |
+| `backfill/velog.py` | `VelogBackfillCollector` | GraphQL API — `NormalizedContent` 직접 반환. `likes` 필드 매핑, `score=None` |
+| `stackoverflow.py` | `StackOverflowCollector` | SO 트렌딩 페이지 스크래핑 + SO API 보강 — `score`/`view_count` 추출 |
+| `velog.py` | `VelogCollector` | Velog GraphQL trending/posts 폴백 수집 — `likes` 추출 |
 
 ---
 
@@ -56,6 +60,8 @@ class BackfillCollector(ABC):
 | `Toss_Tech` | `{"phase": "backfill", "next_page": 5, "pending_slugs": [...], "seen_slugs": [...]}` | `{"phase": "incremental", "seen_slugs": [...]}` |
 | `Medium_*` | `{"phase": "backfill", "collection_id": "...", "next_to": null, "discovery_done": false, "pending": [...], "seen_urls": [...]}` | `{"phase": "incremental", "collection_id": "...", "seen_urls": [...]}` |
 | `OliveYoung_Tech` | `{"phase": "backfill", "seen_ids": [...]}` | `{"phase": "incremental", "seen_ids": [...]}` |
+| `Stack_Overflow` | `{"phase": "backfill", "year": 2026, "month": 1}` | `{"phase": "incremental"}` |
+| `Velog` | `{"phase": "backfill", "fetched": false}` | `{"phase": "incremental"}` |
 
 ---
 

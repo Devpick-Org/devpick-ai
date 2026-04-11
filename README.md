@@ -77,15 +77,17 @@ NormalizeService → NormalizedContent
 ContentRepository → PostgreSQL 직접 저장
     ↓ (신규 저장된 콘텐츠만)
 ContentPipeline.process_content()
-    ├─ Step 1: PreprocessService  — HTML → 구조 보존 텍스트
-    ├─ Step 2: AllLevelsSummaryService  — 4레벨 요약 생성 (Bedrock 1회 호출)
-    ├─ Step 3: SummaryRepository  — DynamoDB ai_summaries 저장
-    ├─ Step 4: QuizService  — 4레벨 퀴즈 생성 (Bedrock 1회 호출)
-    │          QuizRepository  — DynamoDB ai_quizzes 저장
-    └─ Step 5: EmbeddingOrchestrator  — RAG 임베딩 → DynamoDB + FAISS
+    ├─ Step 1:   PreprocessService    — HTML → 구조 보존 텍스트
+    ├─ Step 2:   AllLevelsSummaryService — 4레벨 요약 생성 (Bedrock 1회 호출)
+    ├─ Step 3:   SummaryRepository    — DynamoDB ai_summaries 저장
+    ├─ Step 3-1: ContentRepository    — PostgreSQL contents tags·category UPDATE
+    ├─ Step 4:   QuizService          — 4레벨 퀴즈 생성 (Bedrock 1회 호출)
+    │            QuizRepository       — DynamoDB ai_quizzes 저장
+    └─ Step 5:   EmbeddingOrchestrator — RAG 임베딩 → DynamoDB + FAISS
 ```
 
 - 요약(Step 2~3)과 퀴즈(Step 4)는 독립 실행 — 요약 실패해도 퀴즈는 생성
+- Step 3-1은 요약 성공 시에만 실행 — AI 생성 tags·category를 PostgreSQL에 저장
 - Backend는 Redis → DynamoDB 순서로 조회, miss 시 fallback 엔드포인트 호출
 
 ### 수집 소스

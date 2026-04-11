@@ -58,7 +58,6 @@ query TrendingPosts($input: TrendingPostsInput!) {
     thumbnail
     url_slug
     released_at
-    tags
     likes
     comments_count
     user {
@@ -351,7 +350,6 @@ class VelogBackfillCollector:
                     "short_description": None,
                     "url_slug": url_slug,
                     "released_at": None,
-                    "tags": [],
                     "likes": None,
                     "comments_count": None,
                     "user": {"username": username},
@@ -393,7 +391,6 @@ class VelogBackfillCollector:
         if preview and len(preview) > _PREVIEW_MAX_LENGTH:
             preview = preview[:_PREVIEW_MAX_LENGTH]
 
-        tags: list[str] = post.get("tags") or []
         thumbnail_url: str | None = post.get("thumbnail") or None
 
         likes_raw = post.get("likes")
@@ -414,9 +411,9 @@ class VelogBackfillCollector:
             body_candidate=body_candidate,
             is_original_visible=True,
             license_type=None,
-            tags=tags,
             thumbnail_url=thumbnail_url,
             likes=likes,
+            score=None,
             comments_count=comments_count,
         )
 

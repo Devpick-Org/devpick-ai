@@ -34,6 +34,9 @@
   - **RSS 파이프라인 제거 → 통합 수집기(백필+incremental) 단일화 (중복 수집 문제 해결)**
   - **4레벨 퀴즈 생성 QuizService + QuizRepository + POST /internal/quiz 구현 완료 (DP-265)**
   - **수집 직후 ContentPipeline에서 요약 + 퀴즈 자동 생성 통합**
+  - **NormalizedContent score 필드 추가 + tags 필드 제거 (소스별 지표 의미 분리: Velog=likes, SO=score) (DP-300)**
+  - **AI 요약 tags·category → PostgreSQL contents 테이블 저장 (ContentPipeline Step 3-1, save_ai_metadata) (DP-300)**
+  - **요약 프롬프트 개선: core_summary string 포맷 통일, 섹션 수 원본 구조 추적, 레벨별 독자 관점 차별화 (DP-300)**
 
 ---
 
@@ -58,7 +61,7 @@
 
 1. **콘텐츠 수집 및 정규화** — 통합 수집기(백필+incremental) → `NormalizedContent`
 2. **PostgreSQL 직접 저장** — `ContentRepository` (Backend push 없음)
-3. **AI 요약 + 퀴즈 자동 생성** — `ContentPipeline`: 저장 직후 4레벨 요약 + 4레벨 퀴즈 생성 → DynamoDB
+3. **AI 요약 + 퀴즈 자동 생성** — `ContentPipeline`: 저장 직후 4레벨 요약 + 4레벨 퀴즈 생성 → DynamoDB. 요약 성공 시 tags·category → PostgreSQL UPDATE
 4. **AI 질문/답변/리포트** — RefineService, AnswerService, InsightService
 5. **출력 JSON 스키마 검증 + 파싱 실패 대응**
 6. **캐시/저장/로그 기록**
@@ -99,7 +102,6 @@ devpick-ai/
 │   ├── services/       # 비즈니스 로직 (수집, 요약, 퀴즈, 임베딩, 답변 등)
 │   ├── stores/         # SentIdStore + BackfillCursor
 │   └── utils/          # XML/HTML 파싱 헬퍼
-├── docs/               # 운영/설계 문서
 ├── scripts/            # 일회성/운영 스크립트
 ├── tests/              # pytest 테스트
 ├── data/raw/           # 수집 원본 JSONL (gitignore)
@@ -187,7 +189,6 @@ pytest -q
 | `app/repositories/` | [app/repositories/CLAUDE.md](app/repositories/CLAUDE.md) — DynamoDB/PostgreSQL 접근 레이어 |
 | `scripts/` | [scripts/CLAUDE.md](scripts/CLAUDE.md) — 운영 스크립트 |
 | `tests/` | [tests/CLAUDE.md](tests/CLAUDE.md) — 테스트 |
-| `docs/` | [docs/CLAUDE.md](docs/CLAUDE.md) — 설계/운영 문서 |
 
 ---
 

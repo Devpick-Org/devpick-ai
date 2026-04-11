@@ -20,9 +20,9 @@ class NormalizedContent(BaseModel):
     thumbnail_width: int | None = None
     thumbnail_height: int | None = None
     license_type: str | None = None
-    tags: list[str] = Field(default_factory=list)
     # 소스별 참여 지표 (수집 통계용, null for RSS sources)
-    likes: int | None = None  # 좋아요/추천수 (Velog: likes, SO: score)
+    likes: int | None = None  # 좋아요/반응수 — Velog likes
+    score: int | None = None  # 투표 순점수 — StackOverflow score (찬성-반대, 음수 가능)
     view_count: int | None = None  # 조회수 (SO: view_count)
     comments_count: int | None = None  # 댓글수 (Velog: comments_count)
     # Stack Overflow 전용 필드

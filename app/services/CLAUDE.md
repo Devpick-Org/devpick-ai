@@ -20,7 +20,6 @@
 | `question_embedding_service.py` | `QuestionEmbeddingOrchestrator` | 질문 임베딩 → DynamoDB rag_questions + FAISS questions 저장 (DP-234) |
 | `similar_question_service.py` | `SimilarQuestionService` | FAISS questions 인덱스 유사 질문 검색 (DP-235) |
 | `insight_service.py` | `InsightService` | Bedrock Tool Use 기반 주간 학습 인사이트 생성 (DP-259) |
-| `push_service.py` | `PushService` | **Deprecated** — Backend HTTP push (현재 미사용, ContentRepository로 대체) |
 
 ---
 
@@ -34,14 +33,16 @@ process_content(content_id, body_html, thumbnail_url=None) -> None
 PostgreSQL 저장 직후 신규 콘텐츠에 대해 순서대로 실행:
 
 ```
-Step 1: PreprocessService.preprocess(body_html) → preprocessed
-Step 2: AllLevelsSummaryService.summarize_all() → summary  [실패 시 None, 계속 진행]
-Step 3: SummaryRepository.save_all_levels() → DynamoDB ai_summaries  [summary 있을 때만]
-Step 4: QuizService.generate_all() + QuizRepository.save() → DynamoDB ai_quizzes  [항상 시도]
-Step 5: EmbeddingOrchestrator.embed_and_store() → DynamoDB + FAISS  [summary 있을 때만]
+Step 1:   PreprocessService.preprocess(body_html) → preprocessed
+Step 2:   AllLevelsSummaryService.summarize_all() → summary  [실패 시 None, 계속 진행]
+Step 3:   SummaryRepository.save_all_levels() → DynamoDB ai_summaries  [summary 있을 때만]
+Step 3-1: ContentRepository.save_ai_metadata() → PostgreSQL contents tags·category UPDATE  [summary + DB 주입 시]
+Step 4:   QuizService.generate_all() + QuizRepository.save() → DynamoDB ai_quizzes  [항상 시도]
+Step 5:   EmbeddingOrchestrator.embed_and_store() → DynamoDB + FAISS  [summary 있을 때만]
 ```
 
 - **요약(Step 2)과 퀴즈(Step 4)는 독립** — 요약 실패해도 퀴즈 생성 시도
+- **Step 3-1(PostgreSQL)은 요약 성공 + `database_url` 주입 시에만 실행**
 - **임베딩(Step 5)은 요약 의존** — summary 객체가 없으면 skip
 - 각 단계는 독립 try/except — 한 단계 실패해도 다음 단계 계속 시도
 - `scripts/run_backfill_batch.py`에서 `result.inserted` 기준으로 호출

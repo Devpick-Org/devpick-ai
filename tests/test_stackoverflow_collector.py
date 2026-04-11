@@ -98,7 +98,8 @@ def test_fetch_returns_normalized_contents() -> None:
     assert content.is_original_visible is True
     assert content.license_type == "CC BY-SA 4.0"
     assert content.view_count == 1200
-    assert content.likes == 15
+    assert content.score == 15
+    assert content.likes is None
 
 
 def test_fetch_returns_empty_when_trending_page_empty() -> None:
@@ -287,7 +288,8 @@ def test_to_normalized_content_basic_fields() -> None:
     assert result.title == "Test Question"
     assert result.author == "devuser"
     assert result.view_count == 1000
-    assert result.likes == 15
+    assert result.score == 15
+    assert result.likes is None
     assert result.is_original_visible is True
     assert result.license_type == "CC BY-SA 4.0"
 
@@ -301,15 +303,16 @@ def test_to_normalized_content_missing_canonical_url_returns_none() -> None:
     assert result is None
 
 
-def test_to_normalized_content_tags_from_api() -> None:
+def test_to_normalized_content_score_from_api() -> None:
     collector = StackOverflowCollector()
-    scraped = _make_scraped()
-    api_data = _make_api_data(tags=["python", "django"])
+    scraped = _make_scraped(score=42)
+    api_data = _make_api_data()
 
     result = collector._to_normalized_content(scraped, api_data, [])
 
     assert result is not None
-    assert result.tags == ["python", "django"]
+    assert result.score == 42
+    assert result.likes is None
 
 
 def test_to_normalized_content_is_answered() -> None:
@@ -375,7 +378,6 @@ def test_to_normalized_content_no_api_data_returns_content() -> None:
 
     assert result is not None
     assert result.body_candidate is None
-    assert result.tags == []
     assert result.is_answered is None
     assert result.accepted_answer is None
     assert result.top_answers == []

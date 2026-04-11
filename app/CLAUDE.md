@@ -45,12 +45,14 @@ ContentPipeline.process_content(content_id, body_html, thumbnail_url)
     ↓ Step 1: PreprocessService → HTML → 구조 보존 텍스트
     ↓ Step 2: AllLevelsSummaryService → 4레벨 요약 생성 (Bedrock 1회 호출)
     ↓ Step 3: SummaryRepository → DynamoDB ai_summaries 저장
+    ↓ Step 3-1: ContentRepository.save_ai_metadata() → PostgreSQL contents (tags·category UPDATE)
     ↓ Step 4: QuizService → 4레벨 퀴즈 생성 (Bedrock 1회 호출)
               QuizRepository → DynamoDB ai_quizzes 저장
     ↓ Step 5: EmbeddingOrchestrator → RAG 임베딩 → DynamoDB + FAISS
 ```
 
 - Steps 2~3(요약)과 Step 4(퀴즈)는 독립적으로 실행 — 요약 실패해도 퀴즈 생성 시도
+- Step 3-1(PostgreSQL tags·category)은 요약 성공 + ContentRepository 주입 시에만 실행
 - Step 5(임베딩)는 요약 성공 시에만 실행 (summary 객체 필요)
 - 전체 파이프라인 실행 진입점: `scripts/run_backfill_batch.py`
 

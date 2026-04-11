@@ -21,7 +21,7 @@
 ### Idempotent (멱등성)
 - 동일 스크립트를 여러 번 실행해도 결과가 동일해야 한다
 - 중복 생성, 중복 삽입이 발생하지 않도록 upsert 또는 존재 여부 확인 후 처리한다
-- MongoDB 인덱스 생성 시 `create_index` 대신 `ensure_index` 방식 또는 중복 무시 옵션을 사용한다
+- PostgreSQL 인덱스 생성 시 `CREATE INDEX IF NOT EXISTS` 구문을 사용한다
 
 ### 실패 처리
 - 스크립트 실패 시 명확한 에러 메시지를 출력하고 non-zero exit code로 종료한다
@@ -33,78 +33,48 @@
 
 | 파일 | 설명 |
 |------|------|
+| `run_backfill_batch.py` | 1회 수집 실행 — PostgreSQL 직접 저장 + AI 처리(요약·퀴즈·임베딩) |
+| `run_scheduler.py` | 6시간 간격 자동 반복 실행 (APScheduler 기반) |
+| `run_collect_and_save.py` | 수집 → 로컬 JSONL 저장 전용 (AI 처리 없음, 개발·디버그용) |
+| `init_postgres.py` | PostgreSQL UNIQUE 인덱스 초기화 — 배포 시 1회 실행 (멱등성 보장) |
 | `init_vectors.py` | FAISS 벡터 디렉터리 초기화 (Bedrock Titan v2 기반) |
 | `reindex_vectors.py` | FAISS 인덱스 재빌드 — DynamoDB rag_documents 기반 (인덱스 유실 시) |
-| `run_collect_and_save.py` | 수집 → 정규화 → dedup → 로컬 JSONL 저장 (백서버 미연동 환경). `--backfill` 플래그로 백필 수집도 지원 |
-| `run_collect_and_push.py` | 수집 → 정규화 → dedup → Backend push 통합 파이프라인 (DP-199) |
-| `run_backfill_batch.py` | 백필 1회 배치 실행 — 소스당 20개 수집 → push (DP-199) |
-| `run_scheduler.py` | 6시간 간격으로 RSS + 백필 배치 반복 실행 |
-| `inspect_preprocess.py` | URL 기반 전처리 출력 확인 |
+| `inspect_preprocess.py` | URL 기반 전처리 출력 확인 (디버그용) |
 
-### `run_collect_and_save.py` (DP-199)
+### `run_backfill_batch.py`
 
-백서버 미연동 환경에서 수집 결과를 로컬에 저장한다.
+1회 수집 실행. 소스당 최대 20개 수집 → PostgreSQL 직접 저장 → AI 처리(요약·퀴즈·임베딩) 자동 실행.
 
 ```bash
-# RSS + Crawl만 (기본)
-python scripts/run_collect_and_save.py
-
-# 백필 소스 전체 포함 (배치 3개씩)
-python scripts/run_collect_and_save.py --backfill
-
-# 특정 백필 소스만, 배치 크기 지정
-python scripts/run_collect_and_save.py --backfill --source Medium_daangn --batch-size 5
-python scripts/run_collect_and_save.py --backfill --source LY_Corp --source Woowahan
+DATABASE_URL=postgresql://... python scripts/run_backfill_batch.py
 ```
 
-- 환경변수 불필요
-- Level-2 소스(RSS/Atom) → `RSSCollector`, Level-1 소스(Crawl) → `RSSCrawlCollector` 순으로 실행
-- `--backfill`: 백필 소스도 1배치 수집 (기본값 3개, `--batch-size N`으로 조정)
-- `--source NAME`: 백필 소스 필터 (`--backfill` 사용 시, 여러 번 지정 가능)
-- `SentIdStore(data/raw/sent_ids)` — `run_collect_and_push.py`와 dedup 상태 공유
-- 출력: `data/raw/normalized/{source_name}.jsonl` (append)
-- 소스별 실패는 개별 catch — 전체 파이프라인이 중단되지 않는다
-
-### `run_collect_and_push.py` (DP-199)
-
-수집 파이프라인 전체를 한 번에 실행한다. 백서버 연동 시 사용.
-
-```bash
-BACKEND_URL=http://localhost:8080 python scripts/run_collect_and_push.py
-```
-
-- `BACKEND_URL` 미설정 시 `http://localhost:8080` 기본값 사용
-- Level-2 소스(RSS/Atom) → `RSSCollector`, Level-1 소스(Crawl) → `RSSCrawlCollector` 순으로 실행
-- `SentIdStore`로 cross-run dedup — 이미 전송된 항목은 재전송하지 않는다
-- 소스별 실패는 개별 catch — 전체 파이프라인이 중단되지 않는다
+- `BackfillCursor(data/raw/backfill_cursor)` — 소스별 진행 상태(phase/커서) 파일 관리
+- `SentIdStore(data/raw/sent_ids)` — cross-run dedup
+- 커서 phase: `backfill`(과거 글 전량) → `incremental`(최신 글만) 자동 전환
+- 소스별 실패는 개별 catch — 전체 배치가 중단되지 않는다
 
 ### `run_scheduler.py`
 
 APScheduler 기반 반복 실행기. 즉시 1회 실행 후 6시간마다 반복한다.
 
 ```bash
-BACKEND_URL=http://localhost:8080 python scripts/run_scheduler.py
+DATABASE_URL=postgresql://... python scripts/run_scheduler.py
 # Ctrl+C로 중단
 ```
 
 - `BlockingScheduler` 사용 — 프로세스가 살아 있는 동안 계속 실행
-- `next_run_time=datetime.now()` — 시작 즉시 첫 실행
-- RSS 수집 + 백필 배치 2개 job 등록 (각 6시간 간격)
-- 백필 소스 전체 완료 시 자동 skip
 - 도커/서버 환경에서 장기 실행 프로세스로 사용
 
-### `run_backfill_batch.py` (DP-199)
+### `run_collect_and_save.py`
 
-백필 1회 배치 실행. 소스당 최대 20개 과거 글을 수집하여 Backend로 push한다.
+수집 → 로컬 JSONL 저장 전용. AI 처리 없음. 개발·디버그 환경에서 사용.
 
 ```bash
-BACKEND_URL=http://localhost:8080 python scripts/run_backfill_batch.py
+python scripts/run_collect_and_save.py
 ```
 
-- `BackfillCursor(data/raw/backfill_cursor)` — 소스별 진행 상태 파일 관리
-- `SentIdStore(data/raw/sent_ids)` — RSS 파이프라인과 dedup 상태 공유
-- 커서 `"done": true` → 해당 소스 skip, 전체 done → 즉시 반환
-- 소스별 실패는 개별 catch — 전체 배치가 중단되지 않는다
+- 출력: `data/raw/normalized/{source_name}.jsonl` (append)
 
 ### `inspect_preprocess.py` (DP-216)
 
@@ -130,7 +100,7 @@ source .venv/bin/activate          # macOS/Linux
 .venv\Scripts\activate             # Windows
 
 # 환경변수 로드는 스크립트 내부에서 처리
-python scripts/init_mongo.py
+DATABASE_URL=postgresql://... python scripts/init_postgres.py
 ```
 
 ---

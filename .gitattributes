@@ -1,0 +1,2 @@
+# Python 파일은 항상 LF로 저장 (black/CI 포맷 일관성)
+*.py text eol=lf

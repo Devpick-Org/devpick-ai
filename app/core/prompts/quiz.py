@@ -21,7 +21,8 @@ SYSTEM_PROMPT_QUIZ = """\
 - 글의 핵심 개념·원리를 검증하는 문제를 출제하세요. 사소한 세부 수치나 예시는 피하세요.
 - 4개 레벨은 같은 핵심 개념을 다루되, 용어와 표현 방식만 레벨에 맞게 조정하세요.
 - 객관식 오답 선지는 그럴듯하게 작성하세요 (단순 엉터리 오답 금지).
-- 객관식 정답은 correct_option_id에 "A"~"E" 중 하나를 입력하세요. 주관식은 빈 문자열("")로 입력하세요.
+- 객관식 정답은 correct_option_id에 "A"~"E" 중 하나를 입력하고, correct_answer는 반드시 빈 문자열("")로 두세요.
+- 주관식은 correct_option_id를 빈 문자열("")로 두고, 자동 채점용 모범 답은 correct_answer에만 넣으세요(단어 또는 짧은 구절, 10단어 이내). explanation은 해설이며 정답 텍스트와 구분합니다.
 - 주관식 답은 단어 또는 짧은 구절이어야 합니다. 문장형 정답은 출제하지 마세요.
 - 문제 순서는 반드시 1번·2번 객관식, 3번 주관식 순서를 지키세요.
 - 모든 문제는 한국어로 작성하되, 기술 용어(라이브러리명, API명 등)는 원어 그대로 사용하세요.
@@ -90,6 +91,10 @@ _QUESTIONS_SCHEMA = {
                         "type": "string",
                         "description": "정답 이유 설명 (2~3문장)",
                     },
+                    "correct_answer": {
+                        "type": "string",
+                        "description": "주관식: 자동 채점용 모범 답(단답). 객관식: 반드시 빈 문자열",
+                    },
                 },
                 "required": [
                     "type",
@@ -97,6 +102,7 @@ _QUESTIONS_SCHEMA = {
                     "options",
                     "correct_option_id",
                     "explanation",
+                    "correct_answer",
                 ],
             },
         },

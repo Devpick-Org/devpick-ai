@@ -30,12 +30,18 @@ class QuizQuestion(BaseModel):
     def validate_answer_fields(self) -> QuizQuestion:
         if self.type == "multiple_choice":
             if self.correct_answer.strip():
-                raise ValueError("multiple_choice 문항은 correct_answer가 빈 문자열이어야 합니다")
+                raise ValueError(
+                    "multiple_choice 문항은 correct_answer가 빈 문자열이어야 합니다"
+                )
         elif self.type == "short_answer":
             if not self.correct_answer.strip():
-                raise ValueError("short_answer 문항은 correct_answer에 단답 정답이 필요합니다")
+                raise ValueError(
+                    "short_answer 문항은 correct_answer에 단답 정답이 필요합니다"
+                )
             if self.correct_option_id.strip():
-                raise ValueError("short_answer 문항은 correct_option_id가 빈 문자열이어야 합니다")
+                raise ValueError(
+                    "short_answer 문항은 correct_option_id가 빈 문자열이어야 합니다"
+                )
         return self
 
 

@@ -67,7 +67,6 @@ class RefineService:
                 modelId=self._model,
                 system=[
                     {"text": SYSTEM_PROMPT},
-                    {"cachePoint": {"type": "default"}},
                 ],
                 messages=[{"role": "user", "content": [{"text": user_prompt}]}],
                 toolConfig=to_tool_config(REFINE_TOOL, _TOOL_NAME),

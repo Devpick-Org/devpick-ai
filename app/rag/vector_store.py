@@ -23,6 +23,8 @@ def _normalize_faiss_score(raw: float) -> float:
         return raw
     # L2 정규화 벡터의 내적은 대개 [-1, 1] 근처
     return max(0.0, min(1.0, (raw + 1.0) / 2.0))
+
+
 _PKL_SUFFIX = ".pkl"
 
 

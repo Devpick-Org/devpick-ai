@@ -4,12 +4,25 @@ from __future__ import annotations
 
 import logging
 from datetime import datetime, timezone
+from decimal import Decimal
+from typing import Any
 
 import boto3
 
 from app.schemas.answer import AnswerResponse
 
 logger = logging.getLogger(__name__)
+
+
+def _dynamodb_compatible(value: Any) -> Any:
+    """DynamoDB는 float을 허용하지 않으므로 Decimal·중첩 구조를 변환한다."""
+    if isinstance(value, float):
+        return Decimal(str(value))
+    if isinstance(value, dict):
+        return {k: _dynamodb_compatible(v) for k, v in value.items()}
+    if isinstance(value, list):
+        return [_dynamodb_compatible(v) for v in value]
+    return value
 
 
 class AnswerRepository:
@@ -62,7 +75,11 @@ class AnswerRepository:
             ),
             ExpressionAttributeNames={f"#{k}": k for k in doc if k != "question_id"},
             ExpressionAttributeValues={
-                **{f":{k}": v for k, v in doc.items() if k != "question_id"},
+                **{
+                    f":{k}": _dynamodb_compatible(v)
+                    for k, v in doc.items()
+                    if k != "question_id"
+                },
                 ":created_at": now,
             },
         )

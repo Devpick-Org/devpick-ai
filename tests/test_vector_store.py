@@ -117,7 +117,7 @@ def test_search_returns_rag_documents(manager: VectorStoreManager) -> None:
         },
     )
     mock_store = MagicMock()
-    mock_store.similarity_search_with_relevance_scores.return_value = [(lc_doc, 0.9)]
+    mock_store.similarity_search_with_score.return_value = [(lc_doc, 0.9)]
     manager._store = mock_store
 
     results = manager.search("쿼리", top_k=3)
@@ -129,12 +129,31 @@ def test_search_returns_rag_documents(manager: VectorStoreManager) -> None:
 
 def test_search_passes_top_k(manager: VectorStoreManager) -> None:
     mock_store = MagicMock()
-    mock_store.similarity_search_with_relevance_scores.return_value = []
+    mock_store.similarity_search_with_score.return_value = []
     manager._store = mock_store
     manager.search("쿼리", top_k=7)
-    mock_store.similarity_search_with_relevance_scores.assert_called_once_with(
-        "쿼리", k=7
+    mock_store.similarity_search_with_score.assert_called_once_with("쿼리", k=7)
+
+
+def test_search_normalizes_negative_inner_product_scores(manager: VectorStoreManager) -> None:
+    """FAISS 내적 점수가 음수여도 [0,1]로 정규화한다."""
+    from langchain_core.documents import Document
+
+    lc_doc = Document(
+        page_content="x",
+        metadata={
+            "content_id": "cid-001",
+            "chunk_index": 0,
+            "keywords": [],
+            "tags": [],
+        },
     )
+    mock_store = MagicMock()
+    mock_store.similarity_search_with_score.return_value = [(lc_doc, -0.14)]
+    manager._store = mock_store
+
+    _, score = manager.search("q", top_k=1)[0]
+    assert score == pytest.approx(0.43)
 
 
 # ── save ───────────────────────────────────────────────────────────────────

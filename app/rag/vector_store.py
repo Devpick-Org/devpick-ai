@@ -15,6 +15,14 @@ from app.rag.schemas import ChunkMetadata, RAGDocument
 logger = logging.getLogger(__name__)
 
 _INDEX_SUFFIX = ".faiss"
+
+
+def _normalize_faiss_score(raw: float) -> float:
+    """FAISS 내적 유사도를 [0, 1] 구간으로 맞춘다 (유사 질문 threshold 등과 호환)."""
+    if 0.0 <= raw <= 1.0:
+        return raw
+    # L2 정규화 벡터의 내적은 대개 [-1, 1] 근처
+    return max(0.0, min(1.0, (raw + 1.0) / 2.0))
 _PKL_SUFFIX = ".pkl"
 
 
@@ -84,9 +92,12 @@ class VectorStoreManager:
             logger.warning("FAISS 인덱스가 비어 있습니다")
             return []
 
-        results = self._store.similarity_search_with_relevance_scores(query, k=top_k)
+        # similarity_search_with_relevance_scores 는 [0,1] 점수를 기대하지만,
+        # IndexFlatIP(내적) 인덱스는 음수·1 초과 값이 나와 UserWarning이 난다.
+        results = self._store.similarity_search_with_score(query, k=top_k)
         output = []
-        for lc_doc, score in results:
+        for lc_doc, raw in results:
+            score = _normalize_faiss_score(float(raw))
             metadata = ChunkMetadata(**lc_doc.metadata)
             rag_doc = RAGDocument(text=lc_doc.page_content, metadata=metadata)
             output.append((rag_doc, score))

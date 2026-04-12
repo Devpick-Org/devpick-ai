@@ -85,7 +85,6 @@ class AnswerService:
                 modelId=self._model,
                 system=[
                     {"text": SYSTEM_PROMPT},
-                    {"cachePoint": {"type": "default"}},
                 ],
                 messages=[{"role": "user", "content": [{"text": user_prompt}]}],
                 toolConfig=to_tool_config(ANSWER_TOOL, _TOOL_NAME),

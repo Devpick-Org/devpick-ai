@@ -290,6 +290,7 @@ def main(batch_size: int = BATCH_SIZE, only_sources: set[str] | None = None) -> 
         return
 
     aws_region = os.environ.get("AWS_REGION", "ap-northeast-2")
+    bedrock_region = os.environ.get("BEDROCK_REGION", "us-east-1")
     bedrock_model = os.environ.get(
         "BEDROCK_MODEL_BATCH", "global.anthropic.claude-sonnet-4-6"
     )
@@ -301,6 +302,7 @@ def main(batch_size: int = BATCH_SIZE, only_sources: set[str] | None = None) -> 
     content_repo = ContentRepository(database_url=database_url)
     pipeline = ContentPipeline(
         aws_region=aws_region,
+        bedrock_region=bedrock_region,
         bedrock_model=bedrock_model,
         bedrock_model_summary=bedrock_model_summary,
     )

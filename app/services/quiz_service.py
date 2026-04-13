@@ -31,10 +31,11 @@ class QuizService:
     def __init__(
         self,
         aws_region: str = "ap-northeast-2",
-        model: str = "anthropic.claude-3-5-sonnet-20241022-v2:0",
+        model: str = "global.anthropic.claude-sonnet-4-6",
     ) -> None:
         self._client = boto3.client("bedrock-runtime", region_name=aws_region)
         self._model = model
+        logger.info("QuizService 초기화 — model=%s", self._model)
 
     def generate_all(self, content_id: str, text: str) -> AllLevelsQuizResponse:
         """4개 레벨 퀴즈(객관식 2 + 주관식 1)를 동시 생성한다.

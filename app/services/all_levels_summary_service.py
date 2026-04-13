@@ -34,10 +34,11 @@ class AllLevelsSummaryService:
     def __init__(
         self,
         aws_region: str = "ap-northeast-2",
-        model: str = "anthropic.claude-3-5-sonnet-20241022-v2:0",
+        model: str = "global.anthropic.claude-haiku-4-5-20251001-v1:0",
     ) -> None:
         self._client = boto3.client("bedrock-runtime", region_name=aws_region)
         self._model = model
+        logger.info("AllLevelsSummaryService 초기화 — model=%s", self._model)
 
     def summarize_all(
         self,

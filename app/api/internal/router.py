@@ -355,7 +355,9 @@ def create_insight(body: InsightRequest) -> InsightResponse:
             logger.exception("Failed to fetch question texts from DynamoDB")
 
     # Step 4. 인사이트 생성
-    result = InsightService(aws_region=_AWS_REGION, model=_BEDROCK_MODEL_BATCH).generate(
+    result = InsightService(
+        aws_region=_AWS_REGION, model=_BEDROCK_MODEL_BATCH
+    ).generate(
         activities=body.activities,
         ai_events=ai_events,
         read_summaries=read_summaries,
@@ -404,7 +406,9 @@ def create_quiz(body: QuizRequest) -> AllLevelsQuizResponse:
     except ValueError as exc:
         raise AIBadRequestError(str(exc)) from exc
 
-    result = QuizService(aws_region=_AWS_REGION, model=_BEDROCK_MODEL_BATCH).generate_all(
+    result = QuizService(
+        aws_region=_AWS_REGION, model=_BEDROCK_MODEL_BATCH
+    ).generate_all(
         content_id=body.content_id,
         text=preprocessed,
     )

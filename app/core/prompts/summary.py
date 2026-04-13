@@ -146,6 +146,29 @@ SUMMARY_ALL_LEVELS_TOOL = {
 }
 
 
+def build_retry_prompt(text: str, missing_levels: list[str]) -> str:
+    """누락된 레벨만 재생성하는 사용자 프롬프트를 반환한다."""
+    levels_str = "/".join(missing_levels)
+    return (
+        f"아래 기술 글에서 {levels_str} 레벨 요약만 생성하세요.\n"
+        f"core_summary는 반드시 문자열 형식(heading\\ncontent\\n\\nheading\\ncontent)으로 작성하세요.\n\n"
+        f"---\n\n{text}"
+    )
+
+
+def build_retry_tool(missing_levels: list[str]) -> dict:
+    """누락된 레벨만 required로 하는 retry용 tool 스키마를 반환한다."""
+    return {
+        "name": "save_all_summaries",
+        "description": f"{', '.join(missing_levels)} 레벨 요약 결과를 저장합니다.",
+        "input_schema": {
+            "type": "object",
+            "properties": {level: _LEVEL_SUMMARY_SCHEMA for level in missing_levels},
+            "required": list(missing_levels),
+        },
+    }
+
+
 def build_user_prompt_all_levels(text: str) -> str:
     """4레벨 동시 생성용 사용자 프롬프트를 생성한다.
 

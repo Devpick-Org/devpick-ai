@@ -66,7 +66,7 @@ class QuizService:
                 ],
                 messages=[{"role": "user", "content": [{"text": user_prompt}]}],
                 toolConfig=to_tool_config(QUIZ_TOOL, _TOOL_NAME),
-                inferenceConfig={"maxTokens": 4096, "temperature": 0.0},
+                inferenceConfig={"maxTokens": 8192, "temperature": 0.0},
             )
         except ReadTimeoutError as exc:
             logger.warning("LLM 타임아웃: %s", exc)

@@ -290,12 +290,20 @@ def main(batch_size: int = BATCH_SIZE, only_sources: set[str] | None = None) -> 
         return
 
     aws_region = os.environ.get("AWS_REGION", "ap-northeast-2")
-    bedrock_model = os.environ.get("BEDROCK_MODEL_BATCH", "global.anthropic.claude-sonnet-4-6")
-    bedrock_model_summary = os.environ.get("BEDROCK_MODEL_SUMMARY", "global.anthropic.claude-haiku-4-5-20251001-v1:0")
+    bedrock_model = os.environ.get(
+        "BEDROCK_MODEL_BATCH", "global.anthropic.claude-sonnet-4-6"
+    )
+    bedrock_model_summary = os.environ.get(
+        "BEDROCK_MODEL_SUMMARY", "global.anthropic.claude-haiku-4-5-20251001-v1:0"
+    )
 
     normalizer = NormalizeService()
     content_repo = ContentRepository(database_url=database_url)
-    pipeline = ContentPipeline(aws_region=aws_region, bedrock_model=bedrock_model, bedrock_model_summary=bedrock_model_summary)
+    pipeline = ContentPipeline(
+        aws_region=aws_region,
+        bedrock_model=bedrock_model,
+        bedrock_model_summary=bedrock_model_summary,
+    )
     sent_id_store = SentIdStore(base_dir="data/raw/sent_ids")
     cursor_store = BackfillCursor(base_dir="data/raw/backfill_cursor")
 

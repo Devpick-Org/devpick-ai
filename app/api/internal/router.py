@@ -39,9 +39,15 @@ from app.services.similar_question_service import SimilarQuestionService
 
 load_dotenv()
 _AWS_REGION = os.getenv("AWS_REGION", "ap-northeast-2")
-_BEDROCK_MODEL_SUMMARY = os.getenv("BEDROCK_MODEL_SUMMARY", "global.anthropic.claude-haiku-4-5-20251001-v1:0")
-_BEDROCK_MODEL_BATCH = os.getenv("BEDROCK_MODEL_BATCH", "global.anthropic.claude-sonnet-4-6")
-_BEDROCK_MODEL_CHAT = os.getenv("BEDROCK_MODEL_CHAT", "global.anthropic.claude-sonnet-4-6")
+_BEDROCK_MODEL_SUMMARY = os.getenv(
+    "BEDROCK_MODEL_SUMMARY", "global.anthropic.claude-haiku-4-5-20251001-v1:0"
+)
+_BEDROCK_MODEL_BATCH = os.getenv(
+    "BEDROCK_MODEL_BATCH", "global.anthropic.claude-sonnet-4-6"
+)
+_BEDROCK_MODEL_CHAT = os.getenv(
+    "BEDROCK_MODEL_CHAT", "global.anthropic.claude-sonnet-4-6"
+)
 
 logger = logging.getLogger(__name__)
 

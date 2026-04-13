@@ -38,12 +38,12 @@ SYSTEM_PROMPT_ALL_LEVELS = """\
 
 각 레벨 공통 필드:
 - core_summary: 반드시 문자열(string)로 출력. 형식: {소제목}\n{내용}\n\n{소제목}\n{내용}
-  - 섹션 수: 원본 글 소제목 구조를 따라 3~6개. 임의로 줄이거나 합치지 말 것
+  - 섹션 수: 원본 글 소제목 구조를 따라 3~4개. 유사한 소제목은 합쳐서 4개를 넘지 말 것
   - 소제목: 원본 소제목 우선 사용. 없을 경우에만 논지가 드러나는 제목 생성 ("프로젝트 배경" 같은 분류어 금지)
-  - 내용: 해당 섹션의 핵심 포인트를 2~4문장으로 작성. 수치·명칭·구체적 사실 포함. "~노력했습니다" 같이 내용 없는 결론 동사만 쓰는 문장 금지
+  - 내용: 해당 섹션의 핵심 포인트를 2~3문장으로 작성. 수치·명칭·구체적 사실 포함. "~노력했습니다" 같이 내용 없는 결론 동사만 쓰는 문장 금지
   - 마크다운 기호(#, -, *) 없이 plain text로 작성. 원문에 없는 사실·수치·고유명사 생성 금지
-- key_points: 해당 레벨 독자에게 중요한 포인트 3~5개
-- additional_questions: 해당 레벨에 맞는 이해/적용 점검 질문 3~5개
+- key_points: 해당 레벨 독자에게 중요한 포인트 정확히 3개
+- additional_questions: 해당 레벨에 맞는 이해/적용 점검 질문 정확히 3개
 - next_recommendation: 이 글 다음에 학습할 주제 1가지. "~에 대해 알아보세요" 형태
 - confidence: 요약 품질 자체 평가 0.0~1.0 (1.0=전문 분야/구조 명확, 0.7=일반 기술 글, 0.7 미만=짧거나 모호)
 """
@@ -58,12 +58,12 @@ _LEVEL_SUMMARY_SCHEMA = {
         "key_points": {
             "type": "array",
             "items": {"type": "string"},
-            "description": "핵심 포인트 3~5개",
+            "description": "핵심 포인트 3개",
         },
         "additional_questions": {
             "type": "array",
             "items": {"type": "string"},
-            "description": "학습 점검 질문 3~5개",
+            "description": "학습 점검 질문 3개",
         },
         "next_recommendation": {
             "type": "string",

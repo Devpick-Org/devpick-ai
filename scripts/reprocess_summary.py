@@ -1,0 +1,159 @@
+"""저장된 콘텐츠의 AI 요약을 재생성한다.
+
+content_id를 입력받아 PostgreSQL에서 본문을 조회하고,
+AllLevelsSummaryService로 4레벨 요약을 재생성한 뒤 DynamoDB에 저장한다.
+요약 성공 시 PostgreSQL contents 테이블의 tags·category도 업데이트한다.
+
+사용 예:
+    DATABASE_URL=postgresql://... python scripts/reprocess_summary.py <content_id>
+    DATABASE_URL=postgresql://... python scripts/reprocess_summary.py <id1> <id2> <id3>
+"""
+
+from __future__ import annotations
+
+import logging
+import os
+import sys
+from pathlib import Path
+
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+
+from dotenv import load_dotenv
+
+load_dotenv()
+
+from sqlalchemy import create_engine, text
+
+from app.repositories.content_repository import ContentRepository
+from app.repositories.summary_repository import SummaryRepository
+from app.services.all_levels_summary_service import AllLevelsSummaryService
+from app.services.preprocess_service import PreprocessService
+
+logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
+logger = logging.getLogger(__name__)
+
+
+def _fetch_content(engine, content_id: str) -> dict | None:
+    """PostgreSQL에서 content_id에 해당하는 본문·썸네일을 조회한다."""
+    with engine.connect() as conn:
+        row = conn.execute(
+            text(
+                "SELECT id, original_content, thumbnail_url FROM contents WHERE id = :id"
+            ),
+            {"id": content_id},
+        ).fetchone()
+    if not row:
+        return None
+    return {
+        "content_id": str(row[0]),
+        "body_html": row[1],
+        "thumbnail_url": row[2],
+    }
+
+
+def reprocess(
+    content_id: str, summary_svc, preprocess_svc, summary_repo, content_repo
+) -> bool:
+    """단일 content_id에 대해 요약을 재생성하고 저장한다."""
+    database_url = os.environ.get("DATABASE_URL")
+    engine = create_engine(database_url)
+
+    row = _fetch_content(engine, content_id)
+    engine.dispose()
+
+    if not row:
+        logger.error("[%s] PostgreSQL에서 콘텐츠를 찾을 수 없습니다", content_id)
+        return False
+
+    if not row["body_html"]:
+        logger.error("[%s] 본문(original_content)이 비어 있습니다", content_id)
+        return False
+
+    # 전처리
+    try:
+        preprocessed = preprocess_svc.preprocess(row["body_html"])
+    except Exception:
+        logger.exception("[%s] 전처리 실패", content_id)
+        return False
+
+    # 요약 생성
+    try:
+        summary = summary_svc.summarize_all(
+            content_id=content_id,
+            text=preprocessed,
+            thumbnail_url=row["thumbnail_url"],
+        )
+    except Exception:
+        logger.exception("[%s] 요약 생성 실패", content_id)
+        return False
+
+    # DynamoDB 저장
+    try:
+        summary_repo.save_all_levels(content_id, summary)
+        logger.info("[%s] DynamoDB 저장 완료", content_id)
+    except Exception:
+        logger.exception("[%s] DynamoDB 저장 실패", content_id)
+
+    # PostgreSQL tags·category 업데이트
+    if content_repo:
+        try:
+            content_repo.save_ai_metadata(
+                content_id=content_id,
+                tags=summary.common.tags,
+                category=summary.common.category,
+            )
+            logger.info(
+                "[%s] PostgreSQL tags/category 업데이트 완료 — category=%s tags=%s",
+                content_id,
+                summary.common.category,
+                summary.common.tags,
+            )
+        except Exception:
+            logger.exception("[%s] PostgreSQL tags/category 업데이트 실패", content_id)
+
+    return True
+
+
+def main(content_ids: list[str]) -> None:
+    database_url = os.environ.get("DATABASE_URL")
+    if not database_url:
+        logger.error("DATABASE_URL이 설정되지 않았습니다 — 실행 중단")
+        sys.exit(1)
+
+    aws_region = os.environ.get("AWS_REGION", "ap-northeast-2")
+    bedrock_region = os.environ.get("BEDROCK_REGION", "us-east-1")
+    bedrock_model_summary = os.environ.get(
+        "BEDROCK_MODEL_SUMMARY", "global.anthropic.claude-haiku-4-5-20251001-v1:0"
+    )
+
+    preprocess_svc = PreprocessService()
+    summary_svc = AllLevelsSummaryService(
+        aws_region=bedrock_region, model=bedrock_model_summary
+    )
+    summary_repo = SummaryRepository(aws_region=aws_region)
+    content_repo = ContentRepository(database_url=database_url)
+
+    success = 0
+    fail = 0
+    for content_id in content_ids:
+        ok = reprocess(
+            content_id, summary_svc, preprocess_svc, summary_repo, content_repo
+        )
+        if ok:
+            success += 1
+        else:
+            fail += 1
+
+    content_repo.close()
+    logger.info("완료 — 성공=%d 실패=%d", success, fail)
+
+
+if __name__ == "__main__":
+    import argparse
+
+    parser = argparse.ArgumentParser(description="저장된 콘텐츠 AI 요약 재생성")
+    parser.add_argument("content_ids", nargs="+", metavar="CONTENT_ID")
+    args = parser.parse_args()
+    main(args.content_ids)

@@ -46,9 +46,6 @@ jobs:
       - name: Ruff check
         run: ruff check .
 
-      - name: Black diff (debug)
-        run: black --diff . || true
-
       - name: Black check
         run: black --check .
 

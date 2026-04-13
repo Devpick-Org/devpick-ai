@@ -28,6 +28,7 @@ class EmbeddingService:
     ) -> None:
         self._client = boto3.client("bedrock-runtime", region_name=aws_region)
         self._model_id = model_id
+        logger.info("EmbeddingService 초기화 — model=%s", self._model_id)
 
     def embed(self, texts: list[str]) -> list[list[float]]:
         """텍스트 리스트를 벡터 리스트로 변환한다.

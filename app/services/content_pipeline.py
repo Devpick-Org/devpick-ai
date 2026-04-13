@@ -25,7 +25,8 @@ class ContentPipeline:
     def __init__(
         self,
         aws_region: str = "ap-northeast-2",
-        bedrock_model: str = "anthropic.claude-3-5-sonnet-20241022-v2:0",
+        bedrock_model: str = "global.anthropic.claude-sonnet-4-6",
+        bedrock_model_summary: str = "global.anthropic.claude-haiku-4-5-20251001-v1:0",
         database_url: str | None = None,
     ) -> None:
         self._preprocess = PreprocessService()
@@ -33,7 +34,7 @@ class ContentPipeline:
             ContentRepository(database_url) if database_url else None
         )
         self._summary_svc = AllLevelsSummaryService(
-            aws_region=aws_region, model=bedrock_model
+            aws_region=aws_region, model=bedrock_model_summary
         )
         self._summary_repo = SummaryRepository(aws_region=aws_region)
         self._embedding = EmbeddingOrchestrator(aws_region=aws_region)

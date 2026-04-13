@@ -7,6 +7,7 @@ from datetime import datetime, timezone
 
 import boto3
 import pydantic
+from botocore.config import Config
 from botocore.exceptions import ClientError, EndpointConnectionError, ReadTimeoutError
 
 from app.core.bedrock import to_tool_config
@@ -31,7 +32,11 @@ class InsightService:
         aws_region: str = "ap-northeast-2",
         model: str = "global.anthropic.claude-sonnet-4-6",
     ) -> None:
-        self._client = boto3.client("bedrock-runtime", region_name=aws_region)
+        self._client = boto3.client(
+            "bedrock-runtime",
+            region_name=aws_region,
+            config=Config(read_timeout=300, retries={"max_attempts": 0}),
+        )
         self._model = model
         logger.info("InsightService 초기화 — model=%s", self._model)
 

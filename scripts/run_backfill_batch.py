@@ -305,6 +305,7 @@ def main(batch_size: int = BATCH_SIZE, only_sources: set[str] | None = None) -> 
         bedrock_region=bedrock_region,
         bedrock_model=bedrock_model,
         bedrock_model_summary=bedrock_model_summary,
+        database_url=database_url,
     )
     sent_id_store = SentIdStore(base_dir="data/raw/sent_ids")
     cursor_store = BackfillCursor(base_dir="data/raw/backfill_cursor")

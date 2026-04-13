@@ -108,9 +108,7 @@ class AllLevelsSummaryService:
             raw = tool_use_block["toolUse"]["input"]
 
             missing = [
-                lvl
-                for lvl in ("beginner", "junior", "mid", "senior")
-                if lvl not in raw
+                lvl for lvl in ("beginner", "junior", "mid", "senior") if lvl not in raw
             ]
             if missing:
                 logger.warning("누락된 레벨 감지 — 재시도: %s", missing)

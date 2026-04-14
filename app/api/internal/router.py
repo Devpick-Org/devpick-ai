@@ -228,6 +228,8 @@ def create_answer(body: AnswerRequest) -> AnswerResponse:
             result,
             question_id=body.question_id,
             content_id=body.content_id,
+            title=body.refined_title,
+            content=body.refined_content,
         )
     except Exception:
         logger.exception("Failed to save answer to DynamoDB")

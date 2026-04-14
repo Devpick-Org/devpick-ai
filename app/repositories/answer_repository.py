@@ -47,6 +47,8 @@ class AnswerRepository:
         answer: AnswerResponse,
         question_id: str | None = None,
         content_id: str | None = None,
+        title: str | None = None,
+        content: str | None = None,
     ) -> None:
         """답변 결과를 저장한다.
 
@@ -56,12 +58,18 @@ class AnswerRepository:
             answer: 저장할 AnswerResponse 객체.
             question_id: 질문 식별자 (upsert 키). None이면 content_id로 대체.
             content_id: 관련 아티클 ID.
+            title: 질문 제목 (refined_title).
+            content: 질문 본문 (refined_content).
         """
         now = datetime.now(tz=timezone.utc).isoformat()
         doc = answer.model_dump()
         doc["updated_at"] = now
         if content_id:
             doc["content_id"] = content_id
+        if title:
+            doc["title"] = title
+        if content:
+            doc["content"] = content
 
         pk = question_id or content_id or now
         doc["question_id"] = pk

@@ -20,7 +20,6 @@ class SimilarQuestion(BaseModel):
     """유사 질문 개별 항목."""
 
     question_id: str  # 유사 질문 ID (FAISS ChunkMetadata.content_id)
-    text: str  # 유사 질문 텍스트
     score: float = Field(ge=0.0, le=1.0)  # 유사도 점수
     tags: list[str]  # 추천 태그 (ChunkMetadata.tags)
 

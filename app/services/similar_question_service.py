@@ -59,7 +59,6 @@ class SimilarQuestionService:
             results.append(
                 SimilarQuestion(
                     question_id=doc.metadata.content_id,
-                    text=doc.text,
                     score=round(score, 4),
                     tags=doc.metadata.tags,
                 )

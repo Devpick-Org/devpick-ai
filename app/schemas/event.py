@@ -19,3 +19,6 @@ class EventType(str, Enum):
     )
     INSIGHT_GENERATED = "INSIGHT_GENERATED"  # POST /internal/report
     QUIZ_GENERATED = "QUIZ_GENERATED"  # POST /internal/quiz
+    SIMILAR_CONTENTS_SEARCHED = (
+        "SIMILAR_CONTENTS_SEARCHED"  # POST /internal/similar-contents
+    )

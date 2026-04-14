@@ -22,6 +22,7 @@ from app.schemas.event import EventType
 from app.schemas.insight import InsightRequest, InsightResponse
 from app.schemas.quiz import AllLevelsQuizResponse, QuizRequest
 from app.schemas.refine import RefineRequest, RefineResponse
+from app.schemas.similar_content import SimilarContentRequest, SimilarContentResponse
 from app.schemas.similar_question import SimilarQuestionRequest, SimilarQuestionResponse
 from app.schemas.summary import (
     AllLevelsSummaryRequest,
@@ -35,6 +36,7 @@ from app.services.insight_service import InsightService
 from app.services.preprocess_service import PreprocessService
 from app.services.question_embedding_service import QuestionEmbeddingOrchestrator
 from app.services.refine_service import RefineService
+from app.services.similar_content_service import SimilarContentService
 from app.services.similar_question_service import SimilarQuestionService
 
 load_dotenv()
@@ -293,6 +295,40 @@ def search_similar_questions(body: SimilarQuestionRequest) -> SimilarQuestionRes
             logger.exception("Failed to save event log")
 
     return SimilarQuestionResponse(results=results, total=len(results))
+
+
+@router.post(
+    "/similar-contents",
+    response_model=SimilarContentResponse,
+    dependencies=[Depends(verify_internal_key)],
+)
+def search_similar_contents(body: SimilarContentRequest) -> SimilarContentResponse:
+    """유사 콘텐츠 검색 (DP-288).
+
+    FAISS devpick 인덱스에서 유사한 아티클을 검색한다.
+    청크 레벨 결과를 content_id 기준 MAX 점수로 집계하여 반환한다.
+    에러는 전역 핸들러(AIServiceError)가 처리한다.
+    """
+    results = SimilarContentService(
+        aws_region=_AWS_REGION,
+    ).search(
+        text=body.text,
+        top_k=body.top_k,
+        exclude_content_id=body.content_id,
+    )
+
+    # 이벤트 로그 저장 (fire-and-forget, DP-252)
+    if body.user_id:
+        try:
+            EventRepository(aws_region=_AWS_REGION).save_event(
+                user_id=body.user_id,
+                event_type=EventType.SIMILAR_CONTENTS_SEARCHED,
+                content_id=body.content_id,
+            )
+        except Exception:
+            logger.exception("Failed to save similar-contents event log")
+
+    return SimilarContentResponse(results=results, total=len(results))
 
 
 @router.post(

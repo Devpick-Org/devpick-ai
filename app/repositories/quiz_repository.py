@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import logging
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 
 import boto3
@@ -73,6 +73,7 @@ class QuizRepository:
                     ", estimated_minutes = :estimated_minutes"
                     ", generated_at = :generated_at"
                     ", updated_at = :updated_at"
+                    ", expires_at = :expires_at"
                     ", created_at = if_not_exists(created_at, :created_at)"
                 ),
                 ExpressionAttributeValues={
@@ -85,6 +86,9 @@ class QuizRepository:
                     ":estimated_minutes": level_quiz.estimated_minutes,
                     ":generated_at": response.generated_at,
                     ":updated_at": now,
+                    ":expires_at": (
+                        datetime.now(tz=timezone.utc) + timedelta(days=7)
+                    ).isoformat(),
                     ":created_at": now,
                 },
             )

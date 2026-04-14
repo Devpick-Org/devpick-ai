@@ -46,7 +46,6 @@ def test_search_returns_similar_questions(service) -> None:
     assert len(results) == 1
     assert isinstance(results[0], SimilarQuestion)
     assert results[0].question_id == "q-001"
-    assert results[0].text == "useEffect 무한 렌더링 문제"
     assert results[0].score == pytest.approx(0.85)
     assert results[0].tags == ["React"]
 

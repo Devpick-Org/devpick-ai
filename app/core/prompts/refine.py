@@ -88,6 +88,10 @@ def build_user_prompt(
     if not title or not content:
         raise ValueError("질문 제목과 본문은 필수입니다")
 
+    # 입력이 과도하게 길면 LLM 출력 토큰을 잠식하므로 미리 자른다
+    title = title[:200]
+    content = content[:3000]
+
     parts = ["아래 질문을 분석하여 더 명확하고 답변받기 좋은 질문으로 개선하세요."]
 
     if context_chunks:

@@ -27,6 +27,7 @@ SYSTEM_PROMPT_ALL_LEVELS = """\
    Algorithm, Data Structure, OS, Network, Design Pattern]
   버전 번호 제외. tags와 keywords가 겹치지 않게 (tags=기술 스택, keywords=개념)
 - difficulty: easy(입문자도 이해 가능) / medium(실무 경험 필요) / hard(깊은 도메인 지식 필요)
+  - 원문의 **실제 난이도**만 반영한다. 습관적으로 medium을 고르지 말 것. 튜토리얼·소개 글이면 easy, 일반 실무 깊이면 medium, 도메인·아키텍처·성능이 깊게 얽히면 hard.
 
 ### beginner / junior / mid / senior (레벨별 필드)
 각 레벨은 독립적인 독자를 대상으로 작성하세요:
@@ -46,6 +47,7 @@ SYSTEM_PROMPT_ALL_LEVELS = """\
 - additional_questions: 해당 레벨에 맞는 이해/적용 점검 질문 정확히 3개
 - next_recommendation: 이 글 다음에 학습할 주제 1가지. "~에 대해 알아보세요" 형태
 - confidence: 요약 품질 자체 평가 0.0~1.0 (1.0=전문 분야/구조 명확, 0.7=일반 기술 글, 0.7 미만=짧거나 모호)
+  - **레벨마다 요약의 충실도·명확성이 다르므로 beginner/junior/mid/senior의 confidence는 서로 다른 값이어야 한다.** 네 레벨 모두 같은 숫자(예: 0.9)로 맞추지 말 것. 0.55~0.98 범위에서 레벨별로 구체적으로 다르게 제시한다.
 """
 
 _LEVEL_SUMMARY_SCHEMA = {
@@ -71,7 +73,10 @@ _LEVEL_SUMMARY_SCHEMA = {
         },
         "confidence": {
             "type": "number",
-            "description": "요약 품질 자체 평가 0.0~1.0",
+            "description": (
+                "이 레벨 요약의 품질 자체 평가 0.0~1.0. "
+                "beginner/junior/mid/senior 네 값은 서로 달라야 하며 동일 값(예: 모두 0.9) 금지."
+            ),
         },
     },
     "required": [
@@ -126,6 +131,9 @@ SUMMARY_ALL_LEVELS_TOOL = {
                     "difficulty": {
                         "type": "string",
                         "enum": ["easy", "medium", "hard"],
+                        "description": (
+                            "원문 이해에 필요한 난이도. 습관적으로 medium만 쓰지 말고 글에 맞게 선택."
+                        ),
                     },
                 },
                 "required": [
@@ -182,6 +190,8 @@ def build_user_prompt_all_levels(text: str) -> str:
         raise ValueError("요약할 텍스트가 없습니다")
     return (
         f"아래 기술 글을 beginner/junior/mid/senior 4개 레벨로 동시에 요약하세요.\n"
-        f"core_summary는 반드시 문자열 형식(heading\\ncontent\\n\\nheading\\ncontent)으로 작성하세요.\n\n"
+        f"core_summary는 반드시 문자열 형식(heading\\ncontent\\n\\nheading\\ncontent)으로 작성하세요.\n"
+        f"common.difficulty는 원문 난이도에 맞게 easy/medium/hard 중 하나만 선택(대부분을 medium으로 두지 말 것). "
+        f"레벨별 confidence는 네 값이 서로 달라야 합니다.\n\n"
         f"---\n\n{text}"
     )

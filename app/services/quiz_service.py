@@ -18,7 +18,13 @@ from app.core.exceptions import (
     AITimeoutError,
     AIUpstreamError,
 )
-from app.core.prompts.quiz import QUIZ_TOOL, SYSTEM_PROMPT_QUIZ, build_user_prompt
+from app.core.prompts.quiz import (
+    QUIZ_TOOL,
+    SYSTEM_PROMPT_QUIZ,
+    build_retry_prompt,
+    build_retry_tool,
+    build_user_prompt,
+)
 from app.schemas.quiz import AllLevelsQuizResponse
 
 logger = logging.getLogger(__name__)
@@ -94,8 +100,18 @@ class QuizService:
             raise AIInternalError("LLM 응답에 tool_use 블록이 없습니다")
 
         try:
+            raw = tool_use_block["toolUse"]["input"]
+
+            missing = [
+                lvl for lvl in ("beginner", "junior", "mid", "senior") if lvl not in raw
+            ]
+            if missing:
+                logger.warning("누락된 레벨 감지 — 재시도: %s", missing)
+                retry_raw = self._retry_missing_levels(text, missing)
+                raw.update(retry_raw)
+
             payload = {
-                **tool_use_block["toolUse"]["input"],
+                **raw,
                 "content_id": content_id,
                 "quiz_id": str(uuid.uuid4()),
                 "generated_at": datetime.now(tz=timezone.utc).isoformat(),
@@ -108,3 +124,42 @@ class QuizService:
         except pydantic.ValidationError as exc:
             logger.error("AllLevelsQuizResponse 파싱 실패: %s", exc)
             raise AIInternalError("AI 응답 파싱에 실패했습니다") from exc
+
+    def _retry_missing_levels(self, text: str, missing: list[str]) -> dict:
+        """누락된 레벨만 별도 호출하여 반환한다.
+
+        Args:
+            text: 원본 아티클 텍스트 (전처리 완료)
+            missing: 누락된 레벨 이름 목록
+
+        Returns:
+            누락 레벨 데이터 dict (raw["senior"] 등)
+
+        Raises:
+            AIInternalError: 재시도 호출에서도 tool_use 블록이 없는 경우
+        """
+        retry_tool = build_retry_tool(missing)
+        retry_prompt = build_retry_prompt(text, missing)
+
+        try:
+            response = self._client.converse(
+                modelId=self._model,
+                system=[{"text": SYSTEM_PROMPT_QUIZ}],
+                messages=[{"role": "user", "content": [{"text": retry_prompt}]}],
+                toolConfig=to_tool_config(retry_tool, _TOOL_NAME),
+                inferenceConfig={"maxTokens": 4096, "temperature": 0.0},
+            )
+        except ReadTimeoutError as exc:
+            raise AITimeoutError() from exc
+        except ClientError as exc:
+            code = exc.response["Error"]["Code"]
+            raise AIUpstreamError(f"LLM API 오류 (retry): {code}") from exc
+        except EndpointConnectionError as exc:
+            raise AIUpstreamError("LLM 연결 실패 (retry)") from exc
+
+        content = response["output"]["message"]["content"]
+        tool_use_block = next((b for b in content if "toolUse" in b), None)
+        if not tool_use_block:
+            raise AIInternalError("레벨 재시도: LLM 응답에 tool_use 블록이 없습니다")
+
+        return tool_use_block["toolUse"]["input"]

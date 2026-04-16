@@ -15,6 +15,7 @@ Spring Boot ↔ FastAPI 내부 통신 전용 라우터. Base URL: `/internal`
 | POST | `/internal/refine` | 질문 AI 개선 생성 (DP-231) — content_id 있으면 DynamoDB 청크 컨텍스트 |
 | POST | `/internal/answer` | 질문 AI 1차 답변 생성 (DP-234) — 아티클+RAG 컨텍스트, related_contents 주입, 질문 임베딩 저장 |
 | POST | `/internal/similar-questions` | 유사 질문 검색 (DP-235) — FAISS questions 인덱스 검색, 자기 자신 제외 |
+| POST | `/internal/similar-contents` | 유사 콘텐츠 검색 (DP-288) — FAISS devpick 인덱스 검색, content_id 기준 MAX 점수 집계 |
 | POST | `/internal/report` | 주간 리포트 AI 인사이트 생성 (DP-259) — Backend 주간 리포트 생성 후 호출 |
 
 ---

@@ -37,6 +37,8 @@
   - **NormalizedContent score 필드 추가 + tags 필드 제거 (소스별 지표 의미 분리: Velog=likes, SO=score) (DP-300)**
   - **AI 요약 tags·category → PostgreSQL contents 테이블 저장 (ContentPipeline Step 3-1, save_ai_metadata) (DP-300)**
   - **요약 프롬프트 개선: core_summary string 포맷 통일, 섹션 수 원본 구조 추적, 레벨별 독자 관점 차별화 (DP-300)**
+  - **유사 콘텐츠 검색 SimilarContentService + POST /internal/similar-contents 구현 완료 (DP-288)**
+  - **퀴즈 레벨별 출제 방향 차별화 + 누락 레벨 재시도 로직 추가 (DP-265)**
 
 ---
 
@@ -114,13 +116,13 @@ devpick-ai/
 
 ## 6. 브랜치 / 커밋 / PR 규칙
 
-브랜치 흐름: `feature/*` → `develop` (통합) → `main` (배포)
+브랜치 흐름: `feature/*` → `developV2` (통합) → `main` (배포)
 
 ```bash
 git checkout -b feature/DP-{티켓번호}-{기능명}
 ```
 
-> PR 머지 대상은 `develop`이다. `main`은 배포 브랜치이므로 직접 푸시 금지.
+> PR 머지 대상은 `developV2`이다. `main`은 배포 브랜치이므로 직접 푸시 금지.
 
 커밋 예시:
 ```text
@@ -165,6 +167,15 @@ python scripts/init_vectors.py
 
 # FAISS 재빌드 (인덱스 유실 시)
 python scripts/reindex_vectors.py
+
+# 콘텐츠 요약 재생성 (특정 content_id)
+DATABASE_URL=postgresql://... python scripts/reprocess_summary.py <content_id>
+
+# 콘텐츠 퀴즈 재생성 (특정 content_id)
+DATABASE_URL=postgresql://... python scripts/reprocess_quiz.py <content_id>
+
+# DynamoDB → PostgreSQL tags/category 동기화
+DATABASE_URL=postgresql://... python scripts/sync_ai_metadata.py
 
 # 테스트
 pytest -q

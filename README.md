@@ -61,6 +61,7 @@ Base URL: `http://ai-server:8000/internal`
 | POST | `/internal/refine` | AI 질문 개선 (DP-231) |
 | POST | `/internal/answer` | AI 1차 답변 생성 (DP-234) |
 | POST | `/internal/similar-questions` | 유사 질문 검색 (DP-235) |
+| POST | `/internal/similar-contents` | 유사 콘텐츠 검색 (DP-288) |
 | POST | `/internal/report` | 주간 리포트 AI 인사이트 생성 (DP-259) |
 
 > **summaries / quiz 엔드포인트는 fallback 용도**다. 정상 운영 시에는 배치 수집 파이프라인이 자동으로 생성한다.
@@ -109,8 +110,12 @@ ContentPipeline.process_content()
 | `scripts/run_backfill_batch.py` | 1회 수집 실행 — PostgreSQL 저장 + AI 처리 (요약+퀴즈+임베딩) |
 | `scripts/run_scheduler.py` | 6시간 간격 자동 반복 실행 |
 | `scripts/run_collect_and_save.py` | 로컬 JSONL 저장 전용 (AI 처리 없음, 개발용) |
+| `scripts/init_postgres.py` | PostgreSQL UNIQUE 인덱스 초기화 (배포 시 1회) |
 | `scripts/init_vectors.py` | FAISS 인덱스 초기화 |
 | `scripts/reindex_vectors.py` | FAISS 인덱스 재빌드 (인덱스 유실 시) |
+| `scripts/reprocess_summary.py` | 특정 콘텐츠 요약 재생성 |
+| `scripts/reprocess_quiz.py` | 특정 콘텐츠 퀴즈 재생성 |
+| `scripts/sync_ai_metadata.py` | DynamoDB → PostgreSQL tags/category 동기화 |
 | `scripts/inspect_preprocess.py` | URL 기반 전처리 출력 확인 |
 
 ## 주요 실행 명령
@@ -145,8 +150,8 @@ python scripts/reindex_vectors.py
 
 GitHub Actions 워크플로 `AI PR Checks`가 아래 조건에서 실행됩니다.
 
-- `develop` 브랜치 대상 Pull Request
-- `develop` 브랜치로의 Push
+- `developV2` 브랜치 대상 Pull Request
+- `developV2` 브랜치로의 Push
 
 체크 항목:
 

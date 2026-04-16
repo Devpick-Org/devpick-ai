@@ -53,15 +53,13 @@ class ContentRepository:
         else:
             source_id = str(uuid4())
             conn.execute(
-                text(
-                    """
+                text("""
                     INSERT INTO content_sources
                         (id, name, url, collect_method, is_active, created_at)
                     VALUES
                         (:id, :name, '', 'AI_PIPELINE', true, :now)
                     ON CONFLICT (name) DO NOTHING
-                """
-                ),
+                """),
                 {
                     "id": source_id,
                     "name": source_name,
@@ -116,8 +114,7 @@ class ContentRepository:
                         )
 
                 row = conn.execute(
-                    text(
-                        """
+                    text("""
                         INSERT INTO contents (
                             id, source_id, title, author, canonical_url,
                             preview, thumbnail_url, thumbnail_width, thumbnail_height,
@@ -137,8 +134,7 @@ class ContentRepository:
                         )
                         ON CONFLICT DO NOTHING
                         RETURNING id
-                    """
-                    ),
+                    """),
                     {
                         "id": content_id,
                         "source_id": source_id,
@@ -190,13 +186,11 @@ class ContentRepository:
         """AI 요약에서 생성된 tags·category를 contents 테이블에 UPDATE한다."""
         with self._engine.begin() as conn:
             conn.execute(
-                text(
-                    """
+                text("""
                     UPDATE contents
                        SET tags = :tags, category = :category, updated_at = :now
                      WHERE id = :content_id
-                    """
-                ),
+                    """),
                 {
                     "content_id": content_id,
                     "tags": json.dumps(tags, ensure_ascii=False),

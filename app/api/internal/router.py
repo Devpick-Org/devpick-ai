@@ -42,14 +42,11 @@ from app.services.similar_question_service import SimilarQuestionService
 load_dotenv()
 _AWS_REGION = os.getenv("AWS_REGION", "ap-northeast-2")
 _BEDROCK_REGION = os.getenv("BEDROCK_REGION", "us-east-1")
-_BEDROCK_MODEL_SUMMARY = os.getenv(
-    "BEDROCK_MODEL_SUMMARY", "global.anthropic.claude-haiku-4-5-20251001-v1:0"
+_BEDROCK_MODEL_HAIKU = os.getenv(
+    "BEDROCK_MODEL_HAIKU", "global.anthropic.claude-haiku-4-5-20251001-v1:0"
 )
-_BEDROCK_MODEL_BATCH = os.getenv(
-    "BEDROCK_MODEL_BATCH", "global.anthropic.claude-sonnet-4-6"
-)
-_BEDROCK_MODEL_CHAT = os.getenv(
-    "BEDROCK_MODEL_CHAT", "global.anthropic.claude-sonnet-4-6"
+_BEDROCK_MODEL_SONNET = os.getenv(
+    "BEDROCK_MODEL_SONNET", "global.anthropic.claude-sonnet-4-6"
 )
 
 logger = logging.getLogger(__name__)
@@ -81,7 +78,7 @@ def create_all_levels_summary(
         raise AIBadRequestError(str(exc)) from exc
 
     result = AllLevelsSummaryService(
-        aws_region=_BEDROCK_REGION, model=_BEDROCK_MODEL_SUMMARY
+        aws_region=_BEDROCK_REGION, model=_BEDROCK_MODEL_HAIKU
     ).summarize_all(
         content_id=body.content_id,
         text=preprocessed,
@@ -134,7 +131,7 @@ def create_refine(body: RefineRequest) -> RefineResponse:
             logger.exception("Failed to fetch context chunks from DynamoDB")
 
     result = RefineService(
-        aws_region=_BEDROCK_REGION, model=_BEDROCK_MODEL_CHAT
+        aws_region=_BEDROCK_REGION, model=_BEDROCK_MODEL_SONNET
     ).refine(
         title=body.title,
         content=body.content,
@@ -197,7 +194,7 @@ def create_answer(body: AnswerRequest) -> AnswerResponse:
 
     # Step 3. 답변 생성
     result, references = AnswerService(
-        aws_region=_BEDROCK_REGION, model=_BEDROCK_MODEL_CHAT
+        aws_region=_BEDROCK_REGION, model=_BEDROCK_MODEL_SONNET
     ).answer(
         refined_title=body.refined_title,
         refined_content=body.refined_content,
@@ -397,7 +394,7 @@ def create_insight(body: InsightRequest) -> InsightResponse:
 
     # Step 4. 인사이트 생성
     result = InsightService(
-        aws_region=_BEDROCK_REGION, model=_BEDROCK_MODEL_SUMMARY
+        aws_region=_BEDROCK_REGION, model=_BEDROCK_MODEL_HAIKU
     ).generate(
         activities=body.activities,
         ai_events=ai_events,
@@ -448,7 +445,7 @@ def create_quiz(body: QuizRequest) -> AllLevelsQuizResponse:
         raise AIBadRequestError(str(exc)) from exc
 
     result = QuizService(
-        aws_region=_BEDROCK_REGION, model=_BEDROCK_MODEL_BATCH
+        aws_region=_BEDROCK_REGION, model=_BEDROCK_MODEL_HAIKU
     ).generate_all(
         content_id=body.content_id,
         text=preprocessed,

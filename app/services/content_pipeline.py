@@ -26,8 +26,7 @@ class ContentPipeline:
         self,
         aws_region: str = "ap-northeast-2",
         bedrock_region: str = "us-east-1",
-        bedrock_model: str = "global.anthropic.claude-sonnet-4-6",
-        bedrock_model_summary: str = "global.anthropic.claude-haiku-4-5-20251001-v1:0",
+        haiku_model: str = "global.anthropic.claude-haiku-4-5-20251001-v1:0",
         database_url: str | None = None,
     ) -> None:
         self._preprocess = PreprocessService()
@@ -35,11 +34,11 @@ class ContentPipeline:
             ContentRepository(database_url) if database_url else None
         )
         self._summary_svc = AllLevelsSummaryService(
-            aws_region=bedrock_region, model=bedrock_model_summary
+            aws_region=bedrock_region, model=haiku_model
         )
         self._summary_repo = SummaryRepository(aws_region=aws_region)
         self._embedding = EmbeddingOrchestrator(aws_region=aws_region)
-        self._quiz_svc = QuizService(aws_region=bedrock_region, model=bedrock_model)
+        self._quiz_svc = QuizService(aws_region=bedrock_region, model=haiku_model)
         self._quiz_repo = QuizRepository(aws_region=aws_region)
 
     def process_content(

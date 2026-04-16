@@ -97,7 +97,7 @@ def main(content_ids: list[str]) -> None:
     aws_region = os.environ.get("AWS_REGION", "ap-northeast-2")
     bedrock_region = os.environ.get("BEDROCK_REGION", "us-east-1")
     bedrock_model = os.environ.get(
-        "BEDROCK_MODEL_BATCH", "global.anthropic.claude-sonnet-4-6"
+        "BEDROCK_MODEL_HAIKU", "global.anthropic.claude-haiku-4-5-20251001-v1:0"
     )
 
     preprocess_svc = PreprocessService()

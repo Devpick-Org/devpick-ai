@@ -38,7 +38,7 @@ class QuizService:
     def __init__(
         self,
         aws_region: str = "ap-northeast-2",
-        model: str = "global.anthropic.claude-sonnet-4-6",
+        model: str = "global.anthropic.claude-haiku-4-5-20251001-v1:0",
     ) -> None:
         self._client = boto3.client(
             "bedrock-runtime",

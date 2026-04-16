@@ -397,7 +397,7 @@ def create_insight(body: InsightRequest) -> InsightResponse:
 
     # Step 4. 인사이트 생성
     result = InsightService(
-        aws_region=_BEDROCK_REGION, model=_BEDROCK_MODEL_BATCH
+        aws_region=_BEDROCK_REGION, model=_BEDROCK_MODEL_SUMMARY
     ).generate(
         activities=body.activities,
         ai_events=ai_events,

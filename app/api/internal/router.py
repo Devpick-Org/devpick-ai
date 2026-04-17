@@ -100,6 +100,7 @@ def create_all_levels_summary(
         content_id=body.content_id,
         text=preprocessed,
         thumbnail_url=body.thumbnail_url,
+        title=body.title,
     )
 
     # DynamoDB 저장 (fire-and-forget)

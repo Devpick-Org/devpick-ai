@@ -62,6 +62,8 @@ class SummaryRepository:
                     "level": level,
                     "generated_at": response.generated_at or now,
                     "thumbnail_url": response.thumbnail_url,
+                    "title": response.title,
+                    "translated_title": response.translated_title,
                     "updated_at": now,
                     "expires_at": (
                         datetime.now(tz=timezone.utc) + timedelta(days=7)

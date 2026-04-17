@@ -35,6 +35,7 @@ class AllLevelsSummaryRequest(BaseModel):
     content_id: str
     text: str = Field(min_length=1)  # HTML 본문
     thumbnail_url: str | None = None
+    title: str | None = None  # 영어 제목 번역 판별용 (DP-328)
 
 
 class AllLevelsSummaryResponse(BaseModel):
@@ -48,3 +49,5 @@ class AllLevelsSummaryResponse(BaseModel):
     senior: LevelSummary
     generated_at: str  # ISO 8601
     thumbnail_url: str | None = None
+    title: str | None = None  # 원본 제목 (DynamoDB 조회 편의용, DP-328)
+    translated_title: str | None = None  # 영어 제목 번역본. 한국어이면 None (DP-328)

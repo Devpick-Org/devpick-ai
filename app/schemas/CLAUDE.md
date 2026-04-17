@@ -16,8 +16,8 @@ Pydantic 기반 데이터 계약. 수집부터 AI 처리까지 모든 데이터 
 | `summary.py` | `SummaryResponse` | 단일 레벨 AI 요약 출력 스키마 |
 | `summary.py` | `CommonSummary` | 레벨 무관 공통 요약 필드 (DP-300) |
 | `summary.py` | `LevelSummary` | 레벨별 요약 필드 (DP-300) |
-| `summary.py` | `AllLevelsSummaryRequest` | 4레벨 동시 요약 요청 스키마 (DP-300) |
-| `summary.py` | `AllLevelsSummaryResponse` | 4레벨 동시 요약 응답 스키마 (DP-300) |
+| `summary.py` | `AllLevelsSummaryRequest` | 4레벨 동시 요약 요청 스키마 (DP-300). `title` 필드 추가 (DP-328) |
+| `summary.py` | `AllLevelsSummaryResponse` | 4레벨 동시 요약 응답 스키마 (DP-300). `translated_title` 필드 추가 (DP-328) |
 | `quiz.py` | `QuizQuestion` | 퀴즈 문제 한 개 (type/question/options/answer/explanation) |
 | `quiz.py` | `LevelQuiz` | 레벨별 퀴즈 3문제 컨테이너 |
 | `quiz.py` | `QuizRequest` | POST /internal/quiz 요청 스키마 (content_id + text + user_id?) |

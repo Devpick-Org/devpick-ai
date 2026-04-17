@@ -177,6 +177,7 @@ def _run_source(
                 content_id=content_id,
                 body_html=item.pipeline_body or item.body_candidate,
                 thumbnail_url=item.thumbnail_url,
+                title=item.title,
             )
         except Exception:
             logger.exception(
@@ -258,6 +259,7 @@ def _run_direct_source(
                 content_id=content_id,
                 body_html=item.pipeline_body or item.body_candidate,
                 thumbnail_url=item.thumbnail_url,
+                title=item.title,
             )
         except Exception:
             logger.exception(

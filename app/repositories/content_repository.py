@@ -182,27 +182,38 @@ class ContentRepository:
         )
         return result
 
-    def save_ai_metadata(self, content_id: str, tags: list[str], category: str) -> None:
-        """AI 요약에서 생성된 tags·category를 contents 테이블에 UPDATE한다."""
+    def save_ai_metadata(
+        self,
+        content_id: str,
+        tags: list[str],
+        category: str,
+        translated_title: str | None = None,
+    ) -> None:
+        """AI 요약에서 생성된 tags·category·translated_title을 contents 테이블에 UPDATE한다."""
         with self._engine.begin() as conn:
             conn.execute(
                 text("""
                     UPDATE contents
-                       SET tags = :tags, category = :category, updated_at = :now
+                       SET tags = :tags,
+                           category = :category,
+                           translated_title = :translated_title,
+                           updated_at = :now
                      WHERE id = :content_id
                     """),
                 {
                     "content_id": content_id,
                     "tags": json.dumps(tags, ensure_ascii=False),
                     "category": category,
+                    "translated_title": translated_title,
                     "now": datetime.now(tz=timezone.utc),
                 },
             )
         logger.debug(
-            "AI metadata 저장 완료: content_id=%s category=%s tags=%s",
+            "AI metadata 저장 완료: content_id=%s category=%s tags=%s translated_title=%s",
             content_id,
             category,
             tags,
+            translated_title,
         )
 
     def close(self) -> None:

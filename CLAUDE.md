@@ -40,6 +40,7 @@
   - **유사 콘텐츠 검색 SimilarContentService + POST /internal/similar-contents 구현 완료 (DP-288)**
   - **퀴즈 레벨별 출제 방향 차별화 + 누락 레벨 재시도 로직 추가 (DP-265)**
   - **주간 인사이트 키워드 분석 강화: UserRepository(user_tags+content_tags) + 미탐색 태그 기반 추천 글 + Sonnet 전환 (DP-254)**
+  - **영어 제목 번역 후 translated_title을 DynamoDB ai_summaries + PostgreSQL contents에 저장 (DP-328)**
 
 ---
 

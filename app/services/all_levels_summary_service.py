@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import re
 from datetime import datetime, timezone
 
 import boto3
@@ -47,11 +48,43 @@ class AllLevelsSummaryService:
         self._model = model
         logger.info("AllLevelsSummaryService 초기화 — model=%s", self._model)
 
+    @staticmethod
+    def _is_korean_title(title: str) -> bool:
+        """제목에 한글이 포함되어 있으면 True를 반환한다."""
+        return bool(re.search(r"[\uAC00-\uD7A3\u1100-\u11FF\u3130-\u318F]", title))
+
+    def _translate_title(self, title: str) -> str | None:
+        """영어 제목을 한국어로 번역한다. 실패 시 None을 반환한다."""
+        try:
+            response = self._client.converse(
+                modelId=self._model,
+                system=[
+                    {
+                        "text": (
+                            "기술 아티클 제목을 한국어로 번역하세요. "
+                            "번역된 제목만 출력하세요. "
+                            "부연 설명, 따옴표, 문장 부호 추가 없이 번역문만 반환하세요."
+                        )
+                    }
+                ],
+                messages=[{"role": "user", "content": [{"text": title}]}],
+                inferenceConfig={"maxTokens": 100, "temperature": 0.0},
+            )
+            content = response["output"]["message"]["content"]
+            text_block = next((b for b in content if "text" in b), None)
+            if text_block:
+                return text_block["text"].strip()
+            return None
+        except Exception:
+            logger.warning("제목 번역 실패 (무시): title=%s", title)
+            return None
+
     def summarize_all(
         self,
         content_id: str,
         text: str,
         thumbnail_url: str | None = None,
+        title: str | None = None,
     ) -> AllLevelsSummaryResponse:
         """콘텐츠를 4개 레벨로 동시에 요약한다.
 
@@ -123,11 +156,23 @@ class AllLevelsSummaryService:
                     raw[level]["core_summary"] = "\n\n".join(
                         f"{s['heading']}\n{s['content']}" for s in sections
                     )
+
+            # 영어 제목이면 번역, 한국어이면 None (DP-328)
+            translated_title: str | None = None
+            if title:
+                if self._is_korean_title(title):
+                    logger.debug("한국어 제목 — 번역 스킵: %s", title)
+                else:
+                    translated_title = self._translate_title(title)
+                    logger.info("제목 번역 완료: %s → %s", title, translated_title)
+
             payload = {
                 **raw,
                 "content_id": content_id,
                 "generated_at": datetime.now(tz=timezone.utc).isoformat(),
                 "thumbnail_url": thumbnail_url,
+                "title": title,
+                "translated_title": translated_title,
             }
             return AllLevelsSummaryResponse.model_validate(payload)
         except pydantic.ValidationError as exc:

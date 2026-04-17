@@ -34,6 +34,7 @@ from app.services.embedding_service import EmbeddingOrchestrator
 from app.services.quiz_service import QuizService
 from app.services.insight_service import InsightService
 from app.services.preprocess_service import PreprocessService
+from app.services.question_cleanup_service import cleanup_question_documents
 from app.services.question_embedding_service import QuestionEmbeddingOrchestrator
 from app.services.refine_service import RefineService
 from app.services.similar_content_service import SimilarContentService

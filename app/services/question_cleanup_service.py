@@ -28,11 +28,15 @@ def cleanup_question_documents(question_id: str, aws_region: str) -> None:
             question_id
         )
     except Exception:
-        logger.exception("Failed to delete rag_questions for question_id=%s", question_id)
+        logger.exception(
+            "Failed to delete rag_questions for question_id=%s", question_id
+        )
 
     try:
         store = get_store(_DEFAULT_QUESTIONS_INDEX, aws_region)
         store.delete_by_content_id(question_id)
         store.save()
     except Exception:
-        logger.exception("Failed to remove question from FAISS: question_id=%s", question_id)
+        logger.exception(
+            "Failed to remove question from FAISS: question_id=%s", question_id
+        )

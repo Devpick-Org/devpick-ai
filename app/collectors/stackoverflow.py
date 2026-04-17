@@ -309,6 +309,10 @@ class StackOverflowCollector:
             if a.get("body")
         ]
 
+        merged = _build_body_candidate(
+            question_content, accepted_answer, top_answers
+        )
+
         return NormalizedContent(
             source_name="Stack Overflow",
             title=scraped.get("title"),
@@ -316,18 +320,17 @@ class StackOverflowCollector:
             canonical_url=canonical_url,
             published_at=scraped.get("published_at"),
             preview=scraped.get("preview"),
-            body_candidate=_build_body_candidate(
-                question_content, accepted_answer, top_answers
-            ),
-            is_original_visible=True,
+            body_candidate=None,
+            pipeline_body=merged,
+            is_original_visible=False,
             license_type=_LICENSE_TYPE,
-            view_count=scraped.get("view_count"),
-            score=scraped.get("score"),
+            view_count=None,
+            score=None,
             likes=None,
-            is_answered=is_answered,
-            question_content=question_content,
-            accepted_answer=accepted_answer,
-            top_answers=top_answers,
+            is_answered=None,
+            question_content=None,
+            accepted_answer=None,
+            top_answers=[],
         )
 
 

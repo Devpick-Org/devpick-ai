@@ -95,11 +95,14 @@ def test_fetch_returns_normalized_contents() -> None:
         content.canonical_url
         == "https://stackoverflow.com/questions/12345/how-to-use-spring-boot"
     )
-    assert content.is_original_visible is True
+    assert content.is_original_visible is False
     assert content.license_type == "CC BY-SA 4.0"
-    assert content.view_count == 1200
-    assert content.score == 15
+    assert content.view_count is None
+    assert content.score is None
     assert content.likes is None
+    assert content.body_candidate is None
+    assert content.pipeline_body is not None
+    assert "## Question" in content.pipeline_body
 
 
 def test_fetch_returns_empty_when_trending_page_empty() -> None:
@@ -287,10 +290,10 @@ def test_to_normalized_content_basic_fields() -> None:
     assert result.source_name == "Stack Overflow"
     assert result.title == "Test Question"
     assert result.author == "devuser"
-    assert result.view_count == 1000
-    assert result.score == 15
+    assert result.view_count is None
+    assert result.score is None
     assert result.likes is None
-    assert result.is_original_visible is True
+    assert result.is_original_visible is False
     assert result.license_type == "CC BY-SA 4.0"
 
 
@@ -311,7 +314,7 @@ def test_to_normalized_content_score_from_api() -> None:
     result = collector._to_normalized_content(scraped, api_data, [])
 
     assert result is not None
-    assert result.score == 42
+    assert result.score is None
     assert result.likes is None
 
 
@@ -323,7 +326,7 @@ def test_to_normalized_content_is_answered() -> None:
     result = collector._to_normalized_content(scraped, api_data, [])
 
     assert result is not None
-    assert result.is_answered is True
+    assert result.is_answered is None
 
 
 def test_to_normalized_content_question_content_from_api_body() -> None:
@@ -334,9 +337,9 @@ def test_to_normalized_content_question_content_from_api_body() -> None:
     result = collector._to_normalized_content(scraped, api_data, [])
 
     assert result is not None
-    assert result.question_content == "<p>Detailed question</p>"
-    # body_candidate는 질문 + 답변을 합친 포맷 (answers 없으면 질문만)
-    assert result.body_candidate == "## Question\n<p>Detailed question</p>"
+    assert result.question_content is None
+    assert result.body_candidate is None
+    assert result.pipeline_body == "## Question\n<p>Detailed question</p>"
 
 
 def test_to_normalized_content_accepted_answer_structured() -> None:
@@ -348,7 +351,9 @@ def test_to_normalized_content_accepted_answer_structured() -> None:
     result = collector._to_normalized_content(scraped, api_data, answers)
 
     assert result is not None
-    assert result.accepted_answer == {"body": "Best answer", "score": 50}
+    assert result.accepted_answer is None
+    assert result.pipeline_body is not None
+    assert "Best answer" in result.pipeline_body
 
 
 def test_to_normalized_content_top_answers_structured() -> None:
@@ -364,9 +369,9 @@ def test_to_normalized_content_top_answers_structured() -> None:
     result = collector._to_normalized_content(scraped, api_data, answers)
 
     assert result is not None
-    assert len(result.top_answers) == 2  # max 2
-    assert result.top_answers[0]["body"] == "Top 1"
-    assert result.top_answers[0]["score"] == 30
+    assert result.top_answers == []
+    assert result.pipeline_body is not None
+    assert "Top 1" in result.pipeline_body
 
 
 def test_to_normalized_content_no_api_data_returns_content() -> None:
@@ -378,6 +383,7 @@ def test_to_normalized_content_no_api_data_returns_content() -> None:
 
     assert result is not None
     assert result.body_candidate is None
+    assert result.pipeline_body is None
     assert result.is_answered is None
     assert result.accepted_answer is None
     assert result.top_answers == []

@@ -175,7 +175,7 @@ def _run_source(
         try:
             pipeline.process_content(
                 content_id=content_id,
-                body_html=item.body_candidate,
+                body_html=item.pipeline_body or item.body_candidate,
                 thumbnail_url=item.thumbnail_url,
             )
         except Exception:
@@ -256,7 +256,7 @@ def _run_direct_source(
         try:
             pipeline.process_content(
                 content_id=content_id,
-                body_html=item.body_candidate,
+                body_html=item.pipeline_body or item.body_candidate,
                 thumbnail_url=item.thumbnail_url,
             )
         except Exception:

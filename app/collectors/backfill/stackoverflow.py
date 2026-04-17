@@ -244,6 +244,10 @@ class StackOverflowBackfillCollector:
             if a.get("body")
         ]
 
+        merged = _build_body_candidate(
+            question_body, accepted_answer, top_answers
+        )
+
         return NormalizedContent(
             source_name="Stack Overflow",
             title=q.get("title"),
@@ -251,16 +255,15 @@ class StackOverflowBackfillCollector:
             canonical_url=canonical_url,
             published_at=published_at,
             preview=preview,
-            body_candidate=_build_body_candidate(
-                question_body, accepted_answer, top_answers
-            ),
-            is_original_visible=True,
+            body_candidate=None,
+            pipeline_body=merged,
+            is_original_visible=False,
             license_type=_LICENSE_TYPE,
-            view_count=q.get("view_count"),
-            score=q.get("score"),
+            view_count=None,
+            score=None,
             likes=None,
-            is_answered=is_answered,
-            question_content=question_body,
-            accepted_answer=accepted_answer,
-            top_answers=top_answers,
+            is_answered=None,
+            question_content=None,
+            accepted_answer=None,
+            top_answers=[],
         )

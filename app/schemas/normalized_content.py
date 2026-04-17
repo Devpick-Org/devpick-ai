@@ -15,6 +15,8 @@ class NormalizedContent(BaseModel):
     published_at: str | None = None
     preview: str | None = None
     body_candidate: str | None = None
+    #: DB `original_content`에 넣지 않고 요약·임베딩 파이프라인에만 넘길 텍스트 (예: Stack Overflow)
+    pipeline_body: str | None = None
     is_original_visible: bool = False
     thumbnail_url: str | None = None
     thumbnail_width: int | None = None

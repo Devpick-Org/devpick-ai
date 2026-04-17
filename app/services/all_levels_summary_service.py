@@ -171,6 +171,7 @@ class AllLevelsSummaryService:
                 "content_id": content_id,
                 "generated_at": datetime.now(tz=timezone.utc).isoformat(),
                 "thumbnail_url": thumbnail_url,
+                "title": title,
                 "translated_title": translated_title,
             }
             return AllLevelsSummaryResponse.model_validate(payload)

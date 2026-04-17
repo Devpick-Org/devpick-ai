@@ -20,6 +20,7 @@ import requests
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 
+from app.collectors.velog_body import sanitize_velog_body
 from app.schemas.normalized_content import NormalizedContent
 
 logger = logging.getLogger(__name__)
@@ -219,7 +220,7 @@ class VelogCollector:
             )
             resp.raise_for_status()
             body = (resp.json().get("data") or {}).get("post", {}).get("body")
-            return body or None
+            return sanitize_velog_body(body)
         except Exception:
             logger.warning(
                 "Velog post body fetch failed: @%s/%s",
@@ -282,7 +283,7 @@ class VelogCollector:
         comments_raw = post.get("comments_count")
         comments_count = int(comments_raw) if comments_raw is not None else None
 
-        body_candidate: str | None = post.get("_body")
+        body_candidate: str | None = sanitize_velog_body(post.get("_body"))
 
         return NormalizedContent(
             source_name="Velog",

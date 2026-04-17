@@ -2,6 +2,8 @@
 
 DevPick 캡스톤 프로젝트의 AI 서버입니다.
 
+**커밋·푸시 전:** `develop` / `developV2`에 Python 변경을 올리기 전에 [CI 파이프라인](#ci-파이프라인-pr-체크)과 **동일한 로컬 검사**(`ruff` → `black` → `pytest`)를 먼저 통과시키세요. 푸시 후에야 실패하는 **GitHub Actions `AI PR Checks`**(`.github/workflows/ai-pr-check.yml`)를 미리 맞춰 두면 빨간 CI를 줄일 수 있습니다.
+
 ## 설치 및 실행
 
 ```bash
@@ -147,6 +149,8 @@ python scripts/reindex_vectors.py
 | `weekly_report_insights` | 주간 인사이트 (report_id 기준) |
 
 ## CI 파이프라인 (PR 체크)
+
+> **메모:** 원격에 푸시하기 **전에** 아래 명령을 로컬에서 실행해 통과 여부를 확인할 것. 실패한 채로 푸시하면 동일한 단계에서 `pr-check` 잡이 exit code 1로 끝난다.
 
 GitHub Actions 워크플로 `AI PR Checks`가 아래 조건에서 실행됩니다.
 

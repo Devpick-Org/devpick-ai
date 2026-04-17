@@ -281,10 +281,7 @@ class StackOverflowCollector:
         if not canonical_url:
             return None
 
-        # is_answered
-        is_answered: bool | None = api_data.get("is_answered")
-
-        # question_content: API body (원문 HTML)
+        # question_content: API body (원문 HTML) — DB/API 비노출, pipeline 병합에만 사용
         question_content: str | None = api_data.get("body")
 
         # accepted_answer + top_answers 구조화
@@ -309,9 +306,7 @@ class StackOverflowCollector:
             if a.get("body")
         ]
 
-        merged = _build_body_candidate(
-            question_content, accepted_answer, top_answers
-        )
+        merged = _build_body_candidate(question_content, accepted_answer, top_answers)
 
         return NormalizedContent(
             source_name="Stack Overflow",

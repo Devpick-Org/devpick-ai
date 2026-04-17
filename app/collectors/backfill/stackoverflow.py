@@ -221,8 +221,6 @@ class StackOverflowBackfillCollector:
                 else plain
             )
 
-        is_answered: bool | None = q.get("is_answered")
-
         valid_answers = [a for a in answers if a.get("body")]
         accepted_raw = next((a for a in valid_answers if a.get("is_accepted")), None)
         top_raw = sorted(
@@ -244,9 +242,7 @@ class StackOverflowBackfillCollector:
             if a.get("body")
         ]
 
-        merged = _build_body_candidate(
-            question_body, accepted_answer, top_answers
-        )
+        merged = _build_body_candidate(question_body, accepted_answer, top_answers)
 
         return NormalizedContent(
             source_name="Stack Overflow",

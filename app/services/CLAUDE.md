@@ -53,12 +53,13 @@ Step 5:   EmbeddingOrchestrator.embed_and_store() → DynamoDB + FAISS  [summary
 
 ```python
 AllLevelsSummaryService(aws_region: str, model: str)
-summarize_all(content_id, text, thumbnail_url=None) -> AllLevelsSummaryResponse
+summarize_all(content_id, text, thumbnail_url=None, title=None) -> AllLevelsSummaryResponse
 ```
 
 - **Tool Use**: `save_all_summaries` — JSON 파싱 실패 0%
 - **Prompt Caching**: system 블록 `cachePoint` — 비용 절감
 - **Temperature 0**, 4레벨(beginner/junior/mid/senior) 동시 생성
+- **translated_title**: `title` 파라미터 전달 시 한/영 감지 후 영어 제목이면 Bedrock 번역, 한국어면 None (DP-328)
 - 에러 처리: `AIBadRequestError` / `AITimeoutError` / `AIUpstreamError` / `AIInternalError`
 
 ---

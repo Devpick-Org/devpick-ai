@@ -46,6 +46,7 @@ class ContentPipeline:
         content_id: str,
         body_html: str | None,
         thumbnail_url: str | None = None,
+        title: str | None = None,
     ) -> None:
         """단일 콘텐츠에 대해 전처리 → 요약 → DynamoDB 저장 → 임베딩 → 퀴즈 생성을 실행한다."""
         if not body_html:
@@ -61,13 +62,14 @@ class ContentPipeline:
             )
             return
 
-        # Step 2: 4레벨 요약
+        # Step 2: 4레벨 요약 (title이 있으면 영어 제목 번역 포함)
         summary = None
         try:
             summary = self._summary_svc.summarize_all(
                 content_id=content_id,
                 text=preprocessed,
                 thumbnail_url=thumbnail_url,
+                title=title,
             )
         except Exception:
             logger.exception("[pipeline] content_id=%s 요약 실패", content_id)
@@ -81,13 +83,14 @@ class ContentPipeline:
                     "[pipeline] content_id=%s 요약 DynamoDB 저장 실패", content_id
                 )
 
-        # Step 3-1: AI 태그·카테고리 PostgreSQL 저장 (fire-and-forget)
+        # Step 3-1: AI 태그·카테고리·translated_title PostgreSQL 저장 (fire-and-forget)
         if summary and self._content_repo:
             try:
                 self._content_repo.save_ai_metadata(
                     content_id=content_id,
                     tags=summary.common.tags,
                     category=summary.common.category,
+                    translated_title=summary.translated_title,
                 )
             except Exception:
                 logger.exception(

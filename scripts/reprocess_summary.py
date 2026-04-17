@@ -36,11 +36,11 @@ logger = logging.getLogger(__name__)
 
 
 def _fetch_content(engine, content_id: str) -> dict | None:
-    """PostgreSQL에서 content_id에 해당하는 본문·썸네일을 조회한다."""
+    """PostgreSQL에서 content_id에 해당하는 본문·썸네일·제목을 조회한다."""
     with engine.connect() as conn:
         row = conn.execute(
             text(
-                "SELECT id, original_content, thumbnail_url FROM contents WHERE id = :id"
+                "SELECT id, original_content, thumbnail_url, title FROM contents WHERE id = :id"
             ),
             {"id": content_id},
         ).fetchone()
@@ -50,6 +50,7 @@ def _fetch_content(engine, content_id: str) -> dict | None:
         "content_id": str(row[0]),
         "body_html": row[1],
         "thumbnail_url": row[2],
+        "title": row[3],
     }
 
 
@@ -84,6 +85,7 @@ def reprocess(
             content_id=content_id,
             text=preprocessed,
             thumbnail_url=row["thumbnail_url"],
+            title=row["title"],
         )
     except Exception:
         logger.exception("[%s] 요약 생성 실패", content_id)
@@ -96,22 +98,28 @@ def reprocess(
     except Exception:
         logger.exception("[%s] DynamoDB 저장 실패", content_id)
 
-    # PostgreSQL tags·category 업데이트
+    # PostgreSQL tags·category·translated_title 업데이트
     if content_repo:
         try:
             content_repo.save_ai_metadata(
                 content_id=content_id,
                 tags=summary.common.tags,
                 category=summary.common.category,
+                translated_title=summary.translated_title,
             )
             logger.info(
-                "[%s] PostgreSQL tags/category 업데이트 완료 — category=%s tags=%s",
+                "[%s] PostgreSQL tags/category/translated_title 업데이트 완료 — "
+                "category=%s tags=%s translated_title=%s",
                 content_id,
                 summary.common.category,
                 summary.common.tags,
+                summary.translated_title,
             )
         except Exception:
-            logger.exception("[%s] PostgreSQL tags/category 업데이트 실패", content_id)
+            logger.exception(
+                "[%s] PostgreSQL tags/category/translated_title 업데이트 실패",
+                content_id,
+            )
 
     return True
 

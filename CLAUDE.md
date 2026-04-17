@@ -39,6 +39,7 @@
   - **요약 프롬프트 개선: core_summary string 포맷 통일, 섹션 수 원본 구조 추적, 레벨별 독자 관점 차별화 (DP-300)**
   - **유사 콘텐츠 검색 SimilarContentService + POST /internal/similar-contents 구현 완료 (DP-288)**
   - **퀴즈 레벨별 출제 방향 차별화 + 누락 레벨 재시도 로직 추가 (DP-265)**
+  - **주간 인사이트 키워드 분석 강화: UserRepository(user_tags+content_tags) + 미탐색 태그 기반 추천 글 + Sonnet 전환 (DP-254)**
 
 ---
 

@@ -10,6 +10,7 @@ DynamoDB + PostgreSQL 접근 레이어. 각 도메인별 저장/조회 로직을
 | 파일 | 클래스 | DB | 테이블/컬렉션 | 역할 |
 |------|--------|-----|--------------|------|
 | `content_repository.py` | `ContentRepository` | PostgreSQL | `contents` | 정규화된 콘텐츠 저장 (DP-199) |
+| `user_repository.py` | `UserRepository` | PostgreSQL | `user_tags`, `tags`, `content_tags`, `contents` | 유저 관심 키워드 + 미탐색 태그 기반 추천 글 조회 (DP-254) |
 | `summary_repository.py` | `SummaryRepository` | DynamoDB | `ai_summaries` | AI 요약 결과 upsert/조회 (DP-220, DP-300) |
 | `quiz_repository.py` | `QuizRepository` | DynamoDB | `ai_quizzes` | AI 퀴즈 결과 upsert/조회 (DP-265) |
 | `vector_repository.py` | `VectorRepository` | DynamoDB | `rag_documents` | RAG 청크 + 임베딩 저장 (DP-218) |
@@ -119,6 +120,22 @@ find_by_user(user_id, start=None, end=None, event_type=None) -> list[dict]
 
 - DynamoDB `event_logs` 테이블
 - 저장 전 오늘 UTC 기준 `(user_id, event_type, content_id, question_id)` 중복 확인 → 있으면 스킵
+
+---
+
+## UserRepository 상세 (DP-254)
+
+```python
+UserRepository(database_url: str)
+find_keywords_by_user_id(user_id: str) -> list[str]
+find_contents_by_tag_names(tag_names: list[str], limit: int = 3) -> list[dict]
+close() -> None
+```
+
+- PostgreSQL `user_tags JOIN tags` — 유저 설정 관심 키워드 이름 목록 조회
+- PostgreSQL `content_tags JOIN contents JOIN tags` — 미탐색 태그 기반 추천 글 제목 조회
+- 인사이트 생성 시 `/internal/report` 라우터 Step 0에서 호출
+- `DATABASE_URL` 미설정 시 graceful fallback (빈 리스트 반환)
 
 ---
 

@@ -49,6 +49,9 @@ class InsightService:
         question_texts: list[str],
         week_start: str,
         week_end: str,
+        user_keywords: list[str] | None = None,
+        unmatched_keywords: list[str] | None = None,
+        recommended_contents: list[dict] | None = None,
     ) -> InsightResponse:
         """주간 활동 데이터를 기반으로 인사이트를 생성한다.
 
@@ -77,6 +80,9 @@ class InsightService:
             question_texts=question_texts,
             week_start=week_start,
             week_end=week_end,
+            user_keywords=user_keywords,
+            unmatched_keywords=unmatched_keywords,
+            recommended_contents=recommended_contents,
         )
 
         try:
@@ -87,7 +93,7 @@ class InsightService:
                 ],
                 messages=[{"role": "user", "content": [{"text": user_prompt}]}],
                 toolConfig=to_tool_config(INSIGHT_TOOL, _TOOL_NAME),
-                inferenceConfig={"maxTokens": 1024, "temperature": 0.3},
+                inferenceConfig={"maxTokens": 4096, "temperature": 0.3},
             )
         except ReadTimeoutError as exc:
             logger.warning("LLM 타임아웃: %s", exc)

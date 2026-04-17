@@ -59,13 +59,18 @@ Spring Boot ↔ FastAPI 내부 통신 전용 라우터. Base URL: `/internal`
 
 ---
 
-## POST /internal/report 처리 흐름 (DP-259)
+## POST /internal/report 처리 흐름 (DP-259, DP-254)
 
 ```
+0. UserRepository.find_keywords_by_user_id() → user_keywords (PostgreSQL user_tags JOIN tags)
+   → unmatched_keywords = user_keywords - 이번 주 tag_activities
+   → UserRepository.find_contents_by_tag_names(unmatched_keywords) → recommended_contents
+   [DATABASE_URL 없으면 전체 step 0 skip, 빈 리스트로 fallback]
 1. EventRepository.find_by_user() → 주간 AI 이벤트 카운트 (refine/answer/similar)
 2. SummaryRepository.find_by_content_ids() → 읽은 글/스크랩한 글 one_line_summary
 3. QuestionVectorRepository.find_texts_by_ids() → 작성한 질문 텍스트
-4. InsightService.generate() → InsightResponse (report_id="" 초기값)
+4. InsightService.generate(..., user_keywords, unmatched_keywords, recommended_contents)
+   → InsightResponse (report_id="" 초기값)
 5. result.report_id = body.report_id 주입
 6. InsightRepository.save(report_id, user_id, result) [fire-and-forget]
 7. EventRepository.save_event(INSIGHT_GENERATED) [fire-and-forget]

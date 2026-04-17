@@ -13,6 +13,7 @@ from app.rag.retriever import RAGRetriever
 from app.repositories.answer_repository import AnswerRepository
 from app.repositories.event_repository import EventRepository
 from app.repositories.insight_repository import InsightRepository
+from app.repositories.user_repository import UserRepository
 from app.repositories.question_vector_repository import QuestionVectorRepository
 from app.repositories.quiz_repository import QuizRepository
 from app.repositories.summary_repository import SummaryRepository
@@ -49,6 +50,7 @@ _BEDROCK_MODEL_HAIKU = os.getenv(
 _BEDROCK_MODEL_SONNET = os.getenv(
     "BEDROCK_MODEL_SONNET", "global.anthropic.claude-sonnet-4-6"
 )
+_DATABASE_URL = os.getenv("DATABASE_URL")
 
 logger = logging.getLogger(__name__)
 
@@ -355,6 +357,31 @@ def create_insight(body: InsightRequest) -> InsightResponse:
     에러는 전역 핸들러(AIServiceError)가 처리한다.
     DynamoDB 저장 실패는 무시하고 InsightResponse를 반환한다.
     """
+    # Step 0. 유저 관심 키워드 + 미탐색 태그 기반 추천 글 조회 (PostgreSQL)
+    user_keywords: list[str] = []
+    unmatched_keywords: list[str] = []
+    recommended_contents: list[dict] = []
+    if _DATABASE_URL:
+        try:
+            user_repo = UserRepository(database_url=_DATABASE_URL)
+            user_keywords = user_repo.find_keywords_by_user_id(body.user_id)
+
+            active_tags = {t.tag_name.lower() for t in body.activities.tag_activities}
+            if not active_tags:
+                active_tags = {t.tag.lower() for t in body.activities.top_tags}
+            unmatched_keywords = [
+                k for k in user_keywords if k.lower() not in active_tags
+            ]
+
+            if unmatched_keywords:
+                recommended_contents = user_repo.find_contents_by_tag_names(
+                    unmatched_keywords
+                )
+        except Exception:
+            logger.exception(
+                "Failed to fetch user keywords/recommendations from PostgreSQL"
+            )
+
     # Step 1. 주간 AI 이벤트 카운트 (event_logs 조회)
     ai_events: dict = {"refine": 0, "answer": 0, "similar": 0}
     try:
@@ -409,7 +436,7 @@ def create_insight(body: InsightRequest) -> InsightResponse:
 
     # Step 4. 인사이트 생성
     result = InsightService(
-        aws_region=_BEDROCK_REGION, model=_BEDROCK_MODEL_HAIKU
+        aws_region=_BEDROCK_REGION, model=_BEDROCK_MODEL_SONNET
     ).generate(
         activities=body.activities,
         ai_events=ai_events,
@@ -418,6 +445,9 @@ def create_insight(body: InsightRequest) -> InsightResponse:
         question_texts=question_texts,
         week_start=body.week_start,
         week_end=body.week_end,
+        user_keywords=user_keywords,
+        unmatched_keywords=unmatched_keywords,
+        recommended_contents=recommended_contents,
     )
     result.report_id = body.report_id
 

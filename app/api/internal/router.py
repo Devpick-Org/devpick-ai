@@ -5,7 +5,7 @@ import os
 from datetime import datetime, timezone
 
 from dotenv import load_dotenv
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Response
 
 from app.api.deps import verify_internal_key
 from app.core.exceptions import AIBadRequestError
@@ -57,6 +57,20 @@ router = APIRouter(prefix="/internal", tags=["internal"])
 @router.get("/health", dependencies=[Depends(verify_internal_key)])
 def internal_health() -> dict[str, str]:
     return {"status": "ok"}
+
+
+@router.delete(
+    "/questions/{question_id}",
+    status_code=204,
+    dependencies=[Depends(verify_internal_key)],
+)
+def delete_question_documents(question_id: str) -> Response:
+    """백엔드 posts 삭제 후 호출 — ai_answers·rag_questions·FAISS 질문 인덱스 정리.
+
+    존재하지 않는 question_id여도 204(멱등).
+    """
+    cleanup_question_documents(question_id, _AWS_REGION)
+    return Response(status_code=204)
 
 
 @router.post(

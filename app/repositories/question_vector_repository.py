@@ -78,6 +78,11 @@ class QuestionVectorRepository:
         )
         logger.info("Saved question embedding to DynamoDB: question_id=%s", question_id)
 
+    def delete_by_question_id(self, question_id: str) -> None:
+        """질문 삭제 시 rag_questions 행을 제거한다. 없는 키여도 멱등."""
+        self._table.delete_item(Key={"question_id": question_id})
+        logger.info("Deleted rag_questions row: question_id=%s", question_id)
+
     def find_all(self) -> Iterator[dict]:
         """모든 질문 임베딩을 반환한다. FAISS 재빌드용."""
         paginator = self._table.meta.client.get_paginator("scan")

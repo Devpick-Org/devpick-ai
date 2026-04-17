@@ -97,3 +97,8 @@ class AnswerRepository:
             question_id,
             content_id,
         )
+
+    def delete_by_question_id(self, question_id: str) -> None:
+        """질문 삭제 시 해당 답변 행을 제거한다. 없는 키여도 DynamoDB delete는 성공(멱등)."""
+        self._table.delete_item(Key={"question_id": question_id})
+        logger.info("Deleted ai_answers row: question_id=%s", question_id)

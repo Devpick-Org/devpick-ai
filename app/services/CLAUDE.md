@@ -122,15 +122,23 @@ answer(refined_title, refined_content, original_title=None, original_content=Non
 
 ---
 
-## InsightService 상세 (DP-259)
+## InsightService 상세 (DP-259, DP-254)
 
 ```python
 InsightService(aws_region: str, model: str)
 generate(activities, ai_events, read_summaries, scrapped_summaries,
-         question_texts, week_start, week_end) -> InsightResponse
+         question_texts, week_start, week_end,
+         user_keywords=None, unmatched_keywords=None, recommended_contents=None
+) -> InsightResponse
 ```
 
-- **Tool Use + Prompt Caching**, temperature=0.3, max_tokens=1024
+- **모델**: Claude Sonnet (DP-254에서 Haiku → Sonnet 전환 — 다중 데이터 종합 분석 품질 향상)
+- **Tool Use**, temperature=0.3, maxTokens=4096
+- **입력 cap**: 읽은 글 10개, 스크랩 5개, 질문 3개, 태그 5개
+- **user_keywords**: 유저 설정 관심 키워드 (UserRepository 조회값)
+- **unmatched_keywords**: 이번 주 미탐색 관심 키워드 (라우터에서 계산)
+- **recommended_contents**: 미탐색 태그 기반 추천 글 제목 목록 (UserRepository 조회값)
+- 프롬프트 구조: well_done(태그+요약 기반 학습 분석) / lacking(미탐색 태그+요일 태도) / next_week(추천 글+심화+태도 가이드)
 
 ---
 

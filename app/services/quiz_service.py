@@ -110,6 +110,13 @@ class QuizService:
                 retry_raw = self._retry_missing_levels(text, missing)
                 raw.update(retry_raw)
 
+            still_missing = [
+                lvl for lvl in ("beginner", "junior", "mid", "senior") if lvl not in raw
+            ]
+            if still_missing:
+                logger.error("재시도 후에도 레벨 누락: %s", still_missing)
+                raise AIInternalError(f"재시도 후에도 레벨 누락: {still_missing}")
+
             payload = {
                 **raw,
                 "content_id": content_id,

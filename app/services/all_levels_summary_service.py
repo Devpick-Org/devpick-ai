@@ -143,10 +143,27 @@ class AllLevelsSummaryService:
             missing = [
                 lvl for lvl in ("beginner", "junior", "mid", "senior") if lvl not in raw
             ]
-            if missing:
-                logger.warning("누락된 레벨 감지 — 재시도: %s", missing)
+            attempt = 0
+            max_retries = 4
+            while missing and attempt < max_retries:
+                attempt += 1
+                logger.warning(
+                    "누락된 레벨 감지 — 재시도 (%d/%d): %s",
+                    attempt,
+                    max_retries,
+                    missing,
+                )
                 retry_raw = self._retry_missing_levels(text, missing)
                 raw.update(retry_raw)
+                missing = [
+                    lvl
+                    for lvl in ("beginner", "junior", "mid", "senior")
+                    if lvl not in raw
+                ]
+
+            if missing:
+                logger.error("최대 재시도 초과, 레벨 누락: %s", missing)
+                raise AIInternalError(f"최대 재시도 초과, 레벨 누락: {missing}")
 
             for level in ("beginner", "junior", "mid", "senior"):
                 if level not in raw:

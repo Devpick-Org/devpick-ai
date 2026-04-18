@@ -109,11 +109,18 @@ class QuizService:
             max_retries = 4
             while missing and attempt < max_retries:
                 attempt += 1
-                logger.warning("누락된 레벨 감지 — 재시도 (%d/%d): %s", attempt, max_retries, missing)
+                logger.warning(
+                    "누락된 레벨 감지 — 재시도 (%d/%d): %s",
+                    attempt,
+                    max_retries,
+                    missing,
+                )
                 retry_raw = self._retry_missing_levels(text, missing)
                 raw.update(retry_raw)
                 missing = [
-                    lvl for lvl in ("beginner", "junior", "mid", "senior") if lvl not in raw
+                    lvl
+                    for lvl in ("beginner", "junior", "mid", "senior")
+                    if lvl not in raw
                 ]
 
             if missing:

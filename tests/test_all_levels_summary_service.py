@@ -138,7 +138,7 @@ def test_validation_error_raises_ai_internal_error() -> None:
     )
     svc._client = mock_client
 
-    with pytest.raises(AIInternalError, match="파싱"):
+    with pytest.raises(AIInternalError, match="최대 재시도 초과"):
         svc.summarize_all(content_id="art-006", text="텍스트.")
 
 

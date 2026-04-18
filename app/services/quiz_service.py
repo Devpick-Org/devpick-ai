@@ -154,7 +154,7 @@ class QuizService:
                 system=[{"text": SYSTEM_PROMPT_QUIZ}],
                 messages=[{"role": "user", "content": [{"text": retry_prompt}]}],
                 toolConfig=to_tool_config(retry_tool, _TOOL_NAME),
-                inferenceConfig={"maxTokens": 4096, "temperature": 0.0},
+                inferenceConfig={"maxTokens": 8192, "temperature": 0.0},
             )
         except ReadTimeoutError as exc:
             raise AITimeoutError() from exc

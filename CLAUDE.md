@@ -41,6 +41,11 @@
   - **퀴즈 레벨별 출제 방향 차별화 + 누락 레벨 재시도 로직 추가 (DP-265)**
   - **주간 인사이트 키워드 분석 강화: UserRepository(user_tags+content_tags) + 미탐색 태그 기반 추천 글 + Sonnet 전환 (DP-254)**
   - **영어 제목 번역 후 translated_title을 DynamoDB ai_summaries + PostgreSQL contents에 저장 (DP-328)**
+  - **태그 정규화(TagNormalizer) + 빈도 집계(FrequencyAnalyzer) + TF-IDF/tokenizer 구현 (DP-380, DP-381)**
+  - **트렌드 랭킹 TrendRanker + TrendDataLoader + TrendSnapshotRepository 구현 (DP-378, DP-379, DP-383)**
+  - **Top 5 콘텐츠 LLM 서사 요약 TopPostsSummaryGenerator 구현 (DP-404)**
+  - **수집 동향 LLM 서사 요약 CollectionSummaryGenerator + TrendSignals 구현 (DP-384)**
+  - **트렌드 배치 오케스트레이터 TrendOrchestrator + run_trend_batch.py + run_trend_scheduler.py 구현 (DP-386)**
 
 ---
 
@@ -67,6 +72,7 @@
 2. **PostgreSQL 직접 저장** — `ContentRepository` (Backend push 없음)
 3. **AI 요약 + 퀴즈 자동 생성** — `ContentPipeline`: 저장 직후 4레벨 요약 + 4레벨 퀴즈 생성 → DynamoDB. 요약 성공 시 tags·category → PostgreSQL UPDATE
 4. **AI 질문/답변/리포트** — RefineService, AnswerService, InsightService
+5. **트렌드 분석 배치** — `TrendOrchestrator`: 일/주/월 단위 태그 빈도·TF-IDF·LLM 서사 요약 → `trend_snapshots` PostgreSQL 저장
 5. **출력 JSON 스키마 검증 + 파싱 실패 대응**
 6. **캐시/저장/로그 기록**
 
@@ -178,6 +184,13 @@ DATABASE_URL=postgresql://... python scripts/reprocess_quiz.py <content_id>
 
 # DynamoDB → PostgreSQL tags/category 동기화
 DATABASE_URL=postgresql://... python scripts/sync_ai_metadata.py
+
+# 트렌드 분석 1회 실행 (unit: daily/weekly/monthly)
+DATABASE_URL=postgresql://... python scripts/run_trend_batch.py --unit weekly
+DATABASE_URL=postgresql://... python scripts/run_trend_batch.py --unit daily --force
+
+# 트렌드 스케줄러 (daily 00:05 / weekly 월 00:10 / monthly 1일 00:15 KST)
+DATABASE_URL=postgresql://... python scripts/run_trend_scheduler.py
 
 # 테스트
 pytest -q

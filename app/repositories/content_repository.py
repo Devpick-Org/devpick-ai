@@ -221,12 +221,13 @@ class ContentRepository:
         with self._engine.begin() as conn:
             result = conn.execute(
                 text("""
-                    SELECT id, title, translated_title, category, tags,
-                           source_id, published_at
-                    FROM contents
-                    WHERE published_at >= :start AND published_at < :end
-                      AND is_available = true
-                    ORDER BY published_at DESC
+                    SELECT c.id, c.title, c.translated_title, c.category, c.tags,
+                           cs.name AS source_name, c.thumbnail_url, c.published_at
+                    FROM contents c
+                    LEFT JOIN content_sources cs ON cs.id = c.source_id
+                    WHERE c.published_at >= :start AND c.published_at < :end
+                      AND c.is_available = true
+                    ORDER BY c.published_at DESC
                 """),
                 {"start": start, "end": end},
             )

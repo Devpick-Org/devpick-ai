@@ -45,6 +45,10 @@
 | `test_insight_endpoint.py` | `POST /internal/report` | 주간 리포트 엔드포인트 통합 테스트 (DP-259) |
 | `test_insight_prompt.py` | `build_user_prompt()` | 인사이트 프롬프트 빌더 단위 테스트 |
 | `test_rss_collector.py` | `xml_helpers` | xml_helpers 유틸 함수 테스트 (`compute_entry_hash`, `sha256_text`, `normalize_date` 등) — 파일명은 레거시 |
+| `test_trend_data_loader.py` | `TrendDataLoader` | cur/prev 기간 병렬 로드, prev_contents 포함 확인 (DP-379, DP-386) |
+| `test_trend_collection_summary.py` | `CollectionSummaryGenerator` | 수집 동향 LLM 서사 요약 mock 테스트 (DP-384) |
+| `test_trend_top_posts_summary.py` | `TopPostsSummaryGenerator` | Top 5 콘텐츠 LLM 서사 요약 mock 테스트 (DP-404) |
+| `test_trend_orchestrator.py` | `TrendOrchestrator` | 배치 오케스트레이터 통합 흐름, skip/force/LLM 실패 격리 (DP-386) |
 
 ---
 

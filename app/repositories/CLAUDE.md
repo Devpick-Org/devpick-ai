@@ -18,6 +18,7 @@ DynamoDB + PostgreSQL 접근 레이어. 각 도메인별 저장/조회 로직을
 | `question_vector_repository.py` | `QuestionVectorRepository` | DynamoDB | `rag_questions` | 질문 임베딩 upsert 저장 (DP-234) |
 | `event_repository.py` | `EventRepository` | DynamoDB | `event_logs` | AI 처리 이벤트 로그 + 일별 dedup (DP-252) |
 | `insight_repository.py` | `InsightRepository` | DynamoDB | `weekly_report_insights` | 주간 인사이트 upsert 저장 (DP-259) |
+| `trend_repository.py` | `TrendSnapshotRepository` | PostgreSQL | `trend_snapshots` | 트렌드 분석 결과 upsert/조회 (DP-378, DP-386) |
 
 ---
 

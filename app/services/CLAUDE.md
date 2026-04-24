@@ -20,6 +20,15 @@
 | `question_embedding_service.py` | `QuestionEmbeddingOrchestrator` | 질문 임베딩 → DynamoDB rag_questions + FAISS questions 저장 (DP-234) |
 | `similar_question_service.py` | `SimilarQuestionService` | FAISS questions 인덱스 유사 질문 검색 (DP-235) |
 | `insight_service.py` | `InsightService` | Bedrock Tool Use 기반 주간 학습 인사이트 생성 (DP-259) |
+| `trend/normalize.py` | `TagNormalizer` | rapidfuzz 기반 태그 동의어 정규화 (DP-380) |
+| `trend/frequency.py` | `FrequencyAnalyzer` | 태그 빈도 집계 + 증감 상태 판정 (DP-380) |
+| `trend/tokenizer.py` | `KoreanTokenizer` | kiwipiepy 형태소 분석 기반 토크나이저 (DP-381) |
+| `trend/tfidf.py` | `TfidfAnalyzer` | scikit-learn TF-IDF 키워드 추출 (DP-381) |
+| `trend/ranking.py` | `TrendRanker` | 조회수 기반 Top 5 콘텐츠 + 복합 점수 Top 10 태그 선정 (DP-383) |
+| `trend/data_loader.py` | `TrendDataLoader` | cur/prev 기간 데이터 병렬 로드 (DP-379) |
+| `trend/top_posts_summary.py` | `TopPostsSummaryGenerator` | Top 5 콘텐츠 주제 흐름 LLM 서사 요약 (DP-404) |
+| `trend/collection_summary.py` | `CollectionSummaryGenerator` | 수집 동향 LLM 서사 요약 + `TrendSignals` 데이터클래스 (DP-384) |
+| `trend/orchestrator.py` | `TrendOrchestrator` | 일/주/월 트렌드 배치 오케스트레이터 + `compute_period()` (DP-386) |
 
 ---
 

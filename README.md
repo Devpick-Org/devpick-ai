@@ -112,6 +112,8 @@ ContentPipeline.process_content()
 | `scripts/run_backfill_batch.py` | 1회 수집 실행 — PostgreSQL 저장 + AI 처리 (요약+퀴즈+임베딩) |
 | `scripts/run_scheduler.py` | 6시간 간격 자동 반복 실행 |
 | `scripts/run_collect_and_save.py` | 로컬 JSONL 저장 전용 (AI 처리 없음, 개발용) |
+| `scripts/run_trend_batch.py` | 트렌드 분석 1회 실행 (`--unit daily/weekly/monthly`, `--force`) |
+| `scripts/run_trend_scheduler.py` | 트렌드 분석 자동 실행 (daily 00:05 / weekly 월 00:10 / monthly 1일 00:15 KST) |
 | `scripts/init_postgres.py` | PostgreSQL UNIQUE 인덱스 초기화 (배포 시 1회) |
 | `scripts/init_vectors.py` | FAISS 인덱스 초기화 |
 | `scripts/reindex_vectors.py` | FAISS 인덱스 재빌드 (인덱스 유실 시) |
@@ -129,12 +131,38 @@ DATABASE_URL=postgresql://... python scripts/run_backfill_batch.py
 # 스케줄러 (6시간 간격 자동 반복)
 DATABASE_URL=postgresql://... python scripts/run_scheduler.py
 
+# 트렌드 분석 1회 실행
+DATABASE_URL=postgresql://... python scripts/run_trend_batch.py --unit weekly
+DATABASE_URL=postgresql://... python scripts/run_trend_batch.py --unit daily --force
+
+# 트렌드 분석 스케줄러 (daily/weekly/monthly 자동 실행)
+DATABASE_URL=postgresql://... python scripts/run_trend_scheduler.py
+
 # 개발 서버
 uvicorn main:app --reload
 
 # FAISS 재빌드 (인덱스 유실 시)
 python scripts/reindex_vectors.py
 ```
+
+## 트렌드 분석 배치 파이프라인
+
+AI 서버가 일/주/월 단위로 태그 빈도·TF-IDF·LLM 서사 요약을 생성하고 PostgreSQL `trend_snapshots`에 저장한다. Backend는 이 테이블을 읽어 Frontend에 전달한다.
+
+```
+TrendOrchestrator.run(unit, period_start, period_end)
+    ├─ TrendDataLoader         — cur/prev 콘텐츠 + 조회수 4개 병렬 쿼리
+    ├─ TagNormalizer            — rapidfuzz 동의어 정규화
+    ├─ FrequencyAnalyzer        — 태그 빈도 집계 + 증감 상태 (new/up/down/same)
+    ├─ KoreanTokenizer + TfidfAnalyzer — TF-IDF 키워드 추출 (제목 기반)
+    ├─ TrendRanker              — 조회수 Top 5 콘텐츠 선정
+    ├─ TopPostsSummaryGenerator — Top 5 콘텐츠 LLM 서사 요약 (Bedrock)
+    ├─ CollectionSummaryGenerator — 수집 동향 LLM 서사 요약 (Bedrock, weekly/monthly만)
+    └─ TrendSnapshotRepository  — trend_snapshots upsert
+```
+
+- `force=False`이고 동일 기간 스냅샷이 이미 있으면 재생성 없이 즉시 반환
+- LLM 실패 시 해당 요약 필드만 `null`로 저장, 스냅샷 저장은 계속 진행
 
 ## DynamoDB 테이블 목록
 

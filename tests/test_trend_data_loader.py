@@ -81,6 +81,18 @@ def test_load_empty_contents_skips_summary_meta() -> None:
     assert result.summary_meta == {}
 
 
+# ── prev_contents ────────────────────────────────────────────────────────────
+
+
+def test_load_returns_prev_contents() -> None:
+    loader = _make_loader(cur_contents=[{"id": "cid-1", "title": "현재"}])
+
+    result = loader.load(_START, _END)
+
+    assert hasattr(result, "prev_contents")
+    assert isinstance(result.prev_contents, list)
+
+
 # ── 조회수 0건 ────────────────────────────────────────────────────────────────
 
 

@@ -18,6 +18,7 @@ class TrendRawData:
     cur_contents: list[dict] = field(default_factory=list)
     cur_view_counts: dict[str, int] = field(default_factory=dict)
     prev_view_counts: dict[str, int] = field(default_factory=dict)
+    prev_contents: list[dict] = field(default_factory=list)
     summary_meta: dict[str, dict] = field(default_factory=dict)
 
 
@@ -45,9 +46,12 @@ class TrendDataLoader:
         delta = end - start
         prev_start = start - delta
 
-        with ThreadPoolExecutor(max_workers=3) as executor:
+        with ThreadPoolExecutor(max_workers=4) as executor:
             f_contents = executor.submit(
                 self._content_repo.find_by_published_range, start, end
+            )
+            f_prev_contents = executor.submit(
+                self._content_repo.find_by_published_range, prev_start, start
             )
             f_cur_views = executor.submit(
                 self._content_repo.find_view_counts_by_period, start, end
@@ -57,6 +61,7 @@ class TrendDataLoader:
             )
 
         cur_contents = f_contents.result()
+        prev_contents = f_prev_contents.result()
         cur_view_counts = f_cur_views.result()
         prev_view_counts = f_prev_views.result()
 
@@ -68,8 +73,10 @@ class TrendDataLoader:
         )
 
         logger.debug(
-            "TrendDataLoader.load 완료: contents=%d cur_views=%d prev_views=%d meta=%d",
+            "TrendDataLoader.load 완료: contents=%d prev_contents=%d"
+            " cur_views=%d prev_views=%d meta=%d",
             len(cur_contents),
+            len(prev_contents),
             len(cur_view_counts),
             len(prev_view_counts),
             len(summary_meta),
@@ -79,5 +86,6 @@ class TrendDataLoader:
             cur_contents=cur_contents,
             cur_view_counts=cur_view_counts,
             prev_view_counts=prev_view_counts,
+            prev_contents=prev_contents,
             summary_meta=summary_meta,
         )

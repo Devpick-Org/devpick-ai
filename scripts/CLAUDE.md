@@ -36,6 +36,8 @@
 | `run_backfill_batch.py` | 1회 수집 실행 — PostgreSQL 직접 저장 + AI 처리(요약·퀴즈·임베딩) |
 | `run_scheduler.py` | 6시간 간격 자동 반복 실행 (APScheduler 기반) |
 | `run_collect_and_save.py` | 수집 → 로컬 JSONL 저장 전용 (AI 처리 없음, 개발·디버그용) |
+| `run_trend_batch.py` | 트렌드 분석 1회 실행 CLI — `--unit daily/weekly/monthly`, `--force` (DP-386) |
+| `run_trend_scheduler.py` | 트렌드 분석 자동 실행 스케줄러 — daily/weekly/monthly cron (DP-386) |
 | `init_postgres.py` | PostgreSQL UNIQUE 인덱스 초기화 — 배포 시 1회 실행 (멱등성 보장) |
 | `init_vectors.py` | FAISS 벡터 디렉터리 초기화 (Bedrock Titan v2 기반) |
 | `reindex_vectors.py` | FAISS 인덱스 재빌드 — DynamoDB rag_documents 기반 (인덱스 유실 시) |
@@ -75,6 +77,35 @@ python scripts/run_collect_and_save.py
 ```
 
 - 출력: `data/raw/normalized/{source_name}.jsonl` (append)
+
+### `run_trend_batch.py` (DP-386)
+
+트렌드 분석 1회 실행 CLI.
+
+```bash
+# period-start 미입력 시 단위별 직전 기간 자동 계산
+DATABASE_URL=postgresql://... python scripts/run_trend_batch.py --unit weekly
+DATABASE_URL=postgresql://... python scripts/run_trend_batch.py --unit daily --period-start 2026-04-21
+DATABASE_URL=postgresql://... python scripts/run_trend_batch.py --unit monthly --force
+```
+
+- `--unit`: `daily` / `weekly` / `monthly`
+- `--period-start`: 기간 시작 (YYYY-MM-DD). 미입력 시 자동 계산
+- `--force`: 기존 스냅샷이 있어도 재생성
+
+### `run_trend_scheduler.py` (DP-386)
+
+트렌드 분석 자동 실행 스케줄러. KST 기준 자정 직후에 실행한다.
+
+```bash
+DATABASE_URL=postgresql://... python scripts/run_trend_scheduler.py
+# Ctrl+C로 중단
+```
+
+- `daily`: 매일 00:05 KST
+- `weekly`: 매주 월요일 00:10 KST (직전 한 주 월~월)
+- `monthly`: 매월 1일 00:15 KST (직전 달)
+- 각 job 독립 try/except — 개별 실패가 스케줄러 전체를 중단하지 않는다
 
 ### `inspect_preprocess.py` (DP-216)
 

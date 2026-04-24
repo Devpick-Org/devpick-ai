@@ -17,9 +17,9 @@ class CacheEvictionClient:
     배치 완료 직후 호출되며, 실패 시 BE Redis TTL 만료 후 자동 갱신된다.
     """
 
-    def __init__(self, base_url: str, evict_key: str, timeout: float = 5.0) -> None:
+    def __init__(self, base_url: str, internal_key: str, timeout: float = 5.0) -> None:
         self._url = base_url.rstrip("/") + "/internal/trends/cache"
-        self._headers = {"X-Internal-Key": evict_key}
+        self._headers = {"X-Internal-Key": internal_key}
         self._timeout = timeout
 
     def evict(self, unit: str, period_start: date, scope: str = "global") -> None:

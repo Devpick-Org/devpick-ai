@@ -126,7 +126,7 @@ class TrendOrchestrator:
         aws_region: str = "ap-northeast-2",
         model: str = "global.anthropic.claude-sonnet-4-6",
         backend_url: str | None = None,
-        cache_evict_key: str | None = None,
+        internal_key: str | None = None,
     ) -> None:
         content_repo = ContentRepository(database_url)
         summary_repo = SummaryRepository(aws_region=aws_region)
@@ -147,8 +147,8 @@ class TrendOrchestrator:
         )
         self._snapshot_repo = TrendSnapshotRepository(database_url)
         self._cache_client: CacheEvictionClient | None = (
-            CacheEvictionClient(backend_url, cache_evict_key)
-            if backend_url and cache_evict_key
+            CacheEvictionClient(backend_url, internal_key)
+            if backend_url and internal_key
             else None
         )
 

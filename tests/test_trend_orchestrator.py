@@ -258,7 +258,7 @@ def _make_orchestrator_with_cache(backend_url: str | None, key: str | None) -> T
             "postgresql://test",
             aws_region="us-east-1",
             backend_url=backend_url,
-            cache_evict_key=key,
+            internal_key=key,
         )
     orch._loader = MagicMock()
     orch._normalizer = MagicMock()

@@ -91,5 +91,3 @@ def test_timeout_error_does_not_raise() -> None:
 
     with patch("requests.delete", side_effect=req.Timeout("timeout")):
         _client().evict("daily", date(2026, 4, 25))
-
-

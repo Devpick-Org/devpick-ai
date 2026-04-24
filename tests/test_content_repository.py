@@ -314,6 +314,43 @@ def test_find_view_counts_by_period_empty_returns_empty_dict() -> None:
     assert result == {}
 
 
+# ── find_by_ids ───────────────────────────────────────────────────────────────
+
+
+def test_find_by_ids_returns_rows() -> None:
+    from datetime import datetime, timezone
+
+    repo, mock_engine = _make_repo()
+    mock_conn = MagicMock()
+    mock_engine.begin.return_value.__enter__ = MagicMock(return_value=mock_conn)
+    mock_engine.begin.return_value.__exit__ = MagicMock(return_value=False)
+
+    mock_conn.execute.return_value.mappings.return_value.fetchall.return_value = [
+        {
+            "id": "cid-1",
+            "title": "글1",
+            "translated_title": None,
+            "category": "Backend",
+            "tags": '["python"]',
+            "source_id": "src-1",
+            "published_at": datetime(2026, 4, 14, tzinfo=timezone.utc),
+        }
+    ]
+
+    result = repo.find_by_ids(["cid-1"])
+
+    assert len(result) == 1
+    assert result[0]["id"] == "cid-1"
+    assert result[0]["category"] == "Backend"
+    call_params = mock_conn.execute.call_args.args[1]
+    assert call_params["ids"] == ["cid-1"]
+
+
+def test_find_by_ids_empty_returns_empty_list() -> None:
+    repo, _ = _make_repo()
+    assert repo.find_by_ids([]) == []
+
+
 # ── source 자동 생성 ──────────────────────────────────────────────────────────
 
 

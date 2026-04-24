@@ -232,6 +232,22 @@ class ContentRepository:
             )
             return [dict(row) for row in result.mappings().fetchall()]
 
+    def find_by_ids(self, content_ids: list[str]) -> list[dict]:
+        """content_id 목록으로 콘텐츠 상세를 조회한다."""
+        if not content_ids:
+            return []
+        with self._engine.begin() as conn:
+            result = conn.execute(
+                text(
+                    "SELECT id, title, translated_title, category, tags,"
+                    " source_id, published_at"
+                    " FROM contents"
+                    " WHERE id = ANY(:ids) AND is_available = true"
+                ),
+                {"ids": list(content_ids)},
+            )
+            return [dict(row) for row in result.mappings().fetchall()]
+
     def find_view_counts_by_period(
         self, start: datetime, end: datetime
     ) -> dict[str, int]:

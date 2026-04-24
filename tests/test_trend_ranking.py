@@ -1,0 +1,110 @@
+"""TrendRanker 단위 테스트 (DP-383)."""
+
+from __future__ import annotations
+
+from app.services.trend.frequency import TagFrequency
+from app.services.trend.ranking import TrendRanker
+
+
+def _ranker() -> TrendRanker:
+    return TrendRanker(top_contents=5, top_tags=10)
+
+
+def _tf(
+    keyword: str,
+    cur: int = 3,
+    prev: int = 3,
+    delta: int = 0,
+    growth_rate: float | None = 0.0,
+    state: str = "same",
+) -> TagFrequency:
+    return TagFrequency(
+        keyword=keyword,
+        cur_count=cur,
+        prev_count=prev,
+        delta=delta,
+        growth_rate=growth_rate,
+        state=state,
+    )
+
+
+def _details(ids: list[str]) -> list[dict]:
+    return [
+        {
+            "id": cid,
+            "title": f"글 {cid}",
+            "translated_title": None,
+            "category": None,
+            "tags": "[]",
+            "source_id": "src-1",
+            "published_at": None,
+        }
+        for cid in ids
+    ]
+
+
+# ── Top 5 콘텐츠 ──────────────────────────────────────────────────────────────
+
+
+def test_rank_contents_sorted_by_view_count() -> None:
+    view_counts = {"cid-1": 10, "cid-2": 50, "cid-3": 5}
+    details = _details(["cid-1", "cid-2", "cid-3"])
+    result = _ranker().rank_contents(view_counts, details)
+    assert [r["id"] for r in result] == ["cid-2", "cid-1", "cid-3"]
+
+
+def test_rank_contents_view_count_zero_included() -> None:
+    view_counts = {"cid-1": 0}
+    details = _details(["cid-1"])
+    result = _ranker().rank_contents(view_counts, details)
+    assert len(result) == 1
+    assert result[0]["view_count"] == 0
+
+
+def test_rank_contents_adds_view_count_field() -> None:
+    view_counts = {"cid-1": 7}
+    details = _details(["cid-1"])
+    result = _ranker().rank_contents(view_counts, details)
+    assert result[0]["view_count"] == 7
+
+
+# ── Top 10 태그 ───────────────────────────────────────────────────────────────
+
+
+def test_rank_tags_new_bonus() -> None:
+    tf_new = _tf("rust", cur=3, prev=0, delta=3, growth_rate=None, state="new")
+    tf_same = _tf("python", cur=3, prev=3, delta=0, growth_rate=0.0, state="same")
+    result = _ranker().rank_tags([tf_new, tf_same], {})
+    new_tag = next(r for r in result if r.keyword == "rust")
+    same_tag = next(r for r in result if r.keyword == "python")
+    assert new_tag.score > same_tag.score
+    assert new_tag.score == round(0.5 * 3 + 0.5 * 0.0 + 0.5, 4)
+
+
+def test_rank_tags_category_match_bonus() -> None:
+    tf = _tf("backend", cur=5, prev=3, delta=2, growth_rate=2.0, state="up")
+    summary_meta = {"cid-1": {"tags": ["backend"], "category": "backend"}}
+    result = _ranker().rank_tags([tf], summary_meta)
+    assert result[0].tag_count == 7  # 5 + 2
+    assert result[0].score == round(0.5 * 2 + 0.5 * 2.0 + 2.0, 4)
+
+
+def test_rank_tags_growth_rate_none_safe() -> None:
+    tf = _tf("new-tech", cur=4, prev=0, delta=4, growth_rate=None, state="new")
+    result = _ranker().rank_tags([tf], {})
+    assert len(result) == 1
+    assert isinstance(result[0].score, float)
+    import math
+
+    assert not math.isnan(result[0].score)
+
+
+def test_rank_tags_sorted_by_score() -> None:
+    tags = [
+        _tf("a", cur=2, prev=1, delta=1, growth_rate=1.0, state="up"),
+        _tf("b", cur=5, prev=3, delta=2, growth_rate=2.0, state="up"),
+        _tf("c", cur=3, prev=3, delta=0, growth_rate=0.0, state="same"),
+    ]
+    result = _ranker().rank_tags(tags, {})
+    scores = [r.score for r in result]
+    assert scores == sorted(scores, reverse=True)

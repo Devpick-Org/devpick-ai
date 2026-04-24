@@ -216,6 +216,19 @@ class ContentRepository:
             translated_title,
         )
 
+    def count_by_published_range(self, start: datetime, end: datetime) -> int:
+        """기간 내 발행된 콘텐츠 수를 반환한다."""
+        with self._engine.begin() as conn:
+            row = conn.execute(
+                text("""
+                    SELECT COUNT(*) FROM contents
+                    WHERE published_at >= :start AND published_at < :end
+                      AND is_available = true
+                """),
+                {"start": start, "end": end},
+            ).fetchone()
+        return int(row[0]) if row else 0
+
     def find_by_published_range(self, start: datetime, end: datetime) -> list[dict]:
         """기간 내 발행된 콘텐츠 목록을 반환한다 (KST 기준 >= start AND < end)."""
         with self._engine.begin() as conn:

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import date
+from typing import Literal
 
 from pydantic import BaseModel
 
@@ -30,7 +31,7 @@ class TrendResponse(BaseModel):
 
 
 class TrendGenerateRequest(BaseModel):
-    unit: str
+    unit: Literal["daily", "weekly", "monthly"]
     scope: str = "global"
-    period_start: date
-    period_end: date | None = None
+    period_start: date | None = None
+    force_refresh: bool = False

@@ -2,10 +2,10 @@ from __future__ import annotations
 
 import logging
 import os
-from datetime import datetime, timezone
+from datetime import date, datetime, time, timezone
 
 from dotenv import load_dotenv
-from fastapi import APIRouter, Depends, Response
+from fastapi import APIRouter, Depends, HTTPException, Response
 
 from app.api.deps import verify_internal_key
 from app.core.exceptions import AIBadRequestError
@@ -18,6 +18,8 @@ from app.repositories.question_vector_repository import QuestionVectorRepository
 from app.repositories.quiz_repository import QuizRepository
 from app.repositories.summary_repository import SummaryRepository
 from app.repositories.vector_repository import VectorRepository
+from app.repositories.content_repository import ContentRepository
+from app.repositories.trend_repository import TrendSnapshotRepository
 from app.schemas.answer import AnswerRequest, AnswerResponse, RelatedContent
 from app.schemas.event import EventType
 from app.schemas.insight import InsightRequest, InsightResponse
@@ -29,6 +31,7 @@ from app.schemas.summary import (
     AllLevelsSummaryRequest,
     AllLevelsSummaryResponse,
 )
+from app.schemas.trend import TrendGenerateRequest, TrendResponse
 from app.services.all_levels_summary_service import AllLevelsSummaryService
 from app.services.answer_service import AnswerService
 from app.services.embedding_service import EmbeddingOrchestrator
@@ -40,6 +43,11 @@ from app.services.question_embedding_service import QuestionEmbeddingOrchestrato
 from app.services.refine_service import RefineService
 from app.services.similar_content_service import SimilarContentService
 from app.services.similar_question_service import SimilarQuestionService
+from app.services.trend.orchestrator import (
+    TrendOrchestrator,
+    compute_period,
+    compute_period_end,
+)
 
 load_dotenv()
 _AWS_REGION = os.getenv("AWS_REGION", "ap-northeast-2")
@@ -514,4 +522,88 @@ def create_quiz(body: QuizRequest) -> AllLevelsQuizResponse:
         except Exception:
             logger.exception("Failed to save quiz event log")
 
+    return result
+
+
+@router.post(
+    "/trends",
+    response_model=TrendResponse,
+    dependencies=[Depends(verify_internal_key)],
+)
+def create_trend(body: TrendGenerateRequest) -> TrendResponse:
+    """트렌드 수동 생성 — 디버그·장애 복구용 (DP-385).
+
+    자동 트리거는 run_trend_scheduler.py(DP-386)가 담당.
+    콘텐츠 0건 → 400, 5건 미만 → 422.
+    """
+    if not _DATABASE_URL:
+        raise HTTPException(
+            status_code=500, detail="DATABASE_URL이 설정되지 않았습니다."
+        )
+
+    if body.period_start is None:
+        period_start, period_end = compute_period(body.unit)
+    else:
+        period_start = body.period_start
+        period_end = compute_period_end(body.unit, period_start)
+
+    start_dt = datetime.combine(period_start, time.min)
+    end_dt = datetime.combine(period_end, time.min)
+
+    count = ContentRepository(_DATABASE_URL).count_by_published_range(start_dt, end_dt)
+    if count == 0:
+        raise HTTPException(status_code=400, detail="수집된 콘텐츠가 없습니다.")
+    if count < 5:
+        raise HTTPException(
+            status_code=422, detail=f"콘텐츠가 {count}건으로 5건 미만입니다."
+        )
+
+    return TrendOrchestrator(
+        database_url=_DATABASE_URL,
+        aws_region=_AWS_REGION,
+        model=_BEDROCK_MODEL_SONNET,
+    ).run(body.unit, period_start, period_end, force=body.force_refresh)
+
+
+@router.get(
+    "/trends/latest",
+    response_model=TrendResponse,
+    dependencies=[Depends(verify_internal_key)],
+)
+def get_latest_trend(unit: str, scope: str = "global") -> TrendResponse:
+    """unit+scope 기준 최신 트렌드 스냅샷 조회 (DP-385).
+
+    없으면 404. 디버그·헬스체크 용도.
+    """
+    if not _DATABASE_URL:
+        raise HTTPException(
+            status_code=500, detail="DATABASE_URL이 설정되지 않았습니다."
+        )
+    result = TrendSnapshotRepository(_DATABASE_URL).get_latest(unit, scope)
+    if result is None:
+        raise HTTPException(status_code=404, detail="트렌드 스냅샷이 없습니다.")
+    return result
+
+
+@router.get(
+    "/trends/{period_start}",
+    response_model=TrendResponse,
+    dependencies=[Depends(verify_internal_key)],
+)
+def get_trend_by_period(
+    period_start: date, unit: str, scope: str = "global"
+) -> TrendResponse:
+    """특정 (unit, scope, period_start) 트렌드 스냅샷 조회 (DP-385).
+
+    없으면 404.
+    """
+    if not _DATABASE_URL:
+        raise HTTPException(
+            status_code=500, detail="DATABASE_URL이 설정되지 않았습니다."
+        )
+    result = TrendSnapshotRepository(_DATABASE_URL).get_by_period(
+        unit, scope, period_start
+    )
+    if result is None:
+        raise HTTPException(status_code=404, detail="트렌드 스냅샷이 없습니다.")
     return result

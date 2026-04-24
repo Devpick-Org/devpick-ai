@@ -52,6 +52,8 @@ Anthropic Tool Use 스키마를 Bedrock Converse API `toolConfig` 형식으로 �
 | `refine.py` | `SYSTEM_PROMPT`, `REFINE_TOOL`, `build_user_prompt()` — 레벨별 질문 개선 + 컨텍스트 청크 |
 | `answer.py` | `SYSTEM_PROMPT`, `ANSWER_TOOL`, `build_user_prompt()` — 아티클+RAG 컨텍스트 기반 답변 |
 | `insight.py` | `SYSTEM_PROMPT`, `INSIGHT_TOOL`, `build_user_prompt()` — 주간 활동/읽은글/스크랩/질문 기반 인사이트 |
+| `trend_top_posts.py` | `SYSTEM_PROMPT`, `TOOL_SAVE_TOP_POSTS_SUMMARY`, `build_user_prompt()` — Top 5 콘텐츠 주제 흐름 서사 요약 (DP-404) |
+| `trend_collection.py` | `SYSTEM_PROMPT`, `TOOL_SAVE_COLLECTION_SUMMARY`, `build_user_prompt()` — 수집 동향 서사 요약 (DP-384) |
 
 ### quiz.py 구성 요소 (DP-265)
 

@@ -162,6 +162,59 @@ def test_find_meta_by_content_ids_chunks_over_100() -> None:
     assert mock_dynamodb.batch_get_item.call_count == 2
 
 
+# ── find_summaries_for_trend ─────────────────────────────────────────────────
+
+
+def test_find_summaries_for_trend_returns_mid_level() -> None:
+    with patch("boto3.resource") as mock_resource:
+        mock_dynamodb = MagicMock()
+        mock_resource.return_value = mock_dynamodb
+        mock_dynamodb.Table.return_value = MagicMock()
+        instance = SummaryRepository(aws_region="us-east-1")
+    instance._dynamodb = mock_dynamodb
+
+    mock_dynamodb.batch_get_item.return_value = {
+        "Responses": {
+            "ai_summaries": [
+                {
+                    "content_id": "cid-1",
+                    "level": "mid",
+                    "one_line_summary": "Redis TTL 설정 전략",
+                    "keywords": ["TTL", "캐시"],
+                    "tags": ["Redis", "Backend"],
+                    "category": "Backend",
+                }
+            ]
+        }
+    }
+
+    result = instance.find_summaries_for_trend(["cid-1"])
+
+    assert result["cid-1"]["one_line_summary"] == "Redis TTL 설정 전략"
+    assert result["cid-1"]["keywords"] == ["TTL", "캐시"]
+    assert result["cid-1"]["tags"] == ["Redis", "Backend"]
+    assert result["cid-1"]["category"] == "Backend"
+    # mid 레벨 키로 조회했는지 확인
+    call_keys = mock_dynamodb.batch_get_item.call_args.kwargs["RequestItems"][
+        "ai_summaries"
+    ]["Keys"]
+    assert all(k["level"] == "mid" for k in call_keys)
+
+
+def test_find_summaries_for_trend_empty_input_returns_empty() -> None:
+    with patch("boto3.resource") as mock_resource:
+        mock_dynamodb = MagicMock()
+        mock_resource.return_value = mock_dynamodb
+        mock_dynamodb.Table.return_value = MagicMock()
+        instance = SummaryRepository(aws_region="us-east-1")
+    instance._dynamodb = mock_dynamodb
+
+    result = instance.find_summaries_for_trend([])
+
+    assert result == {}
+    mock_dynamodb.batch_get_item.assert_not_called()
+
+
 def test_save_all_levels_includes_created_at_if_not_exists(
     repo: SummaryRepository, mock_table: MagicMock
 ) -> None:

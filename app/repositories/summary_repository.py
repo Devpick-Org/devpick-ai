@@ -131,6 +131,36 @@ class SummaryRepository:
         )
         return resp.get("Items", [])
 
+    def find_summaries_for_trend(self, content_ids: list[str]) -> dict[str, dict]:
+        """트렌드 top_posts_summary 용 mid 레벨 요약 메타 배치 조회.
+
+        Returns:
+            {content_id: {one_line_summary, keywords, tags, category}}
+        누락 항목은 빈 값/빈 리스트로 처리.
+        """
+        if not content_ids:
+            return {}
+
+        keys = [{"content_id": cid, "level": "mid"} for cid in content_ids]
+        result: dict[str, dict] = {}
+
+        for i in range(0, len(keys), 100):
+            chunk = keys[i : i + 100]
+            resp = self._dynamodb.batch_get_item(
+                RequestItems={self._table_name: {"Keys": chunk}}
+            )
+            for item in resp.get("Responses", {}).get(self._table_name, []):
+                cid = item.get("content_id")
+                if cid:
+                    result[cid] = {
+                        "one_line_summary": item.get("one_line_summary", ""),
+                        "keywords": list(item.get("keywords", [])),
+                        "tags": list(item.get("tags", [])),
+                        "category": item.get("category", ""),
+                    }
+
+        return result
+
     def find_by_content_ids(self, content_ids: list[str]) -> list[dict]:
         """여러 content_id의 요약을 조회한다.
 

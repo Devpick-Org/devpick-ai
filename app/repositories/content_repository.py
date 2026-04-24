@@ -216,5 +216,41 @@ class ContentRepository:
             translated_title,
         )
 
+    def find_by_published_range(self, start: datetime, end: datetime) -> list[dict]:
+        """기간 내 발행된 콘텐츠 목록을 반환한다 (KST 기준 >= start AND < end)."""
+        with self._engine.begin() as conn:
+            result = conn.execute(
+                text("""
+                    SELECT id, title, translated_title, category, tags,
+                           source_id, published_at
+                    FROM contents
+                    WHERE published_at >= :start AND published_at < :end
+                      AND is_available = true
+                    ORDER BY published_at DESC
+                """),
+                {"start": start, "end": end},
+            )
+            return [dict(row) for row in result.mappings().fetchall()]
+
+    def find_view_counts_by_period(
+        self, start: datetime, end: datetime
+    ) -> dict[str, int]:
+        """기간 내 content_id별 고유 조회수를 반환한다.
+
+        COUNT(DISTINCT user_id) — 동일 유저의 다중 클릭은 1건으로 카운트.
+        content_view_logs.created_at 컬럼 기준 (DP-396 BaseCreatedEntity).
+        """
+        with self._engine.begin() as conn:
+            rows = conn.execute(
+                text("""
+                    SELECT content_id, COUNT(DISTINCT user_id) AS view_count
+                    FROM content_view_logs
+                    WHERE created_at >= :start AND created_at < :end
+                    GROUP BY content_id
+                """),
+                {"start": start, "end": end},
+            ).fetchall()
+        return {str(row[0]): int(row[1]) for row in rows}
+
     def close(self) -> None:
         self._engine.dispose()

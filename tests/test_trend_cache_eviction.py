@@ -8,7 +8,9 @@ from unittest.mock import MagicMock, patch
 from app.services.trend.cache_eviction import CacheEvictionClient
 
 
-def _client(base_url: str = "http://backend:8080", key: str = "test-key") -> CacheEvictionClient:
+def _client(
+    base_url: str = "http://backend:8080", key: str = "test-key"
+) -> CacheEvictionClient:
     return CacheEvictionClient(base_url, key)
 
 
@@ -16,11 +18,17 @@ def _client(base_url: str = "http://backend:8080", key: str = "test-key") -> Cac
 
 
 def test_url_built_from_base_url() -> None:
-    assert _client("http://backend:8080")._url == "http://backend:8080/internal/trends/cache"
+    assert (
+        _client("http://backend:8080")._url
+        == "http://backend:8080/internal/trends/cache"
+    )
 
 
 def test_trailing_slash_stripped() -> None:
-    assert _client("http://backend:8080/")._url == "http://backend:8080/internal/trends/cache"
+    assert (
+        _client("http://backend:8080/")._url
+        == "http://backend:8080/internal/trends/cache"
+    )
 
 
 # ── 성공 케이스 ────────────────────────────────────────────────────────────────

@@ -244,7 +244,9 @@ def test_compute_period_invalid_unit() -> None:
 # ── 캐시 무효화 통합 (DP-387) ──────────────────────────────────────────────────
 
 
-def _make_orchestrator_with_cache(backend_url: str | None, key: str | None) -> TrendOrchestrator:
+def _make_orchestrator_with_cache(
+    backend_url: str | None, key: str | None
+) -> TrendOrchestrator:
     with (
         patch("app.services.trend.orchestrator.ContentRepository"),
         patch("app.services.trend.orchestrator.SummaryRepository"),

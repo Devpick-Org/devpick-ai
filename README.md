@@ -65,6 +65,9 @@ Base URL: `http://ai-server:8000/internal`
 | POST | `/internal/similar-questions` | 유사 질문 검색 (DP-235) |
 | POST | `/internal/similar-contents` | 유사 콘텐츠 검색 (DP-288) |
 | POST | `/internal/report` | 주간 리포트 AI 인사이트 생성 (DP-259) |
+| POST | `/internal/trends` | 트렌드 수동 생성 (DP-385) — 디버그·장애 복구용 |
+| GET | `/internal/trends/latest` | 최신 트렌드 스냅샷 조회 (DP-385) |
+| GET | `/internal/trends/{period_start}` | 특정 기간 트렌드 스냅샷 조회 (DP-385) |
 
 > **summaries / quiz 엔드포인트는 fallback 용도**다. 정상 운영 시에는 배치 수집 파이프라인이 자동으로 생성한다.
 

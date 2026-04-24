@@ -46,6 +46,19 @@ def compute_period(unit: str, reference_date: date | None = None) -> tuple[date,
     raise ValueError(f"지원하지 않는 unit: {unit!r}")
 
 
+def compute_period_end(unit: str, period_start: date) -> date:
+    """period_start와 unit으로 period_end를 계산한다."""
+    if unit == "daily":
+        return period_start + timedelta(days=1)
+    if unit == "weekly":
+        return period_start + timedelta(weeks=1)
+    if unit == "monthly":
+        if period_start.month == 12:
+            return period_start.replace(year=period_start.year + 1, month=1, day=1)
+        return period_start.replace(month=period_start.month + 1, day=1)
+    raise ValueError(f"지원하지 않는 unit: {unit!r}")
+
+
 def _extract_tags(contents: list[dict]) -> list[str]:
     tags: list[str] = []
     for c in contents:

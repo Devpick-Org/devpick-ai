@@ -28,6 +28,7 @@ DynamoDB + PostgreSQL 접근 레이어. 각 도메인별 저장/조회 로직을
 ContentRepository(database_url: str)
 save_contents(items: list[NormalizedContent]) -> SaveResult
 save_ai_metadata(content_id: str, tags: list[str], category: str, translated_title: str | None = None) -> None
+count_by_published_range(start: datetime, end: datetime) -> int
 close() -> None
 ```
 

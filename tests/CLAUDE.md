@@ -49,6 +49,7 @@
 | `test_trend_collection_summary.py` | `CollectionSummaryGenerator` | 수집 동향 LLM 서사 요약 mock 테스트 (DP-384) |
 | `test_trend_top_posts_summary.py` | `TopPostsSummaryGenerator` | Top 5 콘텐츠 LLM 서사 요약 mock 테스트 (DP-404) |
 | `test_trend_orchestrator.py` | `TrendOrchestrator` | 배치 오케스트레이터 통합 흐름, skip/force/LLM 실패 격리 (DP-386) |
+| `test_trend_endpoint.py` | `POST/GET /internal/trends` | 트렌드 엔드포인트 통합 테스트 — 수동 생성, 0건/5건미만 에러, 조회 404 (DP-385) |
 
 ---
 

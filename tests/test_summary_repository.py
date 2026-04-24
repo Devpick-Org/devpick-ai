@@ -96,6 +96,72 @@ def test_save_all_levels_sets_content_id_key(
         assert call.kwargs["Key"]["content_id"] == "test-all-001"
 
 
+# ── find_meta_by_content_ids ──────────────────────────────────────────────────
+
+
+def test_find_meta_by_content_ids_returns_dict() -> None:
+    with patch("boto3.resource") as mock_resource:
+        mock_dynamodb = MagicMock()
+        mock_resource.return_value = mock_dynamodb
+        mock_dynamodb.Table.return_value = MagicMock()
+        instance = SummaryRepository(aws_region="us-east-1")
+    instance._dynamodb = mock_dynamodb
+
+    mock_dynamodb.batch_get_item.return_value = {
+        "Responses": {
+            "ai_summaries": [
+                {
+                    "content_id": "cid-1",
+                    "level": "beginner",
+                    "tags": ["Python"],
+                    "category": "Backend",
+                },
+                {
+                    "content_id": "cid-2",
+                    "level": "beginner",
+                    "tags": [],
+                    "category": "Frontend",
+                },
+            ]
+        }
+    }
+
+    result = instance.find_meta_by_content_ids(["cid-1", "cid-2"])
+
+    assert result["cid-1"] == {"tags": ["Python"], "category": "Backend"}
+    assert result["cid-2"] == {"tags": [], "category": "Frontend"}
+    mock_dynamodb.batch_get_item.assert_called_once()
+
+
+def test_find_meta_by_content_ids_empty_input_returns_empty() -> None:
+    with patch("boto3.resource") as mock_resource:
+        mock_dynamodb = MagicMock()
+        mock_resource.return_value = mock_dynamodb
+        mock_dynamodb.Table.return_value = MagicMock()
+        instance = SummaryRepository(aws_region="us-east-1")
+    instance._dynamodb = mock_dynamodb
+
+    result = instance.find_meta_by_content_ids([])
+
+    assert result == {}
+    mock_dynamodb.batch_get_item.assert_not_called()
+
+
+def test_find_meta_by_content_ids_chunks_over_100() -> None:
+    with patch("boto3.resource") as mock_resource:
+        mock_dynamodb = MagicMock()
+        mock_resource.return_value = mock_dynamodb
+        mock_dynamodb.Table.return_value = MagicMock()
+        instance = SummaryRepository(aws_region="us-east-1")
+    instance._dynamodb = mock_dynamodb
+
+    mock_dynamodb.batch_get_item.return_value = {"Responses": {"ai_summaries": []}}
+
+    instance.find_meta_by_content_ids([f"cid-{i}" for i in range(101)])
+
+    assert mock_dynamodb.batch_get_item.call_count == 2
+
+
 def test_save_all_levels_includes_created_at_if_not_exists(
     repo: SummaryRepository, mock_table: MagicMock
 ) -> None:

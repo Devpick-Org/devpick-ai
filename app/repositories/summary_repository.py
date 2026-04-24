@@ -38,9 +38,9 @@ class SummaryRepository:
         aws_region: str = "ap-northeast-2",
         table_name: str = "ai_summaries",
     ) -> None:
-        self._table = boto3.resource("dynamodb", region_name=aws_region).Table(
-            table_name
-        )
+        self._dynamodb = boto3.resource("dynamodb", region_name=aws_region)
+        self._table = self._dynamodb.Table(table_name)
+        self._table_name = table_name
 
     def save_all_levels(
         self, content_id: str, response: AllLevelsSummaryResponse
@@ -96,6 +96,33 @@ class SummaryRepository:
             )
 
         logger.info("Saved all-levels summary to DynamoDB: content_id=%s", content_id)
+
+    def find_meta_by_content_ids(self, content_ids: list[str]) -> dict[str, dict]:
+        """여러 content_id의 beginner 레벨 tags·category를 batch로 조회한다.
+
+        DynamoDB batch_get_item 최대 100개 제한으로 청크 분할 처리.
+        반환: {content_id: {"tags": [...], "category": str}} — 없는 항목은 포함 안 함.
+        """
+        if not content_ids:
+            return {}
+
+        keys = [{"content_id": cid, "level": "beginner"} for cid in content_ids]
+        result: dict[str, dict] = {}
+
+        for i in range(0, len(keys), 100):
+            chunk = keys[i : i + 100]
+            resp = self._dynamodb.batch_get_item(
+                RequestItems={self._table_name: {"Keys": chunk}}
+            )
+            for item in resp.get("Responses", {}).get(self._table_name, []):
+                cid = item.get("content_id")
+                if cid:
+                    result[cid] = {
+                        "tags": list(item.get("tags", [])),
+                        "category": item.get("category"),
+                    }
+
+        return result
 
     def find_all_levels(self, content_id: str) -> list[dict]:
         """content_id에 대한 4개 레벨 문서 전부 조회한다."""

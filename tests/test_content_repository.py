@@ -221,6 +221,102 @@ def test_source_cache_avoids_duplicate_select() -> None:
 # ── source 자동 생성 ──────────────────────────────────────────────────────────
 
 
+# ── find_by_published_range ───────────────────────────────────────────────────
+
+
+def test_find_by_published_range_returns_rows() -> None:
+    from datetime import datetime, timezone
+
+    repo, mock_engine = _make_repo()
+    mock_conn = MagicMock()
+    mock_engine.begin.return_value.__enter__ = MagicMock(return_value=mock_conn)
+    mock_engine.begin.return_value.__exit__ = MagicMock(return_value=False)
+
+    mock_conn.execute.return_value.mappings.return_value.fetchall.return_value = [
+        {
+            "id": "cid-1",
+            "title": "테스트 글",
+            "translated_title": None,
+            "category": "Backend",
+            "tags": '["Python"]',
+            "source_id": "src-1",
+            "published_at": datetime(2026, 4, 14, tzinfo=timezone.utc),
+        }
+    ]
+
+    result = repo.find_by_published_range(
+        datetime(2026, 4, 14, tzinfo=timezone.utc),
+        datetime(2026, 4, 21, tzinfo=timezone.utc),
+    )
+
+    assert len(result) == 1
+    assert result[0]["id"] == "cid-1"
+    assert result[0]["category"] == "Backend"
+
+
+def test_find_by_published_range_empty_returns_empty_list() -> None:
+    from datetime import datetime, timezone
+
+    repo, mock_engine = _make_repo()
+    mock_conn = MagicMock()
+    mock_engine.begin.return_value.__enter__ = MagicMock(return_value=mock_conn)
+    mock_engine.begin.return_value.__exit__ = MagicMock(return_value=False)
+
+    mock_conn.execute.return_value.mappings.return_value.fetchall.return_value = []
+
+    result = repo.find_by_published_range(
+        datetime(2026, 4, 14, tzinfo=timezone.utc),
+        datetime(2026, 4, 21, tzinfo=timezone.utc),
+    )
+
+    assert result == []
+
+
+# ── find_view_counts_by_period ────────────────────────────────────────────────
+
+
+def test_find_view_counts_by_period_returns_dict() -> None:
+    from datetime import datetime, timezone
+
+    repo, mock_engine = _make_repo()
+    mock_conn = MagicMock()
+    mock_engine.begin.return_value.__enter__ = MagicMock(return_value=mock_conn)
+    mock_engine.begin.return_value.__exit__ = MagicMock(return_value=False)
+
+    mock_conn.execute.return_value.fetchall.return_value = [
+        ("cid-1", 10),
+        ("cid-2", 3),
+    ]
+
+    result = repo.find_view_counts_by_period(
+        datetime(2026, 4, 14, tzinfo=timezone.utc),
+        datetime(2026, 4, 21, tzinfo=timezone.utc),
+    )
+
+    assert result == {"cid-1": 10, "cid-2": 3}
+
+
+def test_find_view_counts_by_period_empty_returns_empty_dict() -> None:
+    from datetime import datetime, timezone
+
+    repo, mock_engine = _make_repo()
+    mock_conn = MagicMock()
+    mock_engine.begin.return_value.__enter__ = MagicMock(return_value=mock_conn)
+    mock_engine.begin.return_value.__exit__ = MagicMock(return_value=False)
+
+    mock_conn.execute.return_value.fetchall.return_value = []
+
+    result = repo.find_view_counts_by_period(
+        datetime(2026, 4, 14, tzinfo=timezone.utc),
+        datetime(2026, 4, 21, tzinfo=timezone.utc),
+    )
+
+    assert result == {}
+
+
+# ── source 자동 생성 ──────────────────────────────────────────────────────────
+
+
 def test_get_or_create_source_inserts_when_not_found() -> None:
     repo, mock_engine = _make_repo()
     mock_conn = MagicMock()

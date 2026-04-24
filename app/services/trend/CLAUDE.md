@@ -17,6 +17,7 @@
 | `top_posts_summary.py` | `TopPostsSummaryGenerator` | Top 5 콘텐츠 주제 흐름 LLM 서사 요약 (DP-404) |
 | `collection_summary.py` | `CollectionSummaryGenerator`, `TrendSignals` | 수집 동향 LLM 서사 요약 (DP-384) |
 | `orchestrator.py` | `TrendOrchestrator`, `compute_period` | 배치 오케스트레이터 — 위 컴포넌트를 순서대로 조합 (DP-386) |
+| `cache_eviction.py` | `CacheEvictionClient` | 배치 완료 후 BE Redis 캐시 무효화 요청 — best-effort (DP-387) |
 
 ---
 
@@ -43,6 +44,8 @@ TopPostsSummaryGenerator.generate(top_contents_raw, unit, ..., prev_summary) →
 CollectionSummaryGenerator.generate(TrendSignals(...)) → collection_summary
     ↓
 TrendResponse 조립 → TrendSnapshotRepository.upsert()
+    ↓
+CacheEvictionClient.evict(unit, period_start)  # best-effort (DP-387)
 ```
 
 ---

@@ -11,6 +11,7 @@ from app.repositories.content_repository import ContentRepository
 from app.repositories.summary_repository import SummaryRepository
 from app.repositories.trend_repository import TrendSnapshotRepository
 from app.schemas.trend import TopContent, TrendResponse
+from app.services.trend.cache_eviction import CacheEvictionClient
 from app.services.trend.collection_summary import (
     CollectionSummaryGenerator,
     TrendSignals,
@@ -124,6 +125,8 @@ class TrendOrchestrator:
         database_url: str,
         aws_region: str = "ap-northeast-2",
         model: str = "global.anthropic.claude-sonnet-4-6",
+        backend_url: str | None = None,
+        internal_key: str | None = None,
     ) -> None:
         content_repo = ContentRepository(database_url)
         summary_repo = SummaryRepository(aws_region=aws_region)
@@ -143,6 +146,11 @@ class TrendOrchestrator:
             model=model,
         )
         self._snapshot_repo = TrendSnapshotRepository(database_url)
+        self._cache_client: CacheEvictionClient | None = (
+            CacheEvictionClient(backend_url, internal_key)
+            if backend_url and internal_key
+            else None
+        )
 
     def run(
         self,
@@ -249,6 +257,9 @@ class TrendOrchestrator:
             payload=response,
             generated_at=datetime.now(tz=timezone.utc),
         )
+
+        if self._cache_client:
+            self._cache_client.evict(unit, period_start)
 
         logger.info(
             "트렌드 배치 완료: unit=%s period=%s~%s contents=%d top_posts=%d",

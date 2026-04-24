@@ -32,6 +32,8 @@ logger = logging.getLogger(__name__)
 
 _DATABASE_URL = os.environ.get("DATABASE_URL", "")
 _AWS_REGION = os.environ.get("AWS_REGION", "ap-northeast-2")
+_BACKEND_URL = os.environ.get("BACKEND_URL")
+_INTERNAL_KEY = os.environ.get("INTERNAL_API_KEY")
 
 
 def _run(unit: str) -> None:
@@ -40,7 +42,10 @@ def _run(unit: str) -> None:
         return
     try:
         orchestrator = TrendOrchestrator(
-            database_url=_DATABASE_URL, aws_region=_AWS_REGION
+            database_url=_DATABASE_URL,
+            aws_region=_AWS_REGION,
+            backend_url=_BACKEND_URL,
+            internal_key=_INTERNAL_KEY,
         )
         period_start, period_end = compute_period(unit)
         orchestrator.run(unit, period_start, period_end)

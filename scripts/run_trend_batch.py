@@ -83,15 +83,23 @@ def main() -> None:
         period_start, period_end = compute_period(args.unit)
 
     aws_region = os.environ.get("AWS_REGION", "ap-northeast-2")
+    backend_url = os.environ.get("BACKEND_URL")
+    internal_key = os.environ.get("INTERNAL_API_KEY")
     logger.info(
-        "트렌드 배치 시작: unit=%s period=%s~%s force=%s",
+        "트렌드 배치 시작: unit=%s period=%s~%s force=%s cache_evict=%s",
         args.unit,
         period_start,
         period_end,
         args.force,
+        bool(backend_url and internal_key),
     )
 
-    orchestrator = TrendOrchestrator(database_url=database_url, aws_region=aws_region)
+    orchestrator = TrendOrchestrator(
+        database_url=database_url,
+        aws_region=aws_region,
+        backend_url=backend_url,
+        internal_key=internal_key,
+    )
     result = orchestrator.run(
         unit=args.unit,
         period_start=period_start,

@@ -29,6 +29,7 @@
 | `trend/top_posts_summary.py` | `TopPostsSummaryGenerator` | Top 5 콘텐츠 주제 흐름 LLM 서사 요약 (DP-404) |
 | `trend/collection_summary.py` | `CollectionSummaryGenerator` | 수집 동향 LLM 서사 요약 + `TrendSignals` 데이터클래스 (DP-384) |
 | `trend/orchestrator.py` | `TrendOrchestrator` | 일/주/월 트렌드 배치 오케스트레이터 + `compute_period()` (DP-386) |
+| `trend/cache_eviction.py` | `CacheEvictionClient` | 배치 완료 후 BE Redis 캐시 무효화 — best-effort (DP-387) |
 
 ---
 

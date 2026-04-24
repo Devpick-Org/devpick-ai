@@ -239,3 +239,70 @@ def test_compute_period_monthly() -> None:
 def test_compute_period_invalid_unit() -> None:
     with pytest.raises(ValueError):
         compute_period("quarterly")
+
+
+# ── 캐시 무효화 통합 (DP-387) ──────────────────────────────────────────────────
+
+
+def _make_orchestrator_with_cache(
+    backend_url: str | None, key: str | None
+) -> TrendOrchestrator:
+    with (
+        patch("app.services.trend.orchestrator.ContentRepository"),
+        patch("app.services.trend.orchestrator.SummaryRepository"),
+        patch("app.services.trend.orchestrator.TrendSnapshotRepository"),
+        patch("app.services.trend.orchestrator.TrendDataLoader"),
+        patch("app.services.trend.orchestrator.KoreanTokenizer"),
+        patch("app.services.trend.orchestrator.TopPostsSummaryGenerator"),
+        patch("app.services.trend.orchestrator.CollectionSummaryGenerator"),
+    ):
+        orch = TrendOrchestrator(
+            "postgresql://test",
+            aws_region="us-east-1",
+            backend_url=backend_url,
+            internal_key=key,
+        )
+    orch._loader = MagicMock()
+    orch._normalizer = MagicMock()
+    orch._freq = MagicMock()
+    orch._tokenizer = MagicMock()
+    orch._tfidf = MagicMock()
+    orch._ranker = MagicMock()
+    orch._top_posts_gen = MagicMock()
+    orch._collection_gen = MagicMock()
+    orch._snapshot_repo = MagicMock()
+    return orch
+
+
+def test_cache_client_created_when_both_params_set() -> None:
+    orch = _make_orchestrator_with_cache("http://be:8080", "secret")
+    assert orch._cache_client is not None
+    assert orch._cache_client._url == "http://be:8080/internal/trends/cache"
+
+
+def test_cache_client_none_when_key_missing() -> None:
+    assert _make_orchestrator_with_cache("http://be:8080", None)._cache_client is None
+
+
+def test_cache_client_none_when_url_missing() -> None:
+    assert _make_orchestrator_with_cache(None, "secret")._cache_client is None
+
+
+def test_run_calls_cache_eviction_after_upsert() -> None:
+    orch = _make_orchestrator_with_cache("http://be:8080", "secret")
+    _setup_defaults(orch)
+
+    with patch.object(orch._cache_client, "evict") as mock_evict:
+        orch.run("weekly", _PERIOD_START, _PERIOD_END)
+
+    orch._snapshot_repo.upsert.assert_called_once()
+    mock_evict.assert_called_once_with("weekly", _PERIOD_START)
+
+
+def test_run_skips_cache_eviction_when_no_client() -> None:
+    orch = _make_orchestrator_with_cache(None, None)
+    _setup_defaults(orch)
+
+    orch.run("weekly", _PERIOD_START, _PERIOD_END)
+
+    orch._snapshot_repo.upsert.assert_called_once()

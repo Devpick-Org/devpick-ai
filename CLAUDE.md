@@ -47,6 +47,7 @@
   - **수집 동향 LLM 서사 요약 CollectionSummaryGenerator + TrendSignals 구현 (DP-384)**
   - **트렌드 배치 오케스트레이터 TrendOrchestrator + run_trend_batch.py + run_trend_scheduler.py 구현 (DP-386)**
   - **트렌드 내부 API POST /internal/trends + GET /internal/trends/latest + GET /internal/trends/{period_start} 구현 (DP-385)**
+  - **트렌드 배치 완료 후 BE Redis 캐시 무효화 CacheEvictionClient 구현 (DP-387)**
 
 ---
 

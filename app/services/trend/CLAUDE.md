@@ -18,6 +18,7 @@
 | `collection_summary.py` | `CollectionSummaryGenerator`, `TrendSignals` | 수집 동향 LLM 서사 요약 (DP-384) |
 | `orchestrator.py` | `TrendOrchestrator`, `compute_period` | 배치 오케스트레이터 — 위 컴포넌트를 순서대로 조합 (DP-386) |
 | `cache_eviction.py` | `CacheEvictionClient` | 배치 완료 후 BE Redis 캐시 무효화 요청 — best-effort (DP-387) |
+| `external_signals.py` | `ExternalSignalFetcher`, `GitHubTrendingFetcher`, `HackerNewsFetcher`, `DevToFetcher` | GitHub Trending·HN Algolia·dev.to 외부 시그널 수집 + 가중치 블렌딩 (DP-382) |
 
 ---
 
@@ -38,12 +39,17 @@ FrequencyAnalyzer.analyze(cur_tags, prev_tags) → list[TagFrequency]
     ↓
 KoreanTokenizer.tokenize(titles) → TfidfAnalyzer.extract() → tfidf_keywords[:15]
     ↓
+ExternalSignalFetcher.fetch(unit) → external_signals  # best-effort, 실패 시 {} (DP-382)
+    ↓
 TrendRanker.rank_contents(cur_view_counts, cur_contents) → top_contents_raw
+TrendRanker.rank_tags(tag_frequencies, summary_meta, external_signals) → cur_ranked
     ↓
 TopPostsSummaryGenerator.generate(top_contents_raw, unit, ..., prev_summary) → top_posts_summary
 CollectionSummaryGenerator.generate(TrendSignals(...)) → collection_summary
     ↓
-TrendResponse 조립 → TrendSnapshotRepository.upsert()
+TrendingTag 조립 (cur_ranked[:top_n], rank_change 계산) → trending_tags  # top_n: daily=10/weekly=15/monthly=20
+    ↓
+TrendResponse 조립 (trending_tags 포함) → TrendSnapshotRepository.upsert()
     ↓
 CacheEvictionClient.evict(unit, period_start)  # best-effort (DP-387)
 ```

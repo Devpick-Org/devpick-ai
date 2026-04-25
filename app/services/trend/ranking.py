@@ -17,6 +17,7 @@ class RankedTag:
     state: str
     tag_count: int
     score: float
+    rank_change: int = 0
 
 
 def _clip(value: float, lo: float, hi: float) -> float:
@@ -58,6 +59,7 @@ class TrendRanker:
         self,
         tag_frequencies: list[TagFrequency],
         summary_meta: dict[str, dict],
+        external_signals: dict[str, float] | None = None,
     ) -> list[RankedTag]:
         """태그 복합 점수 계산 후 Top N 을 반환한다.
 
@@ -70,6 +72,7 @@ class TrendRanker:
         categories = {
             meta["category"] for meta in summary_meta.values() if meta.get("category")
         }
+        external = external_signals or {}
         ranked: list[RankedTag] = []
         for tf in tag_frequencies:
             category_match = tf.keyword in categories
@@ -80,6 +83,7 @@ class TrendRanker:
                 + 0.5 * _clip(gr, -3.0, 3.0)
                 + (2.0 if category_match else 0.0)
                 + (0.5 if tf.state == "new" else 0.0)
+                + external.get(tf.keyword, 0.0)
             )
             ranked.append(
                 RankedTag(

@@ -108,3 +108,39 @@ def test_rank_tags_sorted_by_score() -> None:
     result = _ranker().rank_tags(tags, {})
     scores = [r.score for r in result]
     assert scores == sorted(scores, reverse=True)
+
+
+# ── external_signals ──────────────────────────────────────────────────────────
+
+
+def test_rank_tags_external_signals_boost_score() -> None:
+    tf_boosted = _tf("rust", cur=2, prev=1, delta=1, growth_rate=1.0, state="up")
+    tf_plain = _tf("java", cur=2, prev=1, delta=1, growth_rate=1.0, state="up")
+    result = _ranker().rank_tags(
+        [tf_boosted, tf_plain], {}, external_signals={"rust": 0.9}
+    )
+    rust = next(r for r in result if r.keyword == "rust")
+    java = next(r for r in result if r.keyword == "java")
+    assert rust.score > java.score
+    assert rust.score == round(java.score + 0.9, 4)
+
+
+def test_rank_tags_external_signals_none_same_as_empty() -> None:
+    tf = _tf("python", cur=3, prev=2, delta=1, growth_rate=1.0, state="up")
+    result_none = _ranker().rank_tags([tf], {}, external_signals=None)
+    result_empty = _ranker().rank_tags([tf], {}, external_signals={})
+    assert result_none[0].score == result_empty[0].score
+
+
+def test_rank_tags_external_signals_unknown_tag_ignored() -> None:
+    tf = _tf("python", cur=3, prev=2, delta=1, growth_rate=1.0, state="up")
+    result = _ranker().rank_tags([tf], {}, external_signals={"rust": 0.9})
+    # rust 시그널이 있어도 python에는 영향 없음
+    expected = round(0.5 * 1 + 0.5 * 1.0, 4)
+    assert result[0].score == expected
+
+
+def test_rank_tags_rank_change_default_zero() -> None:
+    tf = _tf("python", cur=3, prev=2, delta=1, growth_rate=1.0, state="up")
+    result = _ranker().rank_tags([tf], {})
+    assert result[0].rank_change == 0

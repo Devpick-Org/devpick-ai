@@ -7,12 +7,12 @@
 
 선택:
   RALLIT_HUB_URL  기본: 개발자 직군 목록 1페이지
-  MAX_JOBS         기본 50
-  MAX_HUB_PAGES    목록 페이지 수( pageNumber ), 기본 3
+  MAX_JOBS         기본 200
+  MAX_HUB_PAGES    목록 페이지 수( pageNumber ), 기본 15 (페이지당 ~20건 가정)
 
 예:
   python scripts/collect_rallit_jobs.py --dry-run --max 10 --pages 1
-  python scripts/collect_rallit_jobs.py --url 'https://www.rallit.com/?jobGroup=DEVELOPER&pageNumber=1' --max 80 --pages 4
+  python scripts/collect_rallit_jobs.py --url '...DEVELOPER&pageNumber=1' --max 200 --pages 15
 
 사이트 마크업·Next 데이터 구조가 바뀌면 URL/메타 추출 로직을 수정해야 합니다.
 """
@@ -32,8 +32,8 @@ from bs4 import BeautifulSoup
 from curl_cffi import requests as curl_requests
 
 DEFAULT_LIST_URL = "https://www.rallit.com/?jobGroup=DEVELOPER&pageNumber=1"
-DEFAULT_MAX_JOBS = 50
-DEFAULT_MAX_HUB_PAGES = 3
+DEFAULT_MAX_JOBS = 200
+DEFAULT_MAX_HUB_PAGES = 15
 
 NEXT_DATA_RE = re.compile(
     r'<script id="__NEXT_DATA__" type="application/json">([^<]+)</script>'

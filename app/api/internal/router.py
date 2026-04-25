@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import logging
 import os
-from datetime import date, datetime, time, timezone
+from datetime import datetime, time, timezone
 
 from dotenv import load_dotenv
 from fastapi import APIRouter, Depends, HTTPException, Response

@@ -1,0 +1,50 @@
+# EC2에서 ~/devpick-backend/.env 의 AI_SERVER_INTERNAL_KEY 로 운영 API에 ingest 합니다.
+# Actions → 이 워크플로 → Run workflow
+
+name: Rallit jobs crawl (EC2)
+
+on:
+  workflow_dispatch:
+    inputs:
+      max_jobs:
+        description: MAX_JOBS (기본 50)
+        default: "50"
+        required: false
+      max_pages:
+        description: MAX_HUB_PAGES (목록 페이지 수, 기본 3)
+        default: "3"
+        required: false
+
+permissions:
+  contents: read
+
+jobs:
+  crawl:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Run collector on EC2
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          command_timeout: 30m
+          script: |
+            set -euo pipefail
+            cd ~/devpick-ai
+            git fetch origin developV2
+            git checkout developV2
+            git reset --hard origin/developV2
+            set +u
+            set -a
+            [ -f ~/devpick-backend/.env ] && . ~/devpick-backend/.env
+            set +a
+            set -u
+            : "${AI_SERVER_INTERNAL_KEY:?Set AI_SERVER_INTERNAL_KEY in ~/devpick-backend/.env}"
+            export INTERNAL_KEY="$AI_SERVER_INTERNAL_KEY"
+            export BACKEND_URL="https://3-39-96-126.sslip.io"
+            export MAX_JOBS="${{ github.event.inputs.max_jobs }}"
+            export MAX_HUB_PAGES="${{ github.event.inputs.max_pages }}"
+            python3 -c "import curl_cffi, bs4, lxml, requests" 2>/dev/null \
+              || pip3 install --user -q "curl_cffi>=0.7.0,<1" "beautifulsoup4>=4.12" "lxml>=5" "requests>=2"
+            python3 scripts/collect_rallit_jobs.py

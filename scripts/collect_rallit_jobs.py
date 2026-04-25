@@ -3,7 +3,7 @@
 
 필수 환경 변수 (실제 ingest 시):
   BACKEND_URL   예: https://api.example.com/v1
-  INTERNAL_KEY  Spring `ai.server.internal-key` 와 동일 (X-Internal-Key)
+  INTERNAL_KEY 또는 INTERNAL_API_KEY  Spring `ai.server.internal-key` 와 동일 (X-Internal-Key)
 
 선택:
   RALLIT_HUB_URL  기본: 개발자 직군 목록 1페이지
@@ -629,11 +629,11 @@ def main() -> int:
     args = parser.parse_args()
 
     base = os.environ.get("BACKEND_URL", "").rstrip("/")
-    key = os.environ.get("INTERNAL_KEY", "")
+    key = os.environ.get("INTERNAL_KEY") or os.environ.get("INTERNAL_API_KEY", "")
     if not args.dry_run:
         if not base or not key:
             print(
-                "BACKEND_URL and INTERNAL_KEY are required (or use --dry-run)",
+                "BACKEND_URL and INTERNAL_KEY (or INTERNAL_API_KEY) are required (or use --dry-run)",
                 file=sys.stderr,
             )
             return 1

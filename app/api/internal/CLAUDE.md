@@ -19,7 +19,6 @@ Spring Boot ↔ FastAPI 내부 통신 전용 라우터. Base URL: `/internal`
 | POST | `/internal/report` | 주간 리포트 AI 인사이트 생성 (DP-259) — Backend 주간 리포트 생성 후 호출 |
 | POST | `/internal/trends` | 트렌드 수동 생성 (DP-385) — 디버그·장애 복구용. 0건→400, 5건미만→422 |
 | GET | `/internal/trends/latest` | unit+scope 기준 최신 트렌드 스냅샷 조회 (DP-385) — 없으면 404 |
-| GET | `/internal/trends/{period_start}` | 특정 기간 트렌드 스냅샷 조회 (DP-385) — 없으면 404 |
 
 ---
 

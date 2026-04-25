@@ -120,7 +120,9 @@ class JobAiService:
         data = _extract_json_object(raw)
         return SkillGapResponse.model_validate(data)
 
-    def _converse_text(self, model: str, system: str, user: str, max_tokens: int) -> str:
+    def _converse_text(
+        self, model: str, system: str, user: str, max_tokens: int
+    ) -> str:
         try:
             response = self._client.converse(
                 modelId=model,
@@ -136,7 +138,9 @@ class JobAiService:
             raise AIUpstreamError(str(exc)) from exc
 
         parts = response.get("output", {}).get("message", {}).get("content", [])
-        texts = [p.get("text", "") for p in parts if isinstance(p, dict) and "text" in p]
+        texts = [
+            p.get("text", "") for p in parts if isinstance(p, dict) and "text" in p
+        ]
         out = "".join(texts).strip()
         if not out:
             raise AIInternalError("empty_bedrock_message")

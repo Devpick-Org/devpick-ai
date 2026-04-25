@@ -191,9 +191,7 @@ def meta_from_next(data: dict | None) -> dict:
                 company, ("name",), ("title",), ("companyName",)
             )
             logo = (
-                company.get("logoUrl")
-                or company.get("logo")
-                or company.get("imageUrl")
+                company.get("logoUrl") or company.get("logo") or company.get("imageUrl")
             )
             if isinstance(logo, str) and logo.strip():
                 out["companyLogoUrl"] = logo.strip()

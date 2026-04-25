@@ -156,6 +156,176 @@ def _first_str(d: dict | None, *paths: tuple[str, ...]) -> str:
     return ""
 
 
+def _clean_text(text: str) -> str:
+    return re.sub(r"\s+", " ", text or "").strip()
+
+
+def html_to_text(html: str | None) -> str:
+    if not html:
+        return ""
+    soup = BeautifulSoup(html, "lxml")
+    for br in soup.find_all("br"):
+        br.replace_with("\n")
+    for tag in soup(["script", "style", "noscript"]):
+        tag.decompose()
+    return _clean_text(soup.get_text(" ", strip=True))
+
+
+def lines_from_html(html: str | None, max_lines: int = 20) -> list[str]:
+    """랠릿 상세의 HTML 섹션을 ingest/AI가 읽기 쉬운 문장 목록으로 변환합니다."""
+    if not html:
+        return []
+    soup = BeautifulSoup(html, "lxml")
+    lines: list[str] = []
+    for node in soup.find_all(["li", "p"]):
+        txt = _clean_text(node.get_text(" ", strip=True))
+        if not txt:
+            continue
+        # <li><p>...</p></li> 구조에서 부모/자식 텍스트가 중복되는 것을 방지
+        if any(txt == prev or txt in prev for prev in lines[-3:]):
+            continue
+        lines.append(txt)
+        if len(lines) >= max_lines:
+            break
+    if not lines:
+        txt = html_to_text(html)
+        if txt:
+            lines.append(txt)
+    return lines[:max_lines]
+
+
+def _absolute_image_url(raw: str | None) -> str | None:
+    if not raw:
+        return None
+    s = raw.strip()
+    if not s:
+        return None
+    if s.startswith("//"):
+        return "https:" + s
+    return urljoin("https://www.rallit.com", s)
+
+
+def _meta_content(soup: BeautifulSoup, *names: str) -> str:
+    for name in names:
+        tag = soup.find("meta", attrs={"property": name}) or soup.find(
+            "meta", attrs={"name": name}
+        )
+        if tag and tag.get("content"):
+            return str(tag["content"]).strip()
+    return ""
+
+
+def meta_from_html(html: str) -> dict:
+    """__NEXT_DATA__가 바뀌었을 때를 대비한 HTML fallback."""
+    soup = BeautifulSoup(html, "lxml")
+    out = {
+        "title": "",
+        "companyName": "",
+        "companyLogoUrl": None,
+        "representativeImageUrl": None,
+        "canonicalUrl": "",
+    }
+    og_title = _meta_content(soup, "og:title", "title")
+    if og_title:
+        # "(주)비바리퍼블리카 [토스인슈어런스] Server Developer 채용 - 랠릿"
+        out["title"] = re.sub(r"\s*채용\s*-\s*랠릿\s*$", "", og_title).strip()
+    out["representativeImageUrl"] = _absolute_image_url(
+        _meta_content(soup, "og:image", "twitter:image", "thumbnail")
+    )
+    out["canonicalUrl"] = _meta_content(soup, "og:url", "twitter:url")
+
+    for img in soup.find_all("img"):
+        alt = str(img.get("alt") or "")
+        src = _absolute_image_url(str(img.get("src") or ""))
+        if not src:
+            continue
+        if "로고" in alt:
+            out["companyLogoUrl"] = src
+            out["companyName"] = alt.replace("로고 이미지", "").replace("로고", "").strip()
+            break
+    return out
+
+
+def pick_position_object(data: dict | None) -> dict:
+    """랠릿 상세의 position 객체를 구조 변경에 견고하게 찾습니다."""
+    if not data:
+        return {}
+    props = data.get("props", {}).get("pageProps", {})
+    direct = props.get("position")
+    if isinstance(direct, dict):
+        return direct
+
+    found: dict = {}
+
+    def visitor(obj) -> None:
+        nonlocal found
+        if found or not isinstance(obj, dict):
+            return
+        if (
+            isinstance(obj.get("title"), str)
+            and isinstance(obj.get("companyName"), str)
+            and ("jobSkillKeywords" in obj or "companyLogo" in obj)
+        ):
+            found = obj
+
+    def walk(obj) -> None:
+        if found:
+            return
+        if isinstance(obj, dict):
+            visitor(obj)
+            for v in obj.values():
+                walk(v)
+        elif isinstance(obj, list):
+            for item in obj:
+                walk(item)
+
+    walk(props)
+    return found
+
+
+def map_job_category_from_position(job: dict, list_url: str) -> str:
+    jobs = job.get("jobs") or []
+    labels: list[str] = []
+    if isinstance(jobs, list):
+        for item in jobs:
+            if isinstance(item, dict):
+                labels.extend(
+                    str(item.get(k) or "") for k in ("code", "name") if item.get(k)
+                )
+            elif isinstance(item, str):
+                labels.append(item)
+    hay = " ".join(labels + [str(job.get("title") or "")]).lower()
+    if any(x in hay for x in ("frontend", "front-end", "프론트")):
+        return "FRONTEND"
+    if any(x in hay for x in ("backend", "back-end", "server", "서버", "백엔드")):
+        return "BACKEND"
+    if any(x in hay for x in ("fullstack", "full-stack", "풀스택")):
+        return "FULLSTACK"
+    if any(x in hay for x in ("devops", "infra", "sre", "인프라", "mlops")):
+        return "DEVOPS"
+    if any(x in hay for x in ("ai", "ml", "machine", "data scientist", "데이터")):
+        return "AI_ML"
+    if any(x in hay for x in ("android", "ios", "mobile", "모바일", "aos")):
+        return "MOBILE"
+    return default_job_category_from_list_url(list_url)
+
+
+def map_experience_from_position(job: dict) -> str:
+    levels = job.get("jobLevels")
+    if isinstance(levels, list) and levels:
+        order = ["SENIOR", "MIDDLE", "JUNIOR", "NEW"]
+        upper = {str(x).upper() for x in levels}
+        for item in order:
+            if item in upper:
+                return item
+    raw = str(job.get("jobLevel") or job.get("experience") or "")
+    if raw.upper() == "IRRELEVANT":
+        return "ANY"
+    if raw:
+        return map_experience_hint(raw)
+    return ""
+
+
 def meta_from_next(data: dict | None) -> dict:
     """__NEXT_DATA__ pageProps 에서 회사·제목·로고·스킬 등 추출 (구조 변경 시 수정)."""
     out: dict = {
@@ -166,39 +336,47 @@ def meta_from_next(data: dict | None) -> dict:
         "techHints": [],
         "location": "",
         "experienceLevel": "",
+        "jobCategory": "",
         "salaryDisplay": None,
         "deadline": None,
+        "representativeImageUrl": None,
+        "canonicalUrl": "",
+        "responsibilities": [],
+        "requirements": [],
+        "preferredQualifications": [],
+        "benefits": [],
+        "hiringProcess": [],
     }
     if not data:
         return out
     try:
         props = data.get("props", {}).get("pageProps", {})
-        job = (
-            props.get("job")
-            or props.get("position")
-            or props.get("jobDetail")
-            or props.get("data")
-            or {}
-        )
+        job = pick_position_object(data) or props.get("job") or props.get("jobDetail") or props.get("data") or {}
         if not isinstance(job, dict):
             job = {}
 
         out["title"] = _first_str(job, ("title",), ("name",), ("jobTitle",))
+        out["companyName"] = _first_str(job, ("companyName",))
 
         company = job.get("company") or job.get("team") or job.get("employer") or {}
         if isinstance(company, dict):
-            out["companyName"] = _first_str(
-                company, ("name",), ("title",), ("companyName",)
-            )
+            out["companyName"] = out["companyName"] or _first_str(company, ("name",), ("title",), ("companyName",))
             logo = (
                 company.get("logoUrl") or company.get("logo") or company.get("imageUrl")
             )
             if isinstance(logo, str) and logo.strip():
-                out["companyLogoUrl"] = logo.strip()
+                out["companyLogoUrl"] = _absolute_image_url(logo.strip())
             elif isinstance(logo, dict):
                 url = logo.get("url") or logo.get("src")
                 if isinstance(url, str) and url.strip():
-                    out["companyLogoUrl"] = url.strip()
+                    out["companyLogoUrl"] = _absolute_image_url(url.strip())
+        if not out["companyLogoUrl"]:
+            out["companyLogoUrl"] = _absolute_image_url(
+                job.get("companyLogo") or job.get("partnerLogo")
+            )
+        images = job.get("companyRepresentativeImages")
+        if isinstance(images, list) and images:
+            out["representativeImageUrl"] = _absolute_image_url(str(images[0]))
 
         out["applyUrl"] = _first_str(
             job, ("applyUrl",), ("applicationUrl",), ("externalApplyUrl",)
@@ -206,9 +384,10 @@ def meta_from_next(data: dict | None) -> dict:
         if not out["applyUrl"]:
             out["applyUrl"] = _first_str(job, ("url",))
 
-        loc = job.get("location") or job.get("region") or job.get("workPlace")
+        loc = job.get("location") or job.get("region") or job.get("workPlace") or job.get("addressMain")
         if isinstance(loc, str) and loc.strip():
-            out["location"] = loc.strip()
+            detail = str(job.get("addressDetail") or "").strip()
+            out["location"] = _clean_text(f"{loc.strip()} {detail}".strip())
         elif isinstance(loc, dict):
             out["location"] = _first_str(loc, ("name",), ("label",))
 
@@ -218,13 +397,18 @@ def meta_from_next(data: dict | None) -> dict:
         elif isinstance(exp, dict):
             label = _first_str(exp, ("name",), ("label",), ("type",))
             out["experienceLevel"] = map_experience_hint(label)
+        if not out["experienceLevel"]:
+            out["experienceLevel"] = map_experience_from_position(job)
+        out["jobCategory"] = map_job_category_from_position(job, DEFAULT_LIST_URL)
 
-        sal = job.get("salary") or job.get("salaryDescription")
+        sal = job.get("salary") or job.get("salaryDescription") or job.get("minimumSalary")
         if isinstance(sal, str) and sal.strip():
             out["salaryDisplay"] = sal.strip()
+        elif sal is not None:
+            out["salaryDisplay"] = str(sal)
 
-        dl = job.get("deadline") or job.get("endDate") or job.get("closeDate")
-        if isinstance(dl, str) and re.match(r"\d{4}-\d{2}-\d{2}", dl.strip()):
+        dl = job.get("deadline") or job.get("endDate") or job.get("closeDate") or job.get("endedAt")
+        if isinstance(dl, str) and re.match(r"\d{4}-\d{2}-\d{2}", dl.strip()) and not dl.startswith("9999"):
             out["deadline"] = dl.strip()[:10]
 
         skills = (
@@ -232,6 +416,7 @@ def meta_from_next(data: dict | None) -> dict:
             or job.get("techStack")
             or job.get("stacks")
             or job.get("tags")
+            or job.get("jobSkillKeywords")
             or []
         )
         if isinstance(skills, list):
@@ -244,6 +429,15 @@ def meta_from_next(data: dict | None) -> dict:
                     if isinstance(name, str) and name.strip():
                         hints.append(name.strip())
             out["techHints"] = hints
+        out["responsibilities"] = lines_from_html(job.get("responsibilities"))
+        out["requirements"] = lines_from_html(job.get("basicQualifications"))
+        out["preferredQualifications"] = lines_from_html(job.get("preferredQualifications"))
+        out["benefits"] = lines_from_html(job.get("benefits"))
+        steps = job.get("positionSteps")
+        if isinstance(steps, list):
+            middle_steps = [str(s).strip() for s in steps if str(s).strip()]
+            out["hiringProcess"] = ["서류 접수", *middle_steps, "최종 합격"]
+        out["canonicalUrl"] = _first_str(job, ("url",))
     except (TypeError, AttributeError):
         pass
     return out
@@ -329,7 +523,7 @@ def build_payload(
         "companyLogoUrl": meta.get("companyLogoUrl"),
         "title": meta.get("title") or "제목 미상",
         "employmentType": "FULL_TIME",
-        "jobCategory": default_job_category_from_list_url(list_url),
+        "jobCategory": meta.get("jobCategory") or default_job_category_from_list_url(list_url),
         "experienceLevel": exp,
         "location": meta.get("location") or "",
         "salaryDisplay": meta.get("salaryDisplay"),
@@ -337,8 +531,14 @@ def build_payload(
         "applyUrl": meta.get("applyUrl") or detail_url,
         "rawJdText": jd_text,
         "imageOnlyJd": False,
-        "requiredSkills": [],
-        "preferredSkills": merged,
+        "requiredSkills": merged,
+        "preferredSkills": [],
+        # 백엔드가 확장되면 아래 구조화 필드를 그대로 저장할 수 있습니다.
+        "responsibilities": meta.get("responsibilities") or [],
+        "requirements": meta.get("requirements") or [],
+        "preferredQualifications": meta.get("preferredQualifications") or [],
+        "benefits": meta.get("benefits") or [],
+        "hiringProcess": meta.get("hiringProcess") or [],
     }
 
 
@@ -423,10 +623,13 @@ def main() -> int:
         payload = build_payload(u, meta, jd_text, args.url)
 
         if args.debug:
+            skills_for_debug = (payload.get("requiredSkills") or []) + (
+                payload.get("preferredSkills") or []
+            )
             print(
                 f"[debug] {u} title={payload['title']!r} "
                 f"company={payload['companyName']!r} "
-                f"skills={payload['preferredSkills']!r}",
+                f"skills={skills_for_debug!r}",
                 file=sys.stderr,
             )
 

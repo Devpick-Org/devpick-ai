@@ -40,7 +40,9 @@ NEXT_DATA_RE = re.compile(
 )
 
 # 실제 공고 상세만 (/positions/숫자/…). /client/api/v1/position 등은 제외
-POSITION_ID_IN_PATH = re.compile(r"/(?:hub/)?positions?/(\d+)(?:/[^/?#]*)?", re.IGNORECASE)
+POSITION_ID_IN_PATH = re.compile(
+    r"/(?:hub/)?positions?/(\d+)(?:/[^/?#]*)?", re.IGNORECASE
+)
 
 
 def _session():
@@ -250,7 +252,9 @@ def meta_from_html(html: str) -> dict:
             continue
         if "로고" in alt:
             out["companyLogoUrl"] = src
-            out["companyName"] = alt.replace("로고 이미지", "").replace("로고", "").strip()
+            out["companyName"] = (
+                alt.replace("로고 이미지", "").replace("로고", "").strip()
+            )
             break
     return out
 
@@ -360,7 +364,13 @@ def meta_from_next(data: dict | None) -> dict:
         return out
     try:
         props = data.get("props", {}).get("pageProps", {})
-        job = pick_position_object(data) or props.get("job") or props.get("jobDetail") or props.get("data") or {}
+        job = (
+            pick_position_object(data)
+            or props.get("job")
+            or props.get("jobDetail")
+            or props.get("data")
+            or {}
+        )
         if not isinstance(job, dict):
             job = {}
 
@@ -369,7 +379,9 @@ def meta_from_next(data: dict | None) -> dict:
 
         company = job.get("company") or job.get("team") or job.get("employer") or {}
         if isinstance(company, dict):
-            out["companyName"] = out["companyName"] or _first_str(company, ("name",), ("title",), ("companyName",))
+            out["companyName"] = out["companyName"] or _first_str(
+                company, ("name",), ("title",), ("companyName",)
+            )
             logo = (
                 company.get("logoUrl") or company.get("logo") or company.get("imageUrl")
             )
@@ -393,7 +405,12 @@ def meta_from_next(data: dict | None) -> dict:
         if not out["applyUrl"]:
             out["applyUrl"] = _first_str(job, ("url",))
 
-        loc = job.get("location") or job.get("region") or job.get("workPlace") or job.get("addressMain")
+        loc = (
+            job.get("location")
+            or job.get("region")
+            or job.get("workPlace")
+            or job.get("addressMain")
+        )
         if isinstance(loc, str) and loc.strip():
             detail = str(job.get("addressDetail") or "").strip()
             out["location"] = _clean_text(f"{loc.strip()} {detail}".strip())
@@ -410,14 +427,27 @@ def meta_from_next(data: dict | None) -> dict:
             out["experienceLevel"] = map_experience_from_position(job)
         out["jobCategory"] = map_job_category_from_position(job, DEFAULT_LIST_URL)
 
-        sal = job.get("salary") or job.get("salaryDescription") or job.get("minimumSalary")
+        sal = (
+            job.get("salary")
+            or job.get("salaryDescription")
+            or job.get("minimumSalary")
+        )
         if isinstance(sal, str) and sal.strip():
             out["salaryDisplay"] = sal.strip()
         elif sal is not None:
             out["salaryDisplay"] = str(sal)
 
-        dl = job.get("deadline") or job.get("endDate") or job.get("closeDate") or job.get("endedAt")
-        if isinstance(dl, str) and re.match(r"\d{4}-\d{2}-\d{2}", dl.strip()) and not dl.startswith("9999"):
+        dl = (
+            job.get("deadline")
+            or job.get("endDate")
+            or job.get("closeDate")
+            or job.get("endedAt")
+        )
+        if (
+            isinstance(dl, str)
+            and re.match(r"\d{4}-\d{2}-\d{2}", dl.strip())
+            and not dl.startswith("9999")
+        ):
             out["deadline"] = dl.strip()[:10]
 
         skills = (
@@ -440,7 +470,9 @@ def meta_from_next(data: dict | None) -> dict:
             out["techHints"] = hints
         out["responsibilities"] = lines_from_html(job.get("responsibilities"))
         out["requirements"] = lines_from_html(job.get("basicQualifications"))
-        out["preferredQualifications"] = lines_from_html(job.get("preferredQualifications"))
+        out["preferredQualifications"] = lines_from_html(
+            job.get("preferredQualifications")
+        )
         out["benefits"] = lines_from_html(job.get("benefits"))
         steps = job.get("positionSteps")
         if isinstance(steps, list):
@@ -534,7 +566,8 @@ def build_payload(
         "companyLogoUrl": meta.get("companyLogoUrl"),
         "title": meta.get("title") or "제목 미상",
         "employmentType": "FULL_TIME",
-        "jobCategory": meta.get("jobCategory") or default_job_category_from_list_url(list_url),
+        "jobCategory": meta.get("jobCategory")
+        or default_job_category_from_list_url(list_url),
         "experienceLevel": exp,
         "location": meta.get("location") or "",
         "salaryDisplay": meta.get("salaryDisplay"),

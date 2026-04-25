@@ -34,6 +34,8 @@ Pydantic 기반 데이터 계약. 수집부터 AI 처리까지 모든 데이터 
 | `insight.py` | `ActivityData` | 주간 활동 데이터 |
 | `insight.py` | `InsightRequest` | 주간 인사이트 요청 스키마 (DP-259) |
 | `insight.py` | `InsightResponse` | 주간 인사이트 응답 스키마 (DP-259) |
+| `trend.py` | `TrendingTag` | 트렌딩 태그 항목 (keyword, count, rank, rank_change, state) (DP-378보강, DP-380) |
+| `trend.py` | `TrendResponse` | 트렌드 배치 결과 응답 스키마 — `trending_tags` 필드 포함 (DP-378보강) |
 
 ---
 

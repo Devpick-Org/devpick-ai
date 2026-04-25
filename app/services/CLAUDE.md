@@ -30,6 +30,7 @@
 | `trend/collection_summary.py` | `CollectionSummaryGenerator` | 수집 동향 LLM 서사 요약 + `TrendSignals` 데이터클래스 (DP-384) |
 | `trend/orchestrator.py` | `TrendOrchestrator` | 일/주/월 트렌드 배치 오케스트레이터 + `compute_period()` (DP-386) |
 | `trend/cache_eviction.py` | `CacheEvictionClient` | 배치 완료 후 BE Redis 캐시 무효화 — best-effort (DP-387) |
+| `trend/external_signals.py` | `ExternalSignalFetcher` | GitHub Trending·HN Algolia·dev.to 외부 시그널 수집 + 가중치 블렌딩 (DP-382) |
 
 ---
 

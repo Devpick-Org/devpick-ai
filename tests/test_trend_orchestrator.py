@@ -50,6 +50,7 @@ def _make_orchestrator() -> TrendOrchestrator:
         patch("app.services.trend.orchestrator.KoreanTokenizer"),
         patch("app.services.trend.orchestrator.TopPostsSummaryGenerator"),
         patch("app.services.trend.orchestrator.CollectionSummaryGenerator"),
+        patch("app.services.trend.orchestrator.ExternalSignalFetcher"),
     ):
         orch = TrendOrchestrator("postgresql://test", aws_region="us-east-1")
 
@@ -59,6 +60,7 @@ def _make_orchestrator() -> TrendOrchestrator:
     orch._tokenizer = MagicMock()
     orch._tfidf = MagicMock()
     orch._ranker = MagicMock()
+    orch._external = MagicMock()
     orch._top_posts_gen = MagicMock()
     orch._collection_gen = MagicMock()
     orch._snapshot_repo = MagicMock()
@@ -79,6 +81,8 @@ def _setup_defaults(orch: TrendOrchestrator) -> None:
     orch._tokenizer.tokenize.return_value = ["kubernetes 배포"]
     orch._tfidf.extract.return_value = [("kubernetes", 0.5)]
     orch._ranker.rank_contents.return_value = [_FAKE_CONTENT]
+    orch._ranker.rank_tags.return_value = []
+    orch._external.fetch.return_value = {}
     orch._top_posts_gen.generate.return_value = "Top posts 요약"
     orch._collection_gen.generate.return_value = "Collection 요약"
 
@@ -255,6 +259,7 @@ def _make_orchestrator_with_cache(
         patch("app.services.trend.orchestrator.KoreanTokenizer"),
         patch("app.services.trend.orchestrator.TopPostsSummaryGenerator"),
         patch("app.services.trend.orchestrator.CollectionSummaryGenerator"),
+        patch("app.services.trend.orchestrator.ExternalSignalFetcher"),
     ):
         orch = TrendOrchestrator(
             "postgresql://test",
@@ -268,6 +273,7 @@ def _make_orchestrator_with_cache(
     orch._tokenizer = MagicMock()
     orch._tfidf = MagicMock()
     orch._ranker = MagicMock()
+    orch._external = MagicMock()
     orch._top_posts_gen = MagicMock()
     orch._collection_gen = MagicMock()
     orch._snapshot_repo = MagicMock()
@@ -306,3 +312,78 @@ def test_run_skips_cache_eviction_when_no_client() -> None:
     orch.run("weekly", _PERIOD_START, _PERIOD_END)
 
     orch._snapshot_repo.upsert.assert_called_once()
+
+
+# ── trending_tags (DP-380 / DP-382) ───────────────────────────────────────────
+
+
+def test_run_trending_tags_empty_when_no_tag_frequencies() -> None:
+    orch = _make_orchestrator()
+    _setup_defaults(orch)
+    orch._ranker.rank_tags.return_value = []
+
+    result = orch.run("weekly", _PERIOD_START, _PERIOD_END)
+
+    assert result.trending_tags == []
+
+
+def test_run_trending_tags_populated_from_rank_tags() -> None:
+    from app.services.trend.ranking import RankedTag
+
+    orch = _make_orchestrator()
+    _setup_defaults(orch)
+    orch._ranker.rank_tags.return_value = [
+        RankedTag(
+            keyword="kubernetes",
+            cur_count=10,
+            prev_count=5,
+            delta=5,
+            growth_rate=100.0,
+            state="up",
+            tag_count=10,
+            score=4.0,
+        )
+    ]
+
+    result = orch.run("weekly", _PERIOD_START, _PERIOD_END)
+
+    assert len(result.trending_tags) == 1
+    tag = result.trending_tags[0]
+    assert tag.keyword == "kubernetes"
+    assert tag.count == 10
+    assert tag.rank == 1
+    assert tag.state == "up"
+
+
+def test_run_trending_tags_external_failure_still_produces_tags() -> None:
+    from app.services.trend.ranking import RankedTag
+
+    orch = _make_orchestrator()
+    _setup_defaults(orch)
+    orch._external.fetch.side_effect = Exception("외부 API 실패")
+    orch._ranker.rank_tags.return_value = [
+        RankedTag(
+            keyword="docker",
+            cur_count=8,
+            prev_count=4,
+            delta=4,
+            growth_rate=100.0,
+            state="up",
+            tag_count=8,
+            score=3.0,
+        )
+    ]
+
+    result = orch.run("daily", _PERIOD_START, _PERIOD_END)
+
+    assert len(result.trending_tags) == 1
+    assert result.trending_tags[0].keyword == "docker"
+
+
+def test_run_external_fetch_called_with_unit() -> None:
+    orch = _make_orchestrator()
+    _setup_defaults(orch)
+
+    orch.run("monthly", _PERIOD_START, _PERIOD_END)
+
+    orch._external.fetch.assert_called_once_with("monthly")

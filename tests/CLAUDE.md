@@ -51,6 +51,7 @@
 | `test_trend_orchestrator.py` | `TrendOrchestrator` | 배치 오케스트레이터 통합 흐름, skip/force/LLM 실패 격리, 캐시 무효화 통합 (DP-386, DP-387) |
 | `test_trend_cache_eviction.py` | `CacheEvictionClient` | URL 조합, 성공/비204/네트워크 오류/타임아웃 best-effort 처리 (DP-387) |
 | `test_trend_endpoint.py` | `POST/GET /internal/trends` | 트렌드 엔드포인트 통합 테스트 — 수동 생성, 0건/5건미만 에러, 조회 404 (DP-385) |
+| `test_trend_external_signals.py` | `ExternalSignalFetcher`, `GitHubTrendingFetcher`, `HackerNewsFetcher`, `DevToFetcher` | HTML 스크래핑·Algolia API·dev.to API 파싱, 가중치 블렌딩, 부분 실패 graceful 처리 (DP-382) |
 
 ---
 

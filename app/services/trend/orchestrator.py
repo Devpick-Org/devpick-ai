@@ -10,13 +10,14 @@ from app.core.exceptions import AITimeoutError, AIUpstreamError
 from app.repositories.content_repository import ContentRepository
 from app.repositories.summary_repository import SummaryRepository
 from app.repositories.trend_repository import TrendSnapshotRepository
-from app.schemas.trend import TopContent, TrendResponse
+from app.schemas.trend import TopContent, TrendResponse, TrendingTag
 from app.services.trend.cache_eviction import CacheEvictionClient
 from app.services.trend.collection_summary import (
     CollectionSummaryGenerator,
     TrendSignals,
 )
 from app.services.trend.data_loader import TrendDataLoader
+from app.services.trend.external_signals import ExternalSignalFetcher
 from app.services.trend.frequency import FrequencyAnalyzer
 from app.services.trend.normalize import TagNormalizer
 from app.services.trend.ranking import TrendRanker
@@ -146,6 +147,7 @@ class TrendOrchestrator:
             model=model,
         )
         self._snapshot_repo = TrendSnapshotRepository(database_url)
+        self._external = ExternalSignalFetcher()
         self._cache_client: CacheEvictionClient | None = (
             CacheEvictionClient(backend_url, internal_key)
             if backend_url and internal_key
@@ -182,6 +184,42 @@ class TrendOrchestrator:
         cur_tags = self._normalizer.normalize(_extract_tags(raw.cur_contents))
         prev_tags = self._normalizer.normalize(_extract_tags(raw.prev_contents))
         tag_frequencies = self._freq.analyze(cur_tags, prev_tags)
+
+        # 외부 시그널 수집 (best-effort)
+        external_signals: dict[str, float] = {}
+        try:
+            external_signals = self._external.fetch(unit)
+        except Exception as exc:
+            logger.warning("외부 시그널 수집 실패 — 내부 데이터만 사용: %s", exc)
+
+        # prev 기간 인라인 순위 맵 (rank_change 계산용)
+        from collections import Counter
+
+        prev_rank_map = {
+            tag: i for i, (tag, _) in enumerate(Counter(prev_tags).most_common())
+        }
+
+        # 현재 기간 태그 랭킹
+        cur_ranked = self._ranker.rank_tags(
+            tag_frequencies, raw.summary_meta, external_signals
+        )
+
+        # period별 top_n + TrendingTag 조립
+        _TOP_N = {"daily": 10, "weekly": 15, "monthly": 20}
+        top_n = _TOP_N.get(unit, 10)
+        trending_tags: list[TrendingTag] = []
+        for rank_0, r in enumerate(cur_ranked[:top_n]):
+            prev = prev_rank_map.get(r.keyword)
+            rank_change = (prev - rank_0) if prev is not None else 0
+            trending_tags.append(
+                TrendingTag(
+                    keyword=r.keyword,
+                    count=r.cur_count,
+                    rank=rank_0 + 1,
+                    rank_change=rank_change,
+                    state=r.state,
+                )
+            )
 
         # TF-IDF 키워드 (제목 기반, 이름만 추출)
         titles = [c.get("title", "") for c in raw.cur_contents]
@@ -247,6 +285,7 @@ class TrendOrchestrator:
             top_posts=top_posts,
             top_posts_summary=top_posts_summary,
             collection_summary=collection_summary,
+            trending_tags=trending_tags,
         )
 
         self._snapshot_repo.upsert(

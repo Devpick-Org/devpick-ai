@@ -48,6 +48,10 @@
   - **트렌드 배치 오케스트레이터 TrendOrchestrator + run_trend_batch.py + run_trend_scheduler.py 구현 (DP-386)**
   - **트렌드 내부 API POST /internal/trends + GET /internal/trends/latest + GET /internal/trends/{period_start} 구현 (DP-385)**
   - **트렌드 배치 완료 후 BE Redis 캐시 무효화 CacheEvictionClient 구현 (DP-387)**
+  - **외부 트렌드 시그널 수집 ExternalSignalFetcher (GitHub Trending + HN Algolia + dev.to) 구현 + 블렌딩 가중치 적용 (DP-382)**
+  - **TrendingTag 스키마 추가 + TrendResponse.trending_tags 필드 연동 (DP-378보강, DP-380)**
+  - **TrendRanker.rank_tags() external_signals 파라미터 추가 — 외부 시그널 점수 합산 (DP-382)**
+  - **DP-385보강 / DP-387보강 — 라우터·eviction 코드 변경 없이 TrendResponse 확장으로 자동 해결**
 
 ---
 

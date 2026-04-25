@@ -45,6 +45,7 @@ jobs:
             export BACKEND_URL="https://3-39-96-126.sslip.io"
             export MAX_JOBS="${{ github.event.inputs.max_jobs }}"
             export MAX_HUB_PAGES="${{ github.event.inputs.max_pages }}"
-            python3 -c "import curl_cffi, bs4, lxml, requests" 2>/dev/null \
-              || pip3 install --user -q "curl_cffi>=0.7.0,<1" "beautifulsoup4>=4.12" "lxml>=5" "requests>=2"
-            python3 scripts/collect_rallit_jobs.py
+            if [ ! -d .venv-crawl ]; then python3 -m venv .venv-crawl; fi
+            . .venv-crawl/bin/activate
+            pip install -q "curl_cffi>=0.7.0,<1" "beautifulsoup4>=4.12" "lxml>=5" "requests>=2"
+            python scripts/collect_rallit_jobs.py

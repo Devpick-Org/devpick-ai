@@ -503,7 +503,9 @@ def build_payload(
     if not exp:
         exp = "ANY"
     meta_hints = meta.get("techHints") or []
-    jd_hints = tech_hints_from_jd_text(jd_text)
+    # 랠릿 position.jobSkillKeywords가 있으면 그것이 정본입니다.
+    # 본문 fallback은 유사 공고 영역까지 포함될 수 있어 정본이 없을 때만 사용합니다.
+    jd_hints = [] if meta_hints else tech_hints_from_jd_text(jd_text)
     merged: list[str] = []
     seen_m: set[str] = set()
     for h in list(meta_hints) + jd_hints:

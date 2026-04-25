@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import logging
 import os
-from datetime import date, datetime, time, timezone
+from datetime import datetime, time, timezone
 
 from dotenv import load_dotenv
 from fastapi import APIRouter, Depends, HTTPException, Response
@@ -580,30 +580,6 @@ def get_latest_trend(unit: str, scope: str = "global") -> TrendResponse:
             status_code=500, detail="DATABASE_URL이 설정되지 않았습니다."
         )
     result = TrendSnapshotRepository(_DATABASE_URL).get_latest(unit, scope)
-    if result is None:
-        raise HTTPException(status_code=404, detail="트렌드 스냅샷이 없습니다.")
-    return result
-
-
-@router.get(
-    "/trends/{period_start}",
-    response_model=TrendResponse,
-    dependencies=[Depends(verify_internal_key)],
-)
-def get_trend_by_period(
-    period_start: date, unit: str, scope: str = "global"
-) -> TrendResponse:
-    """특정 (unit, scope, period_start) 트렌드 스냅샷 조회 (DP-385).
-
-    없으면 404.
-    """
-    if not _DATABASE_URL:
-        raise HTTPException(
-            status_code=500, detail="DATABASE_URL이 설정되지 않았습니다."
-        )
-    result = TrendSnapshotRepository(_DATABASE_URL).get_by_period(
-        unit, scope, period_start
-    )
     if result is None:
         raise HTTPException(status_code=404, detail="트렌드 스냅샷이 없습니다.")
     return result

@@ -53,6 +53,23 @@ def test_rank_contents_sorted_by_view_count() -> None:
     assert [r["id"] for r in result] == ["cid-2", "cid-1", "cid-3"]
 
 
+def test_rank_contents_rank_field_is_1_based() -> None:
+    view_counts = {"cid-1": 10, "cid-2": 50, "cid-3": 5}
+    details = _details(["cid-1", "cid-2", "cid-3"])
+    result = _ranker().rank_contents(view_counts, details)
+    assert result[0]["rank"] == 1
+    assert result[1]["rank"] == 2
+    assert result[2]["rank"] == 3
+
+
+def test_rank_contents_rank_contiguous_when_id_missing() -> None:
+    view_counts = {"cid-1": 10, "cid-2": 50, "cid-3": 5}
+    details = _details(["cid-1", "cid-3"])  # cid-2 details 없음
+    result = _ranker().rank_contents(view_counts, details)
+    ranks = [r["rank"] for r in result]
+    assert ranks == list(range(1, len(result) + 1))
+
+
 def test_rank_contents_view_count_zero_included() -> None:
     view_counts = {"cid-1": 0}
     details = _details(["cid-1"])

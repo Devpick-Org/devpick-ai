@@ -48,11 +48,14 @@ class TrendRanker:
             cur_view_counts, key=cur_view_counts.__getitem__, reverse=True
         )[: self._top_contents]
         result = []
+        rank = 1
         for cid in top_ids:
             if cid in details_map:
                 item = dict(details_map[cid])
                 item["view_count"] = cur_view_counts[cid]
+                item["rank"] = rank
                 result.append(item)
+                rank += 1
         return result
 
     def rank_tags(

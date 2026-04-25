@@ -18,6 +18,7 @@ class TopContent(BaseModel):
     thumbnail_url: str | None = None
     category: str | None = None
     change_rate: float | None = None
+    rank: int | None = None
 
 
 class TrendingTag(BaseModel):

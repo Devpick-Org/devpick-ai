@@ -7,11 +7,12 @@
 
 선택:
   RALLIT_HUB_URL  기본: 개발자 직군 목록 1페이지
-  MAX_JOBS        기본 5
+  MAX_JOBS         기본 50
+  MAX_HUB_PAGES    목록 페이지 수( pageNumber ), 기본 3
 
 예:
-  python scripts/collect_rallit_jobs.py --dry-run --max 3
-  python scripts/collect_rallit_jobs.py --url 'https://www.rallit.com/?jobGroup=DEVELOPER&pageNumber=1' --max 5
+  python scripts/collect_rallit_jobs.py --dry-run --max 10 --pages 1
+  python scripts/collect_rallit_jobs.py --url 'https://www.rallit.com/?jobGroup=DEVELOPER&pageNumber=1' --max 80 --pages 4
 
 사이트 마크업·Next 데이터 구조가 바뀌면 URL/메타 추출 로직을 수정해야 합니다.
 """
@@ -24,24 +25,22 @@ import os
 import re
 import sys
 import time
-from urllib.parse import parse_qs, urljoin, urlparse
+from urllib.parse import parse_qs, urlencode, urljoin, urlparse, urlunparse
 
 import requests
 from bs4 import BeautifulSoup
 from curl_cffi import requests as curl_requests
 
 DEFAULT_LIST_URL = "https://www.rallit.com/?jobGroup=DEVELOPER&pageNumber=1"
-DEFAULT_MAX_JOBS = 5
+DEFAULT_MAX_JOBS = 50
+DEFAULT_MAX_HUB_PAGES = 3
 
 NEXT_DATA_RE = re.compile(
     r'<script id="__NEXT_DATA__" type="application/json">([^<]+)</script>'
 )
 
-# 공고 상세로 이어지는 경로 (목록·히드레이션 JSON 어디에든 등장 가능)
-JOB_PATH_PATTERN = re.compile(
-    r"/(?:hub/)?(?:positions?|position)(?:/[^/?#]+)?",
-    re.IGNORECASE,
-)
+# 실제 공고 상세만 (/positions/숫자/…). /client/api/v1/position 등은 제외
+POSITION_ID_IN_PATH = re.compile(r"/(?:hub/)?positions?/(\d+)(?:/[^/?#]*)?", re.IGNORECASE)
 
 
 def _session():
@@ -59,11 +58,13 @@ def _normalize_job_url(raw: str, base_url: str) -> str | None:
     if "rallit.com" not in (parsed.netloc or "").lower():
         return None
     path = parsed.path or ""
-    if not JOB_PATH_PATTERN.search(path):
+    if "/api/" in path.lower():
         return None
-    # 쿼리 제거·슬래시 정리
-    out = f"{parsed.scheme}://{parsed.netloc}{path.rstrip('/')}"
-    return out
+    m = POSITION_ID_IN_PATH.search(path)
+    if not m:
+        return None
+    # 슬러그만 다른 동일 공고는 /positions/{id} 로 통일
+    return f"{parsed.scheme}://{parsed.netloc}/positions/{m.group(1)}"
 
 
 def _walk_json(obj, visitor) -> None:
@@ -118,6 +119,14 @@ def discover_job_urls(hub_html: str, hub_url: str, max_jobs: int) -> list[str]:
                 break
 
     return ordered[:max_jobs]
+
+
+def hub_url_with_page(hub_url: str, page: int) -> str:
+    u = urlparse(hub_url)
+    q = parse_qs(u.query, keep_blank_values=True)
+    q["pageNumber"] = [str(page)]
+    pairs = [(k, v) for k in sorted(q.keys()) for v in q[k]]
+    return urlunparse((u.scheme, u.netloc, u.path or "/", "", urlencode(pairs), ""))
 
 
 def extract_text_fallback(html: str) -> str:
@@ -569,6 +578,12 @@ def main() -> int:
         help="최대 수집 공고 수",
     )
     parser.add_argument(
+        "--pages",
+        type=int,
+        default=int(os.environ.get("MAX_HUB_PAGES", str(DEFAULT_MAX_HUB_PAGES))),
+        help="랠릿 목록 pageNumber 1…N 까지 순회 (공고 URL 합산 후 --max 로 자름)",
+    )
+    parser.add_argument(
         "--dry-run",
         action="store_true",
         help="ingest 없이 페이로드만 stdout JSON으로 출력",
@@ -591,14 +606,32 @@ def main() -> int:
             return 1
 
     sess = _session()
-    try:
-        hub_resp = sess.get(args.url, timeout=60)
-        hub_resp.raise_for_status()
-    except Exception as exc:
-        print("list fetch failed:", exc, file=sys.stderr)
-        return 2
+    per_page_cap = max(args.max * 2, 120)
+    collected: list[str] = []
+    seen_urls: set[str] = set()
+    for page in range(1, max(1, args.pages) + 1):
+        hub_page_url = hub_url_with_page(args.url, page)
+        try:
+            hub_resp = sess.get(hub_page_url, timeout=60)
+            hub_resp.raise_for_status()
+        except Exception as exc:
+            print(f"list fetch failed (page {page}):", exc, file=sys.stderr)
+            if page == 1:
+                return 2
+            break
+        batch = discover_job_urls(hub_resp.text, hub_page_url, per_page_cap)
+        if not batch:
+            break
+        for u in batch:
+            if u not in seen_urls:
+                seen_urls.add(u)
+                collected.append(u)
+                if len(collected) >= args.max:
+                    break
+        if len(collected) >= args.max:
+            break
 
-    urls = discover_job_urls(hub_resp.text, args.url, args.max)
+    urls = collected[: args.max]
     if args.debug:
         print(f"[debug] discovered {len(urls)} urls:", file=sys.stderr)
         for u in urls:

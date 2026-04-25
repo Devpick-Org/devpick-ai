@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import logging
 import os
-from datetime import datetime, time, timezone
+from datetime import date, datetime, time, timezone
 
 from dotenv import load_dotenv
 from fastapi import APIRouter, Depends, HTTPException, Response
@@ -31,6 +31,13 @@ from app.schemas.summary import (
     AllLevelsSummaryRequest,
     AllLevelsSummaryResponse,
 )
+from app.schemas.job_ai import (
+    InterviewQaRequest,
+    ParseJdRequest,
+    ParseJdResponse,
+    SkillGapRequest,
+    SkillGapResponse,
+)
 from app.schemas.trend import TrendGenerateRequest, TrendResponse
 from app.services.all_levels_summary_service import AllLevelsSummaryService
 from app.services.answer_service import AnswerService
@@ -43,6 +50,7 @@ from app.services.question_embedding_service import QuestionEmbeddingOrchestrato
 from app.services.refine_service import RefineService
 from app.services.similar_content_service import SimilarContentService
 from app.services.similar_question_service import SimilarQuestionService
+from app.services.job_ai_service import JobAiService
 from app.services.trend.orchestrator import (
     TrendOrchestrator,
     compute_period,
@@ -51,13 +59,20 @@ from app.services.trend.orchestrator import (
 
 load_dotenv()
 _AWS_REGION = os.getenv("AWS_REGION", "ap-northeast-2")
-_BEDROCK_REGION = os.getenv("BEDROCK_REGION", "us-east-1")
+_BEDROCK_REGION = os.getenv("BEDROCK_REGION", "ap-northeast-2")
+# 단일 BEDROCK_MODEL 로 Sonnet 계열 지정 가능 (예: Claude 3.5 Sonnet v2)
+_DEFAULT_SONNET = "anthropic.claude-3-5-sonnet-20241022-v2:0"
+_BEDROCK_MODEL_SONNET = (
+    os.getenv("BEDROCK_MODEL")
+    or os.getenv("BEDROCK_MODEL_SONNET")
+    or _DEFAULT_SONNET
+)
 _BEDROCK_MODEL_HAIKU = os.getenv(
-    "BEDROCK_MODEL_HAIKU", "global.anthropic.claude-haiku-4-5-20251001-v1:0"
+    "BEDROCK_MODEL_HAIKU",
+    "global.anthropic.claude-haiku-4-5-20251001-v1:0",
 )
-_BEDROCK_MODEL_SONNET = os.getenv(
-    "BEDROCK_MODEL_SONNET", "global.anthropic.claude-sonnet-4-6"
-)
+# JD 파싱: 기본은 Sonnet v2. 경량 모델만 쓰려면 BEDROCK_JD_MODEL 또는 BEDROCK_MODEL_HAIKU와 동일 ID 설정
+_BEDROCK_MODEL_JD = os.getenv("BEDROCK_JD_MODEL") or _BEDROCK_MODEL_SONNET
 _DATABASE_URL = os.getenv("DATABASE_URL")
 
 logger = logging.getLogger(__name__)
@@ -583,3 +598,65 @@ def get_latest_trend(unit: str, scope: str = "global") -> TrendResponse:
     if result is None:
         raise HTTPException(status_code=404, detail="트렌드 스냅샷이 없습니다.")
     return result
+
+
+@router.get(
+    "/trends/{period_start}",
+    response_model=TrendResponse,
+    dependencies=[Depends(verify_internal_key)],
+)
+def get_trend_by_period(
+    period_start: date, unit: str, scope: str = "global"
+) -> TrendResponse:
+    """특정 (unit, scope, period_start) 트렌드 스냅샷 조회 (DP-385).
+
+    없으면 404.
+    """
+    if not _DATABASE_URL:
+        raise HTTPException(
+            status_code=500, detail="DATABASE_URL이 설정되지 않았습니다."
+        )
+    result = TrendSnapshotRepository(_DATABASE_URL).get_by_period(
+        unit, scope, period_start
+    )
+    if result is None:
+        raise HTTPException(status_code=404, detail="트렌드 스냅샷이 없습니다.")
+    return result
+
+
+def _job_ai_service() -> JobAiService:
+    return JobAiService(
+        aws_region=_BEDROCK_REGION,
+        model_jd=_BEDROCK_MODEL_JD,
+        model_haiku=_BEDROCK_MODEL_HAIKU,
+        model_sonnet=_BEDROCK_MODEL_SONNET,
+    )
+
+
+@router.post(
+    "/jobs/parse-jd",
+    response_model=ParseJdResponse,
+    dependencies=[Depends(verify_internal_key)],
+)
+def parse_job_jd(body: ParseJdRequest) -> ParseJdResponse:
+    """채용 JD 텍스트에서 필수/우대 기술만 추출 (본문 저장 없음)."""
+    return _job_ai_service().parse_jd(body)
+
+
+@router.post(
+    "/jobs/interview-qa",
+    dependencies=[Depends(verify_internal_key)],
+)
+def generate_job_interview_qa(body: InterviewQaRequest) -> dict:
+    """공고·이력서 기반 면접 Q&A JSON 생성."""
+    return _job_ai_service().interview_qa(body)
+
+
+@router.post(
+    "/jobs/skill-gap",
+    response_model=SkillGapResponse,
+    dependencies=[Depends(verify_internal_key)],
+)
+def job_skill_gap(body: SkillGapRequest) -> SkillGapResponse:
+    """부족 기술 기반 로드맵·유튜브 힌트."""
+    return _job_ai_service().skill_gap(body)

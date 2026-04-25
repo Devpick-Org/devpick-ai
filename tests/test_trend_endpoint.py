@@ -200,4 +200,3 @@ def test_get_latest_trend_not_found(client: TestClient) -> None:
 def test_get_latest_trend_missing_auth(client: TestClient) -> None:
     resp = client.get("/internal/trends/latest?unit=weekly")
     assert resp.status_code == 422
-

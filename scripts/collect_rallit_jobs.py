@@ -730,6 +730,12 @@ def main() -> int:
         help="한 줄에 랠릿 상세 URL 하나. 지정 시 허브 목록(--url/--pages)은 사용하지 않음 (백필·재수집용)",
     )
     parser.add_argument(
+        "--list-urls-only",
+        action="store_true",
+        help="공고 상세 URL만 stdout에 한 줄씩 출력하고 종료 (ingest 없음, BACKEND 불필요). "
+        "허브(--url/--pages/--max) 또는 --urls-file(정규화·출력)",
+    )
+    parser.add_argument(
         "--debug",
         action="store_true",
         help="발견 URL·메타 요약을 stderr에 출력",
@@ -738,7 +744,7 @@ def main() -> int:
 
     base = os.environ.get("BACKEND_URL", "").rstrip("/")
     key = os.environ.get("INTERNAL_KEY") or os.environ.get("INTERNAL_API_KEY", "")
-    if not args.dry_run:
+    if not args.dry_run and not args.list_urls_only:
         if not base or not key:
             print(
                 "BACKEND_URL and INTERNAL_KEY (or INTERNAL_API_KEY) are required (or use --dry-run)",
@@ -754,7 +760,15 @@ def main() -> int:
         except OSError as exc:
             print("--urls-file read failed:", exc, file=sys.stderr)
             return 2
-        urls = collected[: max(1, args.max)]
+        norm_base = args.url or DEFAULT_LIST_URL
+        seen_nf: set[str] = set()
+        normalized: list[str] = []
+        for raw in collected:
+            nu = _normalize_job_url(raw, norm_base) or raw.strip()
+            if nu and nu not in seen_nf:
+                seen_nf.add(nu)
+                normalized.append(nu)
+        urls = normalized[: max(1, args.max)]
     else:
         per_page_cap = max(args.max * 2, 120)
         collected: list[str] = []
@@ -786,6 +800,17 @@ def main() -> int:
         print(f"[debug] discovered {len(urls)} urls:", file=sys.stderr)
         for u in urls:
             print(" ", u, file=sys.stderr)
+
+    if args.list_urls_only:
+        if not urls:
+            print(
+                "no job urls found — rallit markup may have changed",
+                file=sys.stderr,
+            )
+            return 3
+        for u in urls:
+            print(u)
+        return 0
 
     if not urls:
         print(

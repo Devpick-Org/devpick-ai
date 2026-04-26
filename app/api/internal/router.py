@@ -69,8 +69,6 @@ _BEDROCK_MODEL_HAIKU = os.getenv(
     "BEDROCK_MODEL_HAIKU",
     "global.anthropic.claude-haiku-4-5-20251001-v1:0",
 )
-# JD 파싱: 기본은 Sonnet v2. 경량 모델만 쓰려면 BEDROCK_JD_MODEL 또는 BEDROCK_MODEL_HAIKU와 동일 ID 설정
-_BEDROCK_MODEL_JD = os.getenv("BEDROCK_JD_MODEL") or _BEDROCK_MODEL_SONNET
 # 채용(Job AI): parse-jd·interview-qa·skill-gap 공통 — 트렌드·인사이트와 동일 Sonnet 4.6 기본값
 _DEFAULT_JOB_AI_MODEL = "global.anthropic.claude-sonnet-4-6"
 _BEDROCK_MODEL_JOB_AI = os.getenv("BEDROCK_MODEL_JOB_AI") or _DEFAULT_JOB_AI_MODEL

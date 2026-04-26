@@ -546,15 +546,15 @@ def map_experience_hint(text: str) -> str:
     return ""
 
 
-MIN_MEANINGFUL_JD_TEXT = 120
 # 자격 요건 한 줄이 이보다 길면 문장형 JD로 보고 이미지 수집 생략 (스킬 키워드만 있는 경우 구분)
 MIN_REQUIREMENT_LINE_FOR_PROSE = 45
+# 주요업무·우대·복지·긴 자격 줄이 없을 때: main 전체 평문이 이 길이 이상이면 텍스트 JD로 인정.
+# 120자 같은 낮은 기준은 푸터·유사공고·내비 잡음만으로도 True 가 되어 이미지 JD를 놓침 (예: rawLen ~2k).
+MIN_FALLBACK_PLAIN_TEXT_WHEN_UNSTRUCTURED = 4200
 
 
 def _has_substantive_jd(meta: dict, jd_plain: str) -> bool:
     """HTML에서 뽑은 텍스트·구조화 필드만으로 공고 본문이 충분한지."""
-    if len((jd_plain or "").strip()) >= MIN_MEANINGFUL_JD_TEXT:
-        return True
     for key in ("responsibilities", "preferredQualifications", "benefits"):
         lst = meta.get(key)
         if isinstance(lst, list) and any(isinstance(x, str) and x.strip() for x in lst):
@@ -564,7 +564,8 @@ def _has_substantive_jd(meta: dict, jd_plain: str) -> bool:
         for x in req:
             if isinstance(x, str) and len(x.strip()) >= MIN_REQUIREMENT_LINE_FOR_PROSE:
                 return True
-    return False
+    jd_len = len((jd_plain or "").strip())
+    return jd_len >= MIN_FALLBACK_PLAIN_TEXT_WHEN_UNSTRUCTURED
 
 
 def _needs_jd_images(meta: dict, jd_plain: str) -> bool:

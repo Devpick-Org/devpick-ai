@@ -607,9 +607,7 @@ def build_payload(
     )
     jd_plain = (jd_text or "").strip()
     image_only_jd = bool(
-        structured_empty
-        and len(jd_plain) < MIN_MEANINGFUL_JD_TEXT
-        and jd_urls
+        structured_empty and len(jd_plain) < MIN_MEANINGFUL_JD_TEXT and jd_urls
     )
     return {
         "sourceUrl": detail_url,

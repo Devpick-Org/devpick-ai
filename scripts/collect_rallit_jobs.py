@@ -40,6 +40,7 @@ import os
 import re
 import sys
 import time
+from datetime import datetime, timezone
 from urllib.parse import parse_qs, urlencode, urljoin, urlparse, urlunparse
 
 import requests
@@ -62,6 +63,54 @@ POSITION_ID_IN_PATH = re.compile(
 
 def _session():
     return curl_requests.Session(impersonate="chrome")
+
+
+def _parse_rallit_date_value(raw) -> str | None:
+    """랠릿 JSON 마감값 → yyyy-mm-dd. 상시(9999…)·파싱 불가는 None."""
+    if raw is None or isinstance(raw, bool):
+        return None
+    if isinstance(raw, (int, float)):
+        try:
+            sec = raw / 1000.0 if raw > 10_000_000_000 else raw
+            dt = datetime.fromtimestamp(sec, tz=timezone.utc)
+            return dt.date().isoformat()
+        except (OSError, ValueError, OverflowError):
+            return None
+    s = str(raw).strip()
+    if not s or s.startswith("9999"):
+        return None
+    if re.match(r"^\d{4}-\d{2}-\d{2}$", s):
+        return s
+    if re.match(r"^\d{4}-\d{2}-\d{2}[T\s]", s):
+        dpart = s[:10]
+        try:
+            datetime.strptime(dpart, "%Y-%m-%d")
+            return dpart
+        except ValueError:
+            pass
+        try:
+            iso = s.replace("Z", "+00:00")
+            dt = datetime.fromisoformat(iso)
+            return dt.date().isoformat()
+        except ValueError:
+            return None
+    return None
+
+
+def _looks_like_rolling_deadline_text(s: str) -> bool:
+    t = s.strip()
+    if not t:
+        return False
+    markers = (
+        "채용 시 마감",
+        "채용시마감",
+        "채용 시까지",
+        "상시",
+        "수시",
+        "별도 공지",
+        "별도공지",
+    )
+    return any(m in t for m in markers)
 
 
 def _normalize_job_url(raw: str, base_url: str) -> str | None:
@@ -380,6 +429,7 @@ def meta_from_next(data: dict | None) -> dict:
         "jobCategory": "",
         "salaryDisplay": None,
         "deadline": None,
+        "rollingDeadline": False,
         "representativeImageUrl": None,
         "canonicalUrl": "",
         "responsibilities": [],
@@ -474,18 +524,29 @@ def meta_from_next(data: dict | None) -> dict:
         elif sal is not None:
             out["salaryDisplay"] = str(sal)
 
-        dl = (
-            job.get("deadline")
-            or job.get("endDate")
-            or job.get("closeDate")
-            or job.get("endedAt")
+        dl_keys = (
+            "deadline",
+            "endDate",
+            "closeDate",
+            "endedAt",
+            "endAt",
+            "recruitmentEndDate",
+            "recruitEndDate",
         )
-        if (
-            isinstance(dl, str)
-            and re.match(r"\d{4}-\d{2}-\d{2}", dl.strip())
-            and not dl.startswith("9999")
-        ):
-            out["deadline"] = dl.strip()[:10]
+        unparsed_deadline_strings: list[str] = []
+        for key in dl_keys:
+            v = job.get(key)
+            if v is None:
+                continue
+            parsed = _parse_rallit_date_value(v)
+            if parsed:
+                out["deadline"] = parsed
+                break
+            if isinstance(v, str) and v.strip():
+                unparsed_deadline_strings.append(v.strip())
+        if not out["deadline"] and unparsed_deadline_strings:
+            if any(_looks_like_rolling_deadline_text(s) for s in unparsed_deadline_strings):
+                out["rollingDeadline"] = True
 
         skills = (
             job.get("skills")
@@ -661,6 +722,7 @@ def build_payload(
         "location": meta.get("location") or "",
         "salaryDisplay": meta.get("salaryDisplay"),
         "deadline": meta.get("deadline"),
+        "rollingDeadline": bool(meta.get("rollingDeadline")),
         "applyUrl": meta.get("applyUrl") or detail_url,
         "rawJdText": jd_text,
         "imageOnlyJd": image_only_jd,

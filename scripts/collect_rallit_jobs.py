@@ -2,7 +2,7 @@
 """랠릿 채용 공고를 크롤링해 Spring `POST /internal/jobs/ingest` 로 넣습니다.
 
 필수 환경 변수 (실제 ingest 시):
-  BACKEND_URL   예: https://api.example.com/v1
+  BACKEND_URL   예: https://3-39-96-126.sslip.io/v1 (Nginx에서 /v1 로 스프링에 프록시되는 경우)
   INTERNAL_KEY 또는 INTERNAL_API_KEY  Spring `ai.server.internal-key` 와 동일 (X-Internal-Key)
 
 선택:

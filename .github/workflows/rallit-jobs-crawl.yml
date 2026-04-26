@@ -42,7 +42,8 @@ jobs:
             set -u
             : "${AI_SERVER_INTERNAL_KEY:?Set AI_SERVER_INTERNAL_KEY in ~/devpick-backend/.env}"
             export INTERNAL_KEY="$AI_SERVER_INTERNAL_KEY"
-            export BACKEND_URL="https://3-39-96-126.sslip.io"
+            # Nginx 프록시 기준 공개 API는 /v1 (internal/jobs/ingest 포함)
+            export BACKEND_URL="https://3-39-96-126.sslip.io/v1"
             export MAX_JOBS="${{ github.event.inputs.max_jobs }}"
             export MAX_HUB_PAGES="${{ github.event.inputs.max_pages }}"
             if [ ! -d .venv-crawl ]; then python3 -m venv .venv-crawl; fi

@@ -17,8 +17,9 @@
 사이트 마크업·Next 데이터 구조가 바뀌면 URL/메타 추출 로직을 수정해야 합니다.
 
 ingest 페이로드:
-  jdImageUrls — companyRepresentativeImages·og:image 등에서 모은 공고 이미지 URL (상세 화면 표시)
-  imageOnlyJd — 본문 텍스트·구조화 필드가 거의 없고 이미지 URL이 있으면 True (AI 파싱 생략, 스킬은 키워드로 유지)
+  jdImageUrls — 텍스트 JD가 부족할 때만 수집 (주요 업무·우대·복지 등이 비었을 때).
+    본문이 충분하면 빈 배열을 보내 저장소의 옛 이미지 URL도 비움.
+  imageOnlyJd — 위와 같이 이미지가 필요한데 URL이 있으면 True (AI 파싱 생략)
 """
 
 from __future__ import annotations
@@ -539,6 +540,29 @@ def map_experience_hint(text: str) -> str:
 
 
 MIN_MEANINGFUL_JD_TEXT = 120
+# 자격 요건 한 줄이 이보다 길면 문장형 JD로 보고 이미지 수집 생략 (스킬 키워드만 있는 경우 구분)
+MIN_REQUIREMENT_LINE_FOR_PROSE = 45
+
+
+def _has_substantive_jd(meta: dict, jd_plain: str) -> bool:
+    """HTML에서 뽑은 텍스트·구조화 필드만으로 공고 본문이 충분한지."""
+    if len((jd_plain or "").strip()) >= MIN_MEANINGFUL_JD_TEXT:
+        return True
+    for key in ("responsibilities", "preferredQualifications", "benefits"):
+        lst = meta.get(key)
+        if isinstance(lst, list) and any(isinstance(x, str) and x.strip() for x in lst):
+            return True
+    req = meta.get("requirements") or []
+    if isinstance(req, list):
+        for x in req:
+            if isinstance(x, str) and len(x.strip()) >= MIN_REQUIREMENT_LINE_FOR_PROSE:
+                return True
+    return False
+
+
+def _needs_jd_images(meta: dict, jd_plain: str) -> bool:
+    """본문이 부족할 때만 대표 이미지 URL을 붙인다."""
+    return not _has_substantive_jd(meta, jd_plain)
 
 
 def merge_jd_image_urls(meta: dict) -> list[str]:
@@ -596,19 +620,9 @@ def build_payload(
             continue
         seen_m.add(k)
         merged.append(t)
-    jd_urls = merge_jd_image_urls(meta)
-    structured_empty = not any(
-        [
-            meta.get("responsibilities"),
-            meta.get("requirements"),
-            meta.get("preferredQualifications"),
-            meta.get("benefits"),
-        ]
-    )
-    jd_plain = (jd_text or "").strip()
-    image_only_jd = bool(
-        structured_empty and len(jd_plain) < MIN_MEANINGFUL_JD_TEXT and jd_urls
-    )
+    need_imgs = _needs_jd_images(meta, jd_text)
+    jd_urls = merge_jd_image_urls(meta) if need_imgs else []
+    image_only_jd = bool(need_imgs and jd_urls)
     return {
         "sourceUrl": detail_url,
         "companyName": meta.get("companyName") or "unknown",
@@ -737,17 +751,18 @@ def main() -> int:
         html = resp.text
         nxt = parse_next_props(html)
         meta = meta_from_next(nxt)
-        html_meta = meta_from_html(html)
-        if html_meta.get("representativeImageUrl"):
-            og = html_meta["representativeImageUrl"]
-            meta.setdefault("allRepresentativeImageUrls", [])
-            if og not in meta["allRepresentativeImageUrls"]:
-                meta["allRepresentativeImageUrls"].append(og)
-        if not meta.get("representativeImageUrl") and html_meta.get(
-            "representativeImageUrl"
-        ):
-            meta["representativeImageUrl"] = html_meta["representativeImageUrl"]
         jd_text = extract_text_fallback(html)
+        if _needs_jd_images(meta, jd_text):
+            html_meta = meta_from_html(html)
+            if html_meta.get("representativeImageUrl"):
+                og = html_meta["representativeImageUrl"]
+                meta.setdefault("allRepresentativeImageUrls", [])
+                if og not in meta["allRepresentativeImageUrls"]:
+                    meta["allRepresentativeImageUrls"].append(og)
+            if not meta.get("representativeImageUrl") and html_meta.get(
+                "representativeImageUrl"
+            ):
+                meta["representativeImageUrl"] = html_meta["representativeImageUrl"]
         payload = build_payload(u, meta, jd_text, args.url)
 
         if args.debug:

@@ -14,6 +14,13 @@
   python scripts/collect_rallit_jobs.py --dry-run --max 10 --pages 1
   python scripts/collect_rallit_jobs.py --url '...DEVELOPER&pageNumber=1' --max 200 --pages 15
 
+재수집(jdImageUrls·메타 갱신, sourceUrl 동일하면 같은 행 업데이트):
+  export BACKEND_URL='https://배포-API-루트'   # 예: https://xxx.sslip.io 또는 /v1 포함 시 그대로
+  export INTERNAL_KEY='Spring ai.server.internal-key 와 동일'
+  python scripts/collect_rallit_jobs.py --urls-file job_urls.txt --max 500
+
+  job_urls.txt 는 한 줄에 하나씩 랠릿 상세 URL (DB job_postings.source_url 과 같을 것)
+
 사이트 마크업·Next 데이터 구조가 바뀌면 URL/메타 추출 로직을 수정해야 합니다.
 
 ingest 페이로드:
@@ -650,6 +657,18 @@ def build_payload(
     }
 
 
+def load_urls_from_file(path: str) -> list[str]:
+    """한 줄에 공고 URL 하나. 빈 줄·# 로 시작하는 줄은 무시."""
+    out: list[str] = []
+    with open(path, encoding="utf-8") as f:
+        for line in f:
+            s = line.strip()
+            if not s or s.startswith("#"):
+                continue
+            out.append(s)
+    return out
+
+
 def post_ingest(base: str, key: str, payload: dict) -> None:
     url = f"{base.rstrip('/')}/internal/jobs/ingest"
     r = requests.post(
@@ -686,6 +705,12 @@ def main() -> int:
         help="ingest 없이 페이로드만 stdout JSON으로 출력",
     )
     parser.add_argument(
+        "--urls-file",
+        default=None,
+        metavar="PATH",
+        help="한 줄에 랠릿 상세 URL 하나. 지정 시 허브 목록(--url/--pages)은 사용하지 않음 (백필·재수집용)",
+    )
+    parser.add_argument(
         "--debug",
         action="store_true",
         help="발견 URL·메타 요약을 stderr에 출력",
@@ -703,32 +728,41 @@ def main() -> int:
             return 1
 
     sess = _session()
-    per_page_cap = max(args.max * 2, 120)
-    collected: list[str] = []
-    seen_urls: set[str] = set()
-    for page in range(1, max(1, args.pages) + 1):
-        hub_page_url = hub_url_with_page(args.url, page)
-        try:
-            hub_resp = sess.get(hub_page_url, timeout=60)
-            hub_resp.raise_for_status()
-        except Exception as exc:
-            print(f"list fetch failed (page {page}):", exc, file=sys.stderr)
-            if page == 1:
-                return 2
-            break
-        batch = discover_job_urls(hub_resp.text, hub_page_url, per_page_cap)
-        if not batch:
-            break
-        for u in batch:
-            if u not in seen_urls:
-                seen_urls.add(u)
-                collected.append(u)
-                if len(collected) >= args.max:
-                    break
-        if len(collected) >= args.max:
-            break
 
-    urls = collected[: args.max]
+    if args.urls_file:
+        try:
+            collected = load_urls_from_file(args.urls_file)
+        except OSError as exc:
+            print("--urls-file read failed:", exc, file=sys.stderr)
+            return 2
+        urls = collected[: max(1, args.max)]
+    else:
+        per_page_cap = max(args.max * 2, 120)
+        collected: list[str] = []
+        seen_urls: set[str] = set()
+        for page in range(1, max(1, args.pages) + 1):
+            hub_page_url = hub_url_with_page(args.url, page)
+            try:
+                hub_resp = sess.get(hub_page_url, timeout=60)
+                hub_resp.raise_for_status()
+            except Exception as exc:
+                print(f"list fetch failed (page {page}):", exc, file=sys.stderr)
+                if page == 1:
+                    return 2
+                break
+            batch = discover_job_urls(hub_resp.text, hub_page_url, per_page_cap)
+            if not batch:
+                break
+            for u in batch:
+                if u not in seen_urls:
+                    seen_urls.add(u)
+                    collected.append(u)
+                    if len(collected) >= args.max:
+                        break
+            if len(collected) >= args.max:
+                break
+
+        urls = collected[: args.max]
     if args.debug:
         print(f"[debug] discovered {len(urls)} urls:", file=sys.stderr)
         for u in urls:

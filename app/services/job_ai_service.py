@@ -50,21 +50,15 @@ def _extract_json_object(text: str) -> dict[str, Any]:
 
 
 class JobAiService:
-    def __init__(
-        self,
-        aws_region: str,
-        model_jd: str,
-        model_haiku: str,
-        model_sonnet: str,
-    ) -> None:
+    """JD 파싱·면접 Q&A·skill-gap을 동일 Bedrock 모델로 호출(트렌드·인사이트와 동일 Sonnet 4.6 권장)."""
+
+    def __init__(self, aws_region: str, model: str) -> None:
         self._client = boto3.client(
             "bedrock-runtime",
             region_name=aws_region,
             config=Config(read_timeout=300, retries={"max_attempts": 0}),
         )
-        self._jd = model_jd
-        self._haiku = model_haiku
-        self._sonnet = model_sonnet
+        self._model = model
 
     def parse_jd(self, body: ParseJdRequest) -> ParseJdResponse:
         text = body.raw_jd_text.strip()
@@ -78,7 +72,7 @@ class JobAiService:
             "If the text is not a real JD (e.g. only an image placeholder), set skip_reason to image_jd."
         )
         user = f"JD text:\n{text[:120_000]}"
-        raw = self._converse_text(self._jd, sys, user, max_tokens=1024)
+        raw = self._converse_text(self._model, sys, user, max_tokens=1024)
         data = _extract_json_object(raw)
         return ParseJdResponse.model_validate(data)
 
@@ -100,13 +94,14 @@ class JobAiService:
             },
             ensure_ascii=False,
         )
-        raw = self._converse_text(self._sonnet, sys, user, max_tokens=8192)
+        raw = self._converse_text(self._model, sys, user, max_tokens=8192)
         return _extract_json_object(raw)
 
     def skill_gap(self, body: SkillGapRequest) -> SkillGapResponse:
         sys = (
-            "Return ONLY valid JSON with keys: roadmap (array of 5-8 short Korean learning steps), "
-            "youtube (array of up to 3 objects with title and url — use plausible search-style titles if no real URLs)."
+            "Return ONLY valid JSON with key: roadmap — an array of 5-8 short Korean learning steps "
+            "ordered for someone who must learn the missing_skills for the given job. "
+            "No other keys."
         )
         user = json.dumps(
             {
@@ -116,7 +111,7 @@ class JobAiService:
             },
             ensure_ascii=False,
         )
-        raw = self._converse_text(self._haiku, sys, user, max_tokens=1024)
+        raw = self._converse_text(self._model, sys, user, max_tokens=2048)
         data = _extract_json_object(raw)
         return SkillGapResponse.model_validate(data)
 

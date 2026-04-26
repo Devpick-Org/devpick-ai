@@ -71,6 +71,9 @@ _BEDROCK_MODEL_HAIKU = os.getenv(
 )
 # JD 파싱: 기본은 Sonnet v2. 경량 모델만 쓰려면 BEDROCK_JD_MODEL 또는 BEDROCK_MODEL_HAIKU와 동일 ID 설정
 _BEDROCK_MODEL_JD = os.getenv("BEDROCK_JD_MODEL") or _BEDROCK_MODEL_SONNET
+# 채용(Job AI): parse-jd·interview-qa·skill-gap 공통 — 트렌드·인사이트와 동일 Sonnet 4.6 기본값
+_DEFAULT_JOB_AI_MODEL = "global.anthropic.claude-sonnet-4-6"
+_BEDROCK_MODEL_JOB_AI = os.getenv("BEDROCK_MODEL_JOB_AI") or _DEFAULT_JOB_AI_MODEL
 _DATABASE_URL = os.getenv("DATABASE_URL")
 
 logger = logging.getLogger(__name__)
@@ -599,12 +602,7 @@ def get_latest_trend(unit: str, scope: str = "global") -> TrendResponse:
 
 
 def _job_ai_service() -> JobAiService:
-    return JobAiService(
-        aws_region=_BEDROCK_REGION,
-        model_jd=_BEDROCK_MODEL_JD,
-        model_haiku=_BEDROCK_MODEL_HAIKU,
-        model_sonnet=_BEDROCK_MODEL_SONNET,
-    )
+    return JobAiService(aws_region=_BEDROCK_REGION, model=_BEDROCK_MODEL_JOB_AI)
 
 
 @router.post(

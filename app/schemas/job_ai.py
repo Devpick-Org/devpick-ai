@@ -32,4 +32,3 @@ class SkillGapRequest(BaseModel):
 
 class SkillGapResponse(BaseModel):
     roadmap: list[str] = Field(default_factory=list)
-    youtube: list[dict[str, str]] = Field(default_factory=list)

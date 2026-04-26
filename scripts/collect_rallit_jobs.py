@@ -25,6 +25,8 @@
 
 ingest 페이로드:
   jdImageUrls — 텍스트 JD가 부족할 때만 수집 (주요 업무·우대·복지 등이 비었을 때).
+    랠릿은 position.content 의 <img> 가 실제 공고 인포그래픽이면 그 URL만 넣고,
+    companyRepresentativeImages(회사 대표 캡처)는 content 가 있을 때 jdImageUrls 에 포함하지 않음.
     본문이 충분하면 빈 배열을 보내 저장소의 옛 이미지 URL도 비움.
   imageOnlyJd — 위와 같이 이미지가 필요한데 URL이 있으면 True (AI 파싱 생략)
 """
@@ -228,6 +230,19 @@ def _absolute_image_url(raw: str | None) -> str | None:
     return urljoin("https://www.rallit.com", s)
 
 
+def _img_urls_from_html_fragment(html: str) -> list[str]:
+    """랠릿 position.content 등 HTML 조각에서 <img src> 를 순서대로 수집."""
+    if not html or not isinstance(html, str):
+        return []
+    soup = BeautifulSoup(html, "lxml")
+    out: list[str] = []
+    for img in soup.find_all("img"):
+        src = _absolute_image_url(str(img.get("src") or ""))
+        if src:
+            out.append(src)
+    return out
+
+
 def _meta_content(soup: BeautifulSoup, *names: str) -> str:
     for name in names:
         tag = soup.find("meta", attrs={"property": name}) or soup.find(
@@ -372,6 +387,7 @@ def meta_from_next(data: dict | None) -> dict:
         "benefits": [],
         "hiringProcess": [],
         "allRepresentativeImageUrls": [],
+        "contentHtmlImageUrls": [],
     }
     if not data:
         return out
@@ -494,6 +510,9 @@ def meta_from_next(data: dict | None) -> dict:
             job.get("preferredQualifications")
         )
         out["benefits"] = lines_from_html(job.get("benefits"))
+        content_html = job.get("content")
+        if isinstance(content_html, str) and content_html.strip():
+            out["contentHtmlImageUrls"] = _img_urls_from_html_fragment(content_html)
         steps = job.get("positionSteps")
         if isinstance(steps, list):
             middle_steps = [str(s).strip() for s in steps if str(s).strip()]
@@ -574,9 +593,26 @@ def _needs_jd_images(meta: dict, jd_plain: str) -> bool:
 
 
 def merge_jd_image_urls(meta: dict) -> list[str]:
-    """대표 이미지·인포그래픽 URL을 dedupe 해 ingest용 목록으로 만듭니다."""
+    """ingest용 JD 이미지 URL 목록.
+
+    랠릿 `position.content` 안의 이미지가 실제 공고 인포그래픽이고,
+    `companyRepresentativeImages` / og:image 는 홈페이지·브랜딩 캡처인 경우가 많아
+    content 이미지가 하나라도 있으면 그것만 쓴다 (대표 이미지는 jdImageUrls 에 넣지 않음).
+    content 가 비었을 때만 회사 대표·og 폴백을 붙인다.
+    """
     seen: set[str] = set()
     out: list[str] = []
+    for u in meta.get("contentHtmlImageUrls") or []:
+        if not isinstance(u, str):
+            continue
+        t = u.strip()
+        if not t or t in seen:
+            continue
+        seen.add(t)
+        out.append(t)
+    if out:
+        return out[:10]
+
     for u in meta.get("allRepresentativeImageUrls") or []:
         if not isinstance(u, str):
             continue

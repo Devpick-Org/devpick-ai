@@ -24,10 +24,11 @@
 사이트 마크업·Next 데이터 구조가 바뀌면 URL/메타 추출 로직을 수정해야 합니다.
 
 ingest 페이로드:
-  jdImageUrls — 텍스트 JD가 부족할 때만 수집 (주요 업무·우대·복지 등이 비었을 때).
-    랠릿은 position.content 의 <img> 가 실제 공고 인포그래픽이면 그 URL만 넣고,
-    companyRepresentativeImages(회사 대표 캡처)는 content 가 있을 때 jdImageUrls 에 포함하지 않음.
-    본문이 충분하면 빈 배열을 보내 저장소의 옛 이미지 URL도 비움.
+  jdImageUrls — 텍스트 JD가 부족할 때만 전송 (주요 업무·우대·복지 등이 비었을 때).
+    랠릿은 position.content 의 <img> 만 jdImageUrls 후보로 쓴다.
+    companyRepresentativeImages·og:image 등 회사 대표/랜딩 이미지는 절대 넣지 않는다
+    (content 에 이미지가 없으면 빈 배열을 보내 DB 의 잘못된 jdImageUrls 도 비움).
+    본문 텍스트가 충분하면 빈 배열을 보내 옛 이미지 URL 도 비움.
   imageOnlyJd — 위와 같이 이미지가 필요한데 URL이 있으면 True (AI 파싱 생략)
 """
 
@@ -588,17 +589,15 @@ def _has_substantive_jd(meta: dict, jd_plain: str) -> bool:
 
 
 def _needs_jd_images(meta: dict, jd_plain: str) -> bool:
-    """본문이 부족할 때만 대표 이미지 URL을 붙인다."""
+    """본문 텍스트 JD가 부족할 때만 jdImageUrls(본문 이미지)를 채운다."""
     return not _has_substantive_jd(meta, jd_plain)
 
 
 def merge_jd_image_urls(meta: dict) -> list[str]:
-    """ingest용 JD 이미지 URL 목록.
+    """ingest용 JD 이미지 URL: 랠릿 `position.content` 의 <img> 만 사용.
 
-    랠릿 `position.content` 안의 이미지가 실제 공고 인포그래픽이고,
-    `companyRepresentativeImages` / og:image 는 홈페이지·브랜딩 캡처인 경우가 많아
-    content 이미지가 하나라도 있으면 그것만 쓴다 (대표 이미지는 jdImageUrls 에 넣지 않음).
-    content 가 비었을 때만 회사 대표·og 폴백을 붙인다.
+    회사 대표·og:image·랜딩 캡처는 공고 본문이 아니므로 폴백으로 넣지 않는다.
+    content 에 이미지가 없으면 빈 리스트(재수집 시 DB jdImageUrls 클리어).
     """
     seen: set[str] = set()
     out: list[str] = []
@@ -610,23 +609,6 @@ def merge_jd_image_urls(meta: dict) -> list[str]:
             continue
         seen.add(t)
         out.append(t)
-    if out:
-        return out[:10]
-
-    for u in meta.get("allRepresentativeImageUrls") or []:
-        if not isinstance(u, str):
-            continue
-        t = u.strip()
-        if not t or t in seen:
-            continue
-        seen.add(t)
-        out.append(t)
-    rep = meta.get("representativeImageUrl")
-    if isinstance(rep, str) and rep.strip():
-        t = rep.strip()
-        if t not in seen:
-            seen.add(t)
-            out.append(t)
     return out[:10]
 
 
@@ -823,17 +805,6 @@ def main() -> int:
         nxt = parse_next_props(html)
         meta = meta_from_next(nxt)
         jd_text = extract_text_fallback(html)
-        if _needs_jd_images(meta, jd_text):
-            html_meta = meta_from_html(html)
-            if html_meta.get("representativeImageUrl"):
-                og = html_meta["representativeImageUrl"]
-                meta.setdefault("allRepresentativeImageUrls", [])
-                if og not in meta["allRepresentativeImageUrls"]:
-                    meta["allRepresentativeImageUrls"].append(og)
-            if not meta.get("representativeImageUrl") and html_meta.get(
-                "representativeImageUrl"
-            ):
-                meta["representativeImageUrl"] = html_meta["representativeImageUrl"]
         payload = build_payload(u, meta, jd_text, args.url)
 
         if args.debug:

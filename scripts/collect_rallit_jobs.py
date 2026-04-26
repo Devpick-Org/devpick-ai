@@ -15,6 +15,10 @@
   python scripts/collect_rallit_jobs.py --url '...DEVELOPER&pageNumber=1' --max 200 --pages 15
 
 사이트 마크업·Next 데이터 구조가 바뀌면 URL/메타 추출 로직을 수정해야 합니다.
+
+ingest 페이로드:
+  jdImageUrls — companyRepresentativeImages·og:image 등에서 모은 공고 이미지 URL (상세 화면 표시)
+  imageOnlyJd — 본문 텍스트·구조화 필드가 거의 없고 이미지 URL이 있으면 True (AI 파싱 생략, 스킬은 키워드로 유지)
 """
 
 from __future__ import annotations
@@ -359,6 +363,7 @@ def meta_from_next(data: dict | None) -> dict:
         "preferredQualifications": [],
         "benefits": [],
         "hiringProcess": [],
+        "allRepresentativeImageUrls": [],
     }
     if not data:
         return out
@@ -397,7 +402,14 @@ def meta_from_next(data: dict | None) -> dict:
             )
         images = job.get("companyRepresentativeImages")
         if isinstance(images, list) and images:
-            out["representativeImageUrl"] = _absolute_image_url(str(images[0]))
+            rep_urls: list[str] = []
+            for x in images[:12]:
+                au = _absolute_image_url(str(x))
+                if au:
+                    rep_urls.append(au)
+            out["allRepresentativeImageUrls"] = rep_urls
+            if rep_urls:
+                out["representativeImageUrl"] = rep_urls[0]
 
         out["applyUrl"] = _first_str(
             job, ("applyUrl",), ("applicationUrl",), ("externalApplyUrl",)
@@ -526,6 +538,30 @@ def map_experience_hint(text: str) -> str:
     return ""
 
 
+MIN_MEANINGFUL_JD_TEXT = 120
+
+
+def merge_jd_image_urls(meta: dict) -> list[str]:
+    """대표 이미지·인포그래픽 URL을 dedupe 해 ingest용 목록으로 만듭니다."""
+    seen: set[str] = set()
+    out: list[str] = []
+    for u in meta.get("allRepresentativeImageUrls") or []:
+        if not isinstance(u, str):
+            continue
+        t = u.strip()
+        if not t or t in seen:
+            continue
+        seen.add(t)
+        out.append(t)
+    rep = meta.get("representativeImageUrl")
+    if isinstance(rep, str) and rep.strip():
+        t = rep.strip()
+        if t not in seen:
+            seen.add(t)
+            out.append(t)
+    return out[:10]
+
+
 def default_job_category_from_list_url(list_url: str) -> str:
     q = parse_qs(urlparse(list_url).query)
     jg = (q.get("jobGroup") or [""])[0].upper()
@@ -560,6 +596,21 @@ def build_payload(
             continue
         seen_m.add(k)
         merged.append(t)
+    jd_urls = merge_jd_image_urls(meta)
+    structured_empty = not any(
+        [
+            meta.get("responsibilities"),
+            meta.get("requirements"),
+            meta.get("preferredQualifications"),
+            meta.get("benefits"),
+        ]
+    )
+    jd_plain = (jd_text or "").strip()
+    image_only_jd = bool(
+        structured_empty
+        and len(jd_plain) < MIN_MEANINGFUL_JD_TEXT
+        and jd_urls
+    )
     return {
         "sourceUrl": detail_url,
         "companyName": meta.get("companyName") or "unknown",
@@ -574,7 +625,7 @@ def build_payload(
         "deadline": meta.get("deadline"),
         "applyUrl": meta.get("applyUrl") or detail_url,
         "rawJdText": jd_text,
-        "imageOnlyJd": False,
+        "imageOnlyJd": image_only_jd,
         "requiredSkills": merged,
         "preferredSkills": [],
         # 백엔드가 확장되면 아래 구조화 필드를 그대로 저장할 수 있습니다.
@@ -583,6 +634,7 @@ def build_payload(
         "preferredQualifications": meta.get("preferredQualifications") or [],
         "benefits": meta.get("benefits") or [],
         "hiringProcess": meta.get("hiringProcess") or [],
+        "jdImageUrls": jd_urls,
     }
 
 
@@ -687,6 +739,16 @@ def main() -> int:
         html = resp.text
         nxt = parse_next_props(html)
         meta = meta_from_next(nxt)
+        html_meta = meta_from_html(html)
+        if html_meta.get("representativeImageUrl"):
+            og = html_meta["representativeImageUrl"]
+            meta.setdefault("allRepresentativeImageUrls", [])
+            if og not in meta["allRepresentativeImageUrls"]:
+                meta["allRepresentativeImageUrls"].append(og)
+        if not meta.get("representativeImageUrl") and html_meta.get(
+            "representativeImageUrl"
+        ):
+            meta["representativeImageUrl"] = html_meta["representativeImageUrl"]
         jd_text = extract_text_fallback(html)
         payload = build_payload(u, meta, jd_text, args.url)
 

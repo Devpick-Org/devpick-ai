@@ -185,10 +185,11 @@ class TrendOrchestrator:
         prev_tags = self._normalizer.normalize(_extract_tags(raw.prev_contents))
         tag_frequencies = self._freq.analyze(cur_tags, prev_tags)
 
-        # 외부 시그널 수집 (best-effort)
+        # 외부 시그널 수집 (best-effort) — 내부 태그 vocab으로 키워드 매칭 확장
         external_signals: dict[str, float] = {}
         try:
-            external_signals = self._external.fetch(unit)
+            internal_tags = {tf.keyword for tf in tag_frequencies}
+            external_signals = self._external.fetch(unit, internal_tags=internal_tags)
         except Exception as exc:
             logger.warning("외부 시그널 수집 실패 — 내부 데이터만 사용: %s", exc)
 

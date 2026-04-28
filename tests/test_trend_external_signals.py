@@ -57,7 +57,11 @@ def test_github_fetcher_parses_language() -> None:
 
 
 def test_github_fetcher_normalizes_to_lowercase() -> None:
-    html = '<html><body><article class="Box-row"><span itemprop="programmingLanguage">TypeScript</span></article></body></html>'
+    html = (
+        '<html><body><article class="Box-row">'
+        '<span itemprop="programmingLanguage">TypeScript</span>'
+        "</article></body></html>"
+    )
     fetcher = GitHubTrendingFetcher()
     with patch.object(fetcher._session, "get", return_value=_mock_resp(text=html)):
         result = fetcher.fetch("daily")
@@ -189,7 +193,9 @@ def test_hn_uses_internal_tag_vocab() -> None:
     }
     with patch("requests.get", return_value=_mock_resp(json_data=hits)):
         # internal_tags 없이 fetch → bun이 기본 키워드에 이미 포함됨
-        result = HackerNewsFetcher().fetch("daily", extended_keywords=frozenset({"bun"}))
+        result = HackerNewsFetcher().fetch(
+            "daily", extended_keywords=frozenset({"bun"})
+        )
 
     assert "bun" in result
 

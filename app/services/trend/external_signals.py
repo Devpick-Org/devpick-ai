@@ -287,9 +287,7 @@ def _word_match(kw: str, text: str) -> bool:
     영숫자 비존재 조건으로 처리한다.
     """
     if re.search(r"[+#.]", kw):
-        return bool(
-            re.search(r"(?<![a-z0-9])" + re.escape(kw) + r"(?![a-z0-9])", text)
-        )
+        return bool(re.search(r"(?<![a-z0-9])" + re.escape(kw) + r"(?![a-z0-9])", text))
     return bool(re.search(r"\b" + re.escape(kw) + r"\b", text))
 
 

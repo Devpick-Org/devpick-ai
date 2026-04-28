@@ -545,7 +545,9 @@ def meta_from_next(data: dict | None) -> dict:
             if isinstance(v, str) and v.strip():
                 unparsed_deadline_strings.append(v.strip())
         if not out["deadline"] and unparsed_deadline_strings:
-            if any(_looks_like_rolling_deadline_text(s) for s in unparsed_deadline_strings):
+            if any(
+                _looks_like_rolling_deadline_text(s) for s in unparsed_deadline_strings
+            ):
                 out["rollingDeadline"] = True
 
         skills = (

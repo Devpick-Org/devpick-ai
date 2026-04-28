@@ -74,6 +74,29 @@ def _extract_tags(contents: list[dict]) -> list[str]:
     return tags
 
 
+def _extract_keywords(summary_meta: dict[str, dict]) -> list[str]:
+    out: list[str] = []
+    for meta in summary_meta.values():
+        for kw in meta.get("keywords", []):
+            if kw and isinstance(kw, str):
+                out.append(kw.lower().strip())
+    return out
+
+
+def _build_tfidf_inputs(
+    contents: list[dict], summary_meta: dict[str, dict]
+) -> list[str]:
+    inputs: list[str] = []
+    for c in contents:
+        cid = c.get("id", "")
+        meta = summary_meta.get(cid, {})
+        title = c.get("translated_title") or c.get("title", "")
+        ols = meta.get("one_line_summary", "")
+        kws = " ".join(meta.get("keywords", []))
+        inputs.append(f"{title} {ols} {kws}".strip())
+    return inputs
+
+
 def _make_date_label(unit: str, period_start: date, period_end: date) -> str:
     if unit == "daily":
         return f"{period_start.month}월 {period_start.day}일"
@@ -180,15 +203,19 @@ class TrendOrchestrator:
 
         raw = self._loader.load(start, end)
 
-        # 태그 정규화 + 빈도 집계
-        cur_tags = self._normalizer.normalize(_extract_tags(raw.cur_contents))
+        # 태그 정규화 + 빈도 집계 (cur에 AI 요약 keywords 합산 — 소스 편향 보정)
+        cur_stream = _extract_tags(raw.cur_contents) + _extract_keywords(
+            raw.summary_meta
+        )
+        cur_tags = self._normalizer.normalize(cur_stream)
         prev_tags = self._normalizer.normalize(_extract_tags(raw.prev_contents))
         tag_frequencies = self._freq.analyze(cur_tags, prev_tags)
 
-        # 외부 시그널 수집 (best-effort)
+        # 외부 시그널 수집 (best-effort) — 내부 태그 vocab으로 키워드 매칭 확장
         external_signals: dict[str, float] = {}
         try:
-            external_signals = self._external.fetch(unit)
+            internal_tags = {tf.keyword for tf in tag_frequencies}
+            external_signals = self._external.fetch(unit, internal_tags=internal_tags)
         except Exception as exc:
             logger.warning("외부 시그널 수집 실패 — 내부 데이터만 사용: %s", exc)
 
@@ -221,9 +248,10 @@ class TrendOrchestrator:
                 )
             )
 
-        # TF-IDF 키워드 (제목 기반, 이름만 추출)
-        titles = [c.get("title", "") for c in raw.cur_contents]
-        tokenized = self._tokenizer.tokenize(titles)
+        # TF-IDF 키워드 (제목 + AI 요약 keywords + one_line_summary 기반)
+        tokenized = self._tokenizer.tokenize(
+            _build_tfidf_inputs(raw.cur_contents, raw.summary_meta)
+        )
         tfidf_keywords = [kw for kw, _ in self._tfidf.extract(tokenized)[:15]]
 
         # Top 5 콘텐츠 랭킹

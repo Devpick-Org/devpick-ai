@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass
 
 from app.services.trend.frequency import TagFrequency
@@ -81,11 +82,12 @@ class TrendRanker:
             category_match = tf.keyword in categories
             tag_count = tf.cur_count + (2 if category_match else 0)
             gr = tf.growth_rate if tf.growth_rate is not None else 0.0
+            delta_score = math.log1p(abs(tf.delta)) * (1 if tf.delta >= 0 else -1) * 2.5
             score = (
-                0.5 * tf.delta
-                + 0.5 * _clip(gr, -3.0, 3.0)
+                delta_score
+                + 0.5 * _clip(gr, -5.0, 5.0)
                 + (2.0 if category_match else 0.0)
-                + (0.5 if tf.state == "new" else 0.0)
+                + (1.5 if tf.state == "new" else 0.0)
                 + external.get(tf.keyword, 0.0)
             )
             ranked.append(

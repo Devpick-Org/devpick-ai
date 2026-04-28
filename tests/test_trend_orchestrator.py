@@ -386,4 +386,5 @@ def test_run_external_fetch_called_with_unit() -> None:
 
     orch.run("monthly", _PERIOD_START, _PERIOD_END)
 
-    orch._external.fetch.assert_called_once_with("monthly")
+    # tag_frequencies=[] 이므로 internal_tags=set()
+    orch._external.fetch.assert_called_once_with("monthly", internal_tags=set())

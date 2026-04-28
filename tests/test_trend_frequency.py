@@ -70,3 +70,10 @@ def test_top_n_limit() -> None:
     tags = [f"tag{i}" for i in range(15) for _ in range(3)]
     result = FrequencyAnalyzer(top_n=10, min_total=3).analyze(tags, [])
     assert len(result) == 10
+
+
+def test_top_n_none_returns_all_candidates() -> None:
+    """top_n=None(기본값)일 때 cut 없이 모든 후보를 반환해야 한다."""
+    tags = [f"tag{i}" for i in range(15) for _ in range(3)]
+    result = FrequencyAnalyzer(min_total=3).analyze(tags, [])
+    assert len(result) == 15

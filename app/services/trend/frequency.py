@@ -19,7 +19,7 @@ class TagFrequency:
 class FrequencyAnalyzer:
     """cur/prev 기간 태그 빈도를 집계하고 증감 상태를 판정한다."""
 
-    def __init__(self, top_n: int = 10, min_total: int = 3) -> None:
+    def __init__(self, top_n: int | None = None, min_total: int = 3) -> None:
         self._top_n = top_n
         self._min_total = min_total
 
@@ -57,7 +57,7 @@ class FrequencyAnalyzer:
             )
 
         results.sort(key=lambda x: x.cur_count, reverse=True)
-        return results[: self._top_n]
+        return results if self._top_n is None else results[: self._top_n]
 
     def _calc_state(self, cur: int, prev: int) -> tuple[str, int, float | None]:
         if prev == 0 and cur >= self._min_total:

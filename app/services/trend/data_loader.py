@@ -67,7 +67,7 @@ class TrendDataLoader:
 
         content_ids = [c["id"] for c in cur_contents]
         summary_meta = (
-            self._summary_repo.find_meta_by_content_ids(content_ids)
+            self._summary_repo.find_summaries_for_trend(content_ids)
             if content_ids
             else {}
         )

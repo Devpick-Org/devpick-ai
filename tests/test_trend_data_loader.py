@@ -22,7 +22,7 @@ def _make_loader(
         cur_views if cur_views is not None else {},
         prev_views if prev_views is not None else {},
     ]
-    summary_repo.find_meta_by_content_ids.return_value = summary_meta or {}
+    summary_repo.find_summaries_for_trend.return_value = summary_meta or {}
 
     loader = TrendDataLoader(content_repo=content_repo, summary_repo=summary_repo)
     loader._content_repo = content_repo
@@ -77,7 +77,7 @@ def test_load_empty_contents_skips_summary_meta() -> None:
 
     result = loader.load(_START, _END)
 
-    loader._summary_repo.find_meta_by_content_ids.assert_not_called()
+    loader._summary_repo.find_summaries_for_trend.assert_not_called()
     assert result.summary_meta == {}
 
 

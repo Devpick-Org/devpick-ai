@@ -31,10 +31,11 @@ if str(PROJECT_ROOT) not in sys.path:
 from typing import Callable
 
 from app.collectors.backfill.base import BackfillCollector
+from app.collectors.backfill.generic_rss import GenericRSSBackfillCollector
+from app.collectors.backfill.rss_with_fetch import RSSWithFetchBackfillCollector
 from app.collectors.backfill.kakao import KakaoBackfillCollector
 from app.collectors.backfill.medium_direct import MediumDirectBackfillCollector
 from app.collectors.backfill.naver_d2 import NaverD2BackfillCollector
-from app.collectors.backfill.oliveyoung import OliveYoungBackfillCollector
 from app.collectors.backfill.toss import TossBackfillCollector
 from app.configs.sources import get_all_sources
 from app.schemas.raw_content import RawEntry
@@ -50,7 +51,7 @@ _COLLECTOR_FACTORIES: dict[str, Callable[[], BackfillCollector]] = {
     "Kakao_Tech": KakaoBackfillCollector,
     "NAVER_D2": NaverD2BackfillCollector,
     "Toss_Tech": TossBackfillCollector,
-    "OliveYoung_Tech": OliveYoungBackfillCollector,
+    "OliveYoung_Tech": GenericRSSBackfillCollector,
     "Medium_daangn": lambda: MediumDirectBackfillCollector(publication="daangn"),
     "Medium_musinsa-tech": lambda: MediumDirectBackfillCollector(
         publication="musinsa-tech"
@@ -61,6 +62,34 @@ _COLLECTOR_FACTORIES: dict[str, Callable[[], BackfillCollector]] = {
     "Medium_netflix-techblog": lambda: MediumDirectBackfillCollector(
         publication="netflix-techblog"
     ),
+    "Medium_airbnb-engineering": lambda: MediumDirectBackfillCollector(
+        publication="airbnb-engineering"
+    ),
+    "Medium_pinterest-engineering": lambda: MediumDirectBackfillCollector(
+        publication="pinterest-engineering"
+    ),
+    "Medium_gccompany": lambda: MediumDirectBackfillCollector(publication="gccompany"),
+    "Medium_flutter": lambda: MediumDirectBackfillCollector(publication="flutter"),
+    "Woowahan_Tech": lambda: GenericRSSBackfillCollector(use_cffi=True),
+    "Meta_Engineering": GenericRSSBackfillCollector,
+    "Cloudflare_Blog": GenericRSSBackfillCollector,
+    "Socar_Tech": GenericRSSBackfillCollector,
+    "GitHub_Blog": GenericRSSBackfillCollector,
+    "AWS_Korea_Tech": GenericRSSBackfillCollector,
+    "Spring_Blog": lambda: RSSWithFetchBackfillCollector(
+        extra_body_selectors=["div.markdown"]
+    ),
+    "SKPlanet_Tech": GenericRSSBackfillCollector,
+    "Nongshim_Cloud_Tech": GenericRSSBackfillCollector,
+    "MS_DevBlogs": GenericRSSBackfillCollector,
+    "NVIDIA_Developer": RSSWithFetchBackfillCollector,
+    "Flex_Tech": lambda: RSSWithFetchBackfillCollector(use_cffi=True),
+    "Grab_Engineering": RSSWithFetchBackfillCollector,
+    "Google_Developers": lambda: RSSWithFetchBackfillCollector(
+        extra_body_selectors=["div.blog-detail-container"]
+    ),
+    "KakaoPay_Tech": RSSWithFetchBackfillCollector,
+    "Nextjs_Blog": RSSWithFetchBackfillCollector,
 }
 
 

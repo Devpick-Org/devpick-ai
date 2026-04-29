@@ -202,7 +202,7 @@ SPRING_IO = SourceConfig(
     parser_type="backfill",
     content_level=1,
     active=True,
-    note="Spring.io 공식 블로그. Atom, content:encoded 전체 본문. Backfill + incremental.",
+    note="Spring.io 공식 블로그. Atom listing + 개별 페이지 fetch (div.markdown). Backfill + incremental.",
     title_blocklist=["This Week in Spring"],
 )
 

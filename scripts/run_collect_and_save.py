@@ -80,7 +80,9 @@ _COLLECTOR_FACTORIES: dict[str, Callable[[], BackfillCollector]] = {
     "Socar_Tech": GenericRSSBackfillCollector,
     "GitHub_Blog": GenericRSSBackfillCollector,
     "AWS_Korea_Tech": GenericRSSBackfillCollector,
-    "Spring_Blog": GenericRSSBackfillCollector,
+    "Spring_Blog": lambda: RSSWithFetchBackfillCollector(
+        extra_body_selectors=["div.markdown"]
+    ),
     "SKPlanet_Tech": GenericRSSBackfillCollector,
     "Nongshim_Cloud_Tech": GenericRSSBackfillCollector,
     "MS_DevBlogs": GenericRSSBackfillCollector,

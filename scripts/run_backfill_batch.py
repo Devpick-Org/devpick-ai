@@ -76,12 +76,8 @@ _COLLECTOR_FACTORIES: dict[str, Callable[[], BackfillCollector]] = {
     "Medium_pinterest-engineering": lambda: MediumDirectBackfillCollector(
         publication="pinterest-engineering"
     ),
-    "Medium_gccompany": lambda: MediumDirectBackfillCollector(
-        publication="gccompany"
-    ),
-    "Medium_flutter": lambda: MediumDirectBackfillCollector(
-        publication="flutter"
-    ),
+    "Medium_gccompany": lambda: MediumDirectBackfillCollector(publication="gccompany"),
+    "Medium_flutter": lambda: MediumDirectBackfillCollector(publication="flutter"),
     "Woowahan_Tech": lambda: GenericRSSBackfillCollector(use_cffi=True),
     "Meta_Engineering": GenericRSSBackfillCollector,
     "Cloudflare_Blog": GenericRSSBackfillCollector,

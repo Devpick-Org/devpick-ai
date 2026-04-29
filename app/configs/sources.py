@@ -16,7 +16,15 @@ KAKAO = SourceConfig(
     content_level=1,
     active=True,
     note="Sequential post ID enumeration (675~). Backfill + incremental.",
-    title_blocklist=["코딩테스트", "공채", "채용", "신입크루", "인턴", "문제해설", "모집합니다"],
+    title_blocklist=[
+        "코딩테스트",
+        "공채",
+        "채용",
+        "신입크루",
+        "인턴",
+        "문제해설",
+        "모집합니다",
+    ],
 )
 
 NAVER_D2 = SourceConfig(
@@ -256,7 +264,13 @@ FLEX_TEAM = SourceConfig(
     content_level=1,
     active=True,
     note="flex 기술블로그. RSS listing + 개별 페이지 fetch (curl_cffi). Backfill + incremental.",
-    title_blocklist=["[flex update]", "[flex webinar]", "[flex iNSIGHT", "클라우드 바우처", "업데이트 노트"],
+    title_blocklist=[
+        "[flex update]",
+        "[flex webinar]",
+        "[flex iNSIGHT",
+        "클라우드 바우처",
+        "업데이트 노트",
+    ],
 )
 
 GRAB = SourceConfig(

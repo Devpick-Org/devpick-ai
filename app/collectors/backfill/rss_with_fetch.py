@@ -161,7 +161,9 @@ class RSSWithFetchBackfillCollector(BackfillCollector):
             )
             return None
 
-        logger.info("RSSWithFetch %s: fetched %d entries", feed_url, len(parsed.entries))
+        logger.info(
+            "RSSWithFetch %s: fetched %d entries", feed_url, len(parsed.entries)
+        )
         return parsed.entries
 
     def _fetch_page(self, url: str) -> str | None:

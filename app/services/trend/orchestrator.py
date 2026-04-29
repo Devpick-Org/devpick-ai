@@ -259,7 +259,9 @@ class TrendOrchestrator:
             raw.cur_view_counts, raw.cur_contents
         )
         top_posts = [
-            _to_top_content(c, raw.cur_view_counts.get(str(c["id"])), raw.prev_view_counts)
+            _to_top_content(
+                c, raw.cur_view_counts.get(str(c["id"])), raw.prev_view_counts
+            )
             for c in top_contents_raw
         ]
 

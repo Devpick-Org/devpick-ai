@@ -43,13 +43,12 @@ class TrendSnapshotRepository:
             conn.execute(
                 text("""
                     INSERT INTO trend_snapshots
-                        (id, created_at, updated_at, unit, scope, period_start, period_end, payload, generated_at, expires_at)
+                        (id, created_at, unit, scope, period_start, period_end, payload, generated_at, expires_at)
                     VALUES
-                        (gen_random_uuid(), now(), now(), :unit, :scope, :period_start, :period_end,
+                        (gen_random_uuid(), now(), :unit, :scope, :period_start, :period_end,
                          CAST(:payload AS JSONB), :generated_at, :expires_at)
                     ON CONFLICT (unit, scope, period_start)
                     DO UPDATE SET
-                        updated_at   = now(),
                         period_end   = EXCLUDED.period_end,
                         payload      = EXCLUDED.payload,
                         generated_at = EXCLUDED.generated_at,

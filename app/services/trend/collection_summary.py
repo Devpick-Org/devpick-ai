@@ -70,7 +70,7 @@ class CollectionSummaryGenerator:
                 system=[
                     {
                         "text": SYSTEM_PROMPT,
-                        "cacheControl": {"type": "ephemeral"},
+                        "cachePoint": {"type": "default"},
                     }
                 ],
                 messages=[{"role": "user", "content": [{"text": user_prompt}]}],

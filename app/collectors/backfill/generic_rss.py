@@ -1,4 +1,4 @@
-"""OliveYoung Tech backfill collector — RSS feed parsing (full body in feed)."""
+"""Generic RSS/Atom backfill collector — reads full body from feed."""
 
 from __future__ import annotations
 
@@ -7,6 +7,7 @@ from datetime import datetime, timezone
 
 import feedparser
 import requests
+from curl_cffi import requests as cffi_requests
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 
@@ -18,23 +19,21 @@ from app.utils.xml_helpers import compute_entry_hash, normalize_date, sha256_tex
 
 logger = logging.getLogger(__name__)
 
-OLIVEYOUNG_RSS = "https://oliveyoung.tech/rss.xml"
 
+class GenericRSSBackfillCollector(BackfillCollector):
+    """Collect articles from any RSS/Atom feed that includes full article body.
 
-class OliveYoungBackfillCollector(BackfillCollector):
-    """Collect OliveYoung Tech articles by parsing the RSS feed.
-
-    OliveYoung's RSS feed includes the full article HTML body in
-    ``<content:encoded>``.  No individual page fetching is required.
+    Works with feeds that provide full body via ``<content:encoded>`` (RSS)
+    or ``<content type="html">`` (Atom).  Falls back to ``<description>``
+    if neither is present.
 
     Two phases:
 
-    * **backfill** — parse the RSS feed, collect all articles published on or
-      after *since* that haven't been seen yet.  Transitions to incremental
-      once the feed has been fully processed.
+    * **backfill** — collect all unseen articles published on or after *since*.
+      Transitions to incremental once the feed is exhausted.
 
-    * **incremental** — re-parse the feed each run and collect any entries
-      not already in ``seen_ids``.  Never marks ``done: True``.
+    * **incremental** — re-scan the feed each run; collect only unseen entries.
+      Never marks ``done: True``.
 
     Cursor format::
 
@@ -47,10 +46,12 @@ class OliveYoungBackfillCollector(BackfillCollector):
         timeout: float = 10.0,
         max_retries: int = 2,
         user_agent: str = "DevPickAI-Backfill/1.0",
+        use_cffi: bool = False,
     ) -> None:
         self.since = since
         self.timeout = timeout
         self.user_agent = user_agent
+        self.use_cffi = use_cffi
 
         self.session = requests.Session()
         retry = Retry(
@@ -73,11 +74,10 @@ class OliveYoungBackfillCollector(BackfillCollector):
         phase = self._resolve_phase(cursor)
         seen_ids: set[str] = set(cursor.get("seen_ids", []))
 
-        feed_entries = self._fetch_feed()
+        feed_entries = self._fetch_feed(source.feed_url)
         if feed_entries is None:
             return [], {**cursor, "phase": phase}
 
-        # Collect entries not yet seen and published on/after since
         new_entries: list[RawEntry] = []
         for fe in feed_entries:
             entry_url = fe.get("link", "")
@@ -93,11 +93,9 @@ class OliveYoungBackfillCollector(BackfillCollector):
                 new_entries.append(entry)
 
         if not new_entries:
-            logger.info("OliveYoung %s: no new articles", phase)
-            # Backfill complete → transition to incremental
+            logger.info("%s %s: no new articles", source.name, phase)
             return [], {"phase": "incremental", "seen_ids": list(seen_ids)}
 
-        # Respect batch_size — only mark returned entries as seen
         to_return = new_entries[:batch_size]
         has_more = len(new_entries) > batch_size
         next_phase = "backfill" if has_more else "incremental"
@@ -106,33 +104,43 @@ class OliveYoungBackfillCollector(BackfillCollector):
             seen_ids.add(e.entry_external_id)
 
         logger.info(
-            "OliveYoung %s: collected %d articles (phase→%s)",
+            "%s %s: collected %d articles (phase→%s)",
+            source.name,
             phase,
             len(to_return),
             next_phase,
         )
         return to_return, {"phase": next_phase, "seen_ids": list(seen_ids)}
 
-    def _fetch_feed(self) -> list[dict] | None:
-        """Fetch and parse the RSS feed. Returns feedparser entries or None on error."""
-        headers = {"User-Agent": self.user_agent}
+    def _fetch_feed(self, feed_url: str) -> list | None:
         try:
-            response = self.session.get(
-                OLIVEYOUNG_RSS, headers=headers, timeout=self.timeout
-            )
-            response.raise_for_status()
-            raw_xml = response.text
+            if self.use_cffi:
+                resp = cffi_requests.get(
+                    feed_url, impersonate="chrome", timeout=self.timeout
+                )
+            else:
+                resp = self.session.get(
+                    feed_url,
+                    headers={"User-Agent": self.user_agent},
+                    timeout=self.timeout,
+                )
+            resp.raise_for_status()
+            raw = resp.text
         except Exception as err:
-            logger.warning("OliveYoung: RSS fetch failed: %s", err)
+            logger.warning("GenericRSS: feed fetch failed %s: %s", feed_url, err)
             return None
 
-        parsed = feedparser.parse(raw_xml)
+        parsed = feedparser.parse(raw)
         if parsed.bozo and not parsed.entries:
-            logger.warning("OliveYoung: RSS parse error: %s", parsed.bozo_exception)
+            logger.warning(
+                "GenericRSS: feed parse error %s: %s",
+                feed_url,
+                parsed.bozo_exception,
+            )
             return None
 
-        logger.info("OliveYoung: fetched %d feed entries", len(parsed.entries))
-        return parsed.entries  # type: ignore[return-value]
+        logger.info("GenericRSS %s: fetched %d entries", feed_url, len(parsed.entries))
+        return parsed.entries
 
     def _build_entry(
         self,
@@ -143,10 +151,10 @@ class OliveYoungBackfillCollector(BackfillCollector):
     ) -> RawEntry | None:
         title = fe.get("title") or None
 
-        # Body: prefer content:encoded, fall back to summary
+        # Full body: content:encoded (RSS) or content[0] (Atom), fallback summary
         content_raw: str | None = None
         for c in fe.get("content", []):
-            if c.get("type") in ("text/html", "application/xhtml+xml", ""):
+            if c.get("type") in ("text/html", "application/xhtml+xml", "html", ""):
                 content_raw = c.get("value")
                 break
         if not content_raw:
@@ -154,13 +162,9 @@ class OliveYoungBackfillCollector(BackfillCollector):
 
         html_body = content_raw or ""
         body_text = html_to_text(html_body) if html_body else ""
-
         author = fe.get("author") or None
-
-        # Tags from feedparser
         tags = [t.get("term", "") for t in fe.get("tags", []) if t.get("term")]
 
-        # Thumbnail: try media_thumbnail, then enclosure
         thumbnail_url: str | None = None
         for media in fe.get("media_thumbnail", []):
             thumbnail_url = media.get("url")
@@ -183,7 +187,8 @@ class OliveYoungBackfillCollector(BackfillCollector):
         )
 
         logger.info(
-            "OliveYoung entry %s title=%s date=%s body_len=%d",
+            "%s entry %s title=%s date=%s body_len=%d",
+            source.name,
             entry_url.split("/")[-1][:30],
             (title or "?")[:40],
             published_at or "?",
@@ -209,13 +214,12 @@ class OliveYoungBackfillCollector(BackfillCollector):
             categories_raw=tags,
             fetched_at=datetime.now(timezone.utc),
             response_hash=response_hash,
-            parser_version="backfill-oliveyoung-v1",
+            parser_version="backfill-generic-rss-v1",
             entry_hash=entry_hash,
         )
 
     @staticmethod
     def _extract_date(fe: dict) -> str | None:
-        """Extract ISO date from feedparser entry."""
         raw = fe.get("published") or fe.get("updated") or None
         if not raw:
             return None

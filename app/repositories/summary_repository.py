@@ -141,7 +141,7 @@ class SummaryRepository:
         if not content_ids:
             return {}
 
-        keys = [{"content_id": cid, "level": "mid"} for cid in content_ids]
+        keys = [{"content_id": str(cid), "level": "mid"} for cid in content_ids]
         result: dict[str, dict] = {}
 
         for i in range(0, len(keys), 100):

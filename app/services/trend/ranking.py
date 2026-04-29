@@ -67,18 +67,18 @@ class TrendRanker:
     ) -> list[RankedTag]:
         """태그 복합 점수 계산 후 Top N 을 반환한다.
 
-        score = 0.5 × delta
-              + 0.5 × clip(growth_rate, -3.0, 3.0)
-              + (2.0 if category_match else 0.0)   # α=2
-              + (0.5 if state="new" else 0.0)       # new_bonus
-        growth_rate=None(state="new") → 0.0 처리
+        내부 태그: delta/growth_rate/category_match 기반 점수 + 외부 시그널 보정
+        외부 전용 태그: 내부 데이터가 없어도 외부 시그널 점수만으로 후보 등록
         """
         categories = {
             meta["category"] for meta in summary_meta.values() if meta.get("category")
         }
         external = external_signals or {}
         ranked: list[RankedTag] = []
+        internal_keywords: set[str] = set()
+
         for tf in tag_frequencies:
+            internal_keywords.add(tf.keyword)
             category_match = tf.keyword in categories
             tag_count = tf.cur_count + (2 if category_match else 0)
             gr = tf.growth_rate if tf.growth_rate is not None else 0.0
@@ -102,5 +102,22 @@ class TrendRanker:
                     score=round(score, 4),
                 )
             )
+
+        for kw, ext_score in external.items():
+            if kw in internal_keywords:
+                continue
+            ranked.append(
+                RankedTag(
+                    keyword=kw,
+                    cur_count=0,
+                    prev_count=0,
+                    delta=0,
+                    growth_rate=None,
+                    state="new",
+                    tag_count=0,
+                    score=round(ext_score, 4),
+                )
+            )
+
         ranked.sort(key=lambda x: x.score, reverse=True)
         return ranked[: self._top_tags]

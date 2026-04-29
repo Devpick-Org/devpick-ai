@@ -68,10 +68,8 @@ class CollectionSummaryGenerator:
             response = self._client.converse(
                 modelId=self._model,
                 system=[
-                    {
-                        "text": SYSTEM_PROMPT,
-                        "cachePoint": {"type": "default"},
-                    }
+                    {"text": SYSTEM_PROMPT},
+                    {"cachePoint": {"type": "default"}},
                 ],
                 messages=[{"role": "user", "content": [{"text": user_prompt}]}],
                 toolConfig=to_tool_config(TOOL_SAVE_COLLECTION_SUMMARY, _TOOL_NAME),

@@ -64,6 +64,7 @@ class TrendRanker:
         tag_frequencies: list[TagFrequency],
         summary_meta: dict[str, dict],
         external_signals: dict[str, float] | None = None,
+        top_n: int | None = None,
     ) -> list[RankedTag]:
         """태그 복합 점수 계산 후 Top N 을 반환한다.
 
@@ -120,4 +121,5 @@ class TrendRanker:
             )
 
         ranked.sort(key=lambda x: x.score, reverse=True)
-        return ranked[: self._top_tags]
+        limit = top_n if top_n is not None else self._top_tags
+        return ranked[:limit]

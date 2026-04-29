@@ -226,14 +226,14 @@ class TrendOrchestrator:
             tag: i for i, (tag, _) in enumerate(Counter(prev_tags).most_common())
         }
 
-        # 현재 기간 태그 랭킹
-        cur_ranked = self._ranker.rank_tags(
-            tag_frequencies, raw.summary_meta, external_signals
-        )
-
         # period별 top_n + TrendingTag 조립
         _TOP_N = {"daily": 10, "weekly": 15, "monthly": 20}
         top_n = _TOP_N.get(unit, 10)
+
+        # 현재 기간 태그 랭킹
+        cur_ranked = self._ranker.rank_tags(
+            tag_frequencies, raw.summary_meta, external_signals, top_n=top_n
+        )
         trending_tags: list[TrendingTag] = []
         for rank_0, r in enumerate(cur_ranked[:top_n]):
             prev = prev_rank_map.get(r.keyword)

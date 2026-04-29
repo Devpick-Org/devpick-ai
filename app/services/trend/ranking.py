@@ -44,7 +44,7 @@ class TrendRanker:
         """
         if not cur_view_counts or not content_details:
             return []
-        details_map = {c["id"]: c for c in content_details}
+        details_map = {str(c["id"]): c for c in content_details}
         top_ids = sorted(
             cur_view_counts, key=cur_view_counts.__getitem__, reverse=True
         )[: self._top_contents]

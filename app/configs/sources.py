@@ -5,6 +5,15 @@ from __future__ import annotations
 from app.schemas.source import SourceConfig
 
 # ---------------------------------------------------------------------------
+# 전역 제목 필터 — 소스 무관하게 적용되는 공지/채용/이벤트성 키워드
+# ---------------------------------------------------------------------------
+
+GLOBAL_TITLE_BLOCKLIST: list[str] = [
+    "채용", "공채", "인턴", "모집", "신입",
+    "참가 신청", "사전 안내", "세미나", "컨퍼런스", "밋업",
+]
+
+# ---------------------------------------------------------------------------
 # Unified source configs — single collector per source (backfill + incremental)
 # ---------------------------------------------------------------------------
 
@@ -16,15 +25,7 @@ KAKAO = SourceConfig(
     content_level=1,
     active=True,
     note="Sequential post ID enumeration (675~). Backfill + incremental.",
-    title_blocklist=[
-        "코딩테스트",
-        "공채",
-        "채용",
-        "신입크루",
-        "인턴",
-        "문제해설",
-        "모집합니다",
-    ],
+    title_blocklist=["코딩테스트", "신입크루", "문제해설"],
 )
 
 NAVER_D2 = SourceConfig(
@@ -150,7 +151,7 @@ WOOWAHAN = SourceConfig(
     content_level=1,
     active=True,
     note="우아한형제들 기술블로그. WordPress RSS, content:encoded 전체 본문. Backfill + incremental.",
-    title_blocklist=["인턴", "채용", "공채"],
+    title_blocklist=[],
 )
 
 META_ENGINEERING = SourceConfig(
@@ -222,7 +223,7 @@ SK_PLANET = SourceConfig(
     content_level=1,
     active=True,
     note="SK Planet Tech Topic. RSS, content:encoded 전체 본문. Backfill + incremental.",
-    title_blocklist=["[안내]", "세미나", "모집"],
+    title_blocklist=["[안내]"],
 )
 
 NONGSHIM_CLOUD = SourceConfig(
@@ -301,7 +302,7 @@ KAKAOPAY = SourceConfig(
     content_level=1,
     active=True,
     note="카카오페이 기술블로그. RSS listing + 개별 페이지 fetch. Backfill + incremental.",
-    title_blocklist=["모집", "채용", "공채", "인턴"],
+    title_blocklist=[],
 )
 
 NEXTJS_BLOG = SourceConfig(

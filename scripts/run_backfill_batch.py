@@ -40,7 +40,7 @@ from app.collectors.backfill.naver_d2 import NaverD2BackfillCollector
 from app.collectors.backfill.stackoverflow import StackOverflowBackfillCollector
 from app.collectors.backfill.toss import TossBackfillCollector
 from app.collectors.backfill.velog import VelogBackfillCollector
-from app.configs.sources import get_all_sources
+from app.configs.sources import get_all_sources, GLOBAL_TITLE_BLOCKLIST
 from app.repositories.content_repository import ContentRepository
 from app.schemas.normalized_content import NormalizedContent
 from app.schemas.raw_content import RawEntry
@@ -114,10 +114,12 @@ BATCH_SIZE = 50
 
 
 def _is_relevant(entry: RawEntry, source: SourceConfig) -> bool:
-    """Filter entries by source-level url_include_pattern and title_blocklist."""
+    """Filter entries by url_include_pattern and title blocklists (global + per-source)."""
     url = entry.entry_url or ""
     title = entry.title_raw or ""
     if source.url_include_pattern and not re.search(source.url_include_pattern, url):
+        return False
+    if any(kw in title for kw in GLOBAL_TITLE_BLOCKLIST):
         return False
     if any(kw in title for kw in source.title_blocklist):
         return False

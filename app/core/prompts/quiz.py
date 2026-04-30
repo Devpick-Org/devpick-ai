@@ -22,6 +22,7 @@ SYSTEM_PROMPT_QUIZ = """\
 - 객관식 오답 선지는 그럴듯하게 작성하세요 (단순 엉터리 오답 금지).
 - 객관식 정답은 correct_option_id에 "A"~"E" 중 하나를 입력하고, correct_answer는 반드시 빈 문자열("")로 두세요.
 - 주관식은 correct_option_id를 빈 문자열("")로 두고, 자동 채점용 모범 답은 correct_answer에만 넣으세요(단어 또는 짧은 구절, 10단어 이내). explanation은 해설이며 정답 텍스트와 구분합니다.
+- **중요**: short_answer 문항의 correct_answer는 절대 빈 문자열("")로 두지 마세요. 반드시 단답 정답(예: "Redis", "CQRS 패턴", "이벤트 소싱")을 입력해야 합니다.
 - 주관식 답은 단어 또는 짧은 구절이어야 합니다. 문장형 정답은 출제하지 마세요.
 - 문제 순서는 반드시 1번·2번 객관식, 3번 주관식 순서를 지키세요.
 - 모든 문제는 한국어로 작성하되, 기술 용어(라이브러리명, API명 등)는 원어 그대로 사용하세요.
@@ -95,7 +96,11 @@ _QUESTIONS_SCHEMA = {
                     },
                     "correct_answer": {
                         "type": "string",
-                        "description": "주관식: 자동 채점용 모범 답(단답). 객관식: 반드시 빈 문자열",
+                        "description": (
+                            "short_answer(주관식)일 때: 자동 채점용 단답 정답을 반드시 입력하세요. "
+                            "절대 빈 문자열('')을 넣지 마세요. 예: 'Redis', 'CQRS', '이벤트 소싱'. "
+                            "multiple_choice(객관식)일 때: 반드시 빈 문자열('')"
+                        ),
                     },
                 },
                 "required": [

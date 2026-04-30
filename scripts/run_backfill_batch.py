@@ -187,7 +187,10 @@ def _run_source(
         return
 
     # Normalize
-    new_items = [normalizer.normalize_entry(entry) for entry in new_entries]
+    new_items = [
+        normalizer.normalize_entry(entry, skip_thumbnail=source.skip_thumbnail)
+        for entry in new_entries
+    ]
 
     # PostgreSQL 저장
     try:

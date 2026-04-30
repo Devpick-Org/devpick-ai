@@ -20,3 +20,4 @@ class SourceConfig(BaseModel):
     # 콘텐츠 관련성 필터 (소스별 설정)
     url_include_pattern: str | None = None  # 이 패턴 포함 URL만 허용 (None = 전체 허용)
     title_blocklist: list[str] = Field(default_factory=list)  # 제목에 포함 시 제외
+    skip_thumbnail: bool = False  # True면 thumbnail_url을 저장하지 않음

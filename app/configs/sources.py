@@ -160,6 +160,7 @@ WOOWAHAN = SourceConfig(
     active=True,
     note="우아한형제들 기술블로그. WordPress RSS, content:encoded 전체 본문. Backfill + incremental.",
     title_blocklist=[],
+    skip_thumbnail=True,
 )
 
 META_ENGINEERING = SourceConfig(

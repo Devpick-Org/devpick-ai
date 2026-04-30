@@ -97,7 +97,9 @@ class NormalizeService:
                     return img
         return None
 
-    def normalize_entry(self, raw_entry: RawEntry) -> NormalizedContent:
+    def normalize_entry(
+        self, raw_entry: RawEntry, skip_thumbnail: bool = False
+    ) -> NormalizedContent:
         """Convert one raw entry into minimum normalized content shape."""
         body_candidate, _ = self.select_body_candidate_with_source(raw_entry)
         preview = self.build_preview(raw_entry, body_candidate)
@@ -110,7 +112,7 @@ class NormalizeService:
             published_at=raw_entry.published_at_raw,
             preview=preview,
             body_candidate=body_candidate,
-            thumbnail_url=self.resolve_thumbnail(raw_entry),
-            thumbnail_width=raw_entry.thumbnail_width,
-            thumbnail_height=raw_entry.thumbnail_height,
+            thumbnail_url=None if skip_thumbnail else self.resolve_thumbnail(raw_entry),
+            thumbnail_width=None if skip_thumbnail else raw_entry.thumbnail_width,
+            thumbnail_height=None if skip_thumbnail else raw_entry.thumbnail_height,
         )

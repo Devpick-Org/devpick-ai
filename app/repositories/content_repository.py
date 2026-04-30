@@ -77,6 +77,10 @@ class ContentRepository:
         self._source_cache[source_name] = source_id
         return source_id
 
+    @staticmethod
+    def _strip_nul(s: str | None) -> str | None:
+        return s.replace("\x00", "") if s else s
+
     def save_contents(self, items: list[NormalizedContent]) -> SaveResult:
         """NormalizedContent 목록을 contents 테이블에 INSERT한다.
 
@@ -138,16 +142,16 @@ class ContentRepository:
                     {
                         "id": content_id,
                         "source_id": source_id,
-                        "title": item.title,
-                        "author": item.author,
+                        "title": self._strip_nul(item.title),
+                        "author": self._strip_nul(item.author),
                         "canonical_url": item.canonical_url,
-                        "preview": item.preview,
+                        "preview": self._strip_nul(item.preview),
                         "thumbnail_url": item.thumbnail_url,
                         "thumbnail_width": item.thumbnail_width,
                         "thumbnail_height": item.thumbnail_height,
                         "is_original_visible": item.is_original_visible,
                         "license_type": item.license_type,
-                        "original_content": item.body_candidate,
+                        "original_content": self._strip_nul(item.body_candidate),
                         "published_at": published_at,
                         "is_available": True,
                         "is_answered": item.is_answered,

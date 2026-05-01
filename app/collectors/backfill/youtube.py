@@ -66,7 +66,11 @@ class YouTubeCollector:
     @staticmethod
     def _build_session(timeout: float, max_retries: int) -> requests.Session:
         session = requests.Session()
-        retry = Retry(total=max_retries, backoff_factor=0.5, status_forcelist=[500, 502, 503])
+        retry = Retry(
+            total=max_retries,
+            backoff_factor=0.5,
+            status_forcelist=[500, 502, 503],
+        )
         adapter = HTTPAdapter(max_retries=retry)
         session.mount("https://", adapter)
         session.request = lambda method, url, **kw: requests.Session.request(  # type: ignore[method-assign]

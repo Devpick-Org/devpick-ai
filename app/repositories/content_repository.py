@@ -126,7 +126,7 @@ class ContentRepository:
                             original_content, published_at, is_available, is_answered,
                             score, view_count, likes, comments_count,
                             question_content, accepted_answer,
-                            top_answers, created_at, updated_at
+                            top_answers, extra, created_at, updated_at
                         ) VALUES (
                             :id, :source_id, :title, :author, :canonical_url,
                             :preview, :thumbnail_url, :thumbnail_width, :thumbnail_height,
@@ -134,7 +134,7 @@ class ContentRepository:
                             :original_content, :published_at, :is_available, :is_answered,
                             :score, :view_count, :likes, :comments_count,
                             :question_content, :accepted_answer,
-                            :top_answers, :created_at, :updated_at
+                            :top_answers, :extra, :created_at, :updated_at
                         )
                         ON CONFLICT DO NOTHING
                         RETURNING id
@@ -170,6 +170,11 @@ class ContentRepository:
                             if item.top_answers
                             else None
                         ),
+                        "extra": (
+                            json.dumps(item.extra, ensure_ascii=False)
+                            if item.extra is not None
+                            else None
+                        ),
                         "created_at": now,
                         "updated_at": now,
                     },
@@ -185,6 +190,31 @@ class ContentRepository:
             "PostgreSQL 저장 완료: saved=%d skipped=%d", result.saved, result.skipped
         )
         return result
+
+    def save_content_tags(self, content_id: str, tag_names: list[str]) -> None:
+        """tag_names를 tags 테이블에서 조회해 content_tags에 INSERT한다.
+
+        tags 테이블에 없는 이름은 무시한다. 중복은 ON CONFLICT DO NOTHING으로 처리한다.
+        """
+        if not tag_names:
+            return
+        with self._engine.begin() as conn:
+            rows = conn.execute(
+                text("SELECT id FROM tags WHERE LOWER(name) = ANY(:names)"),
+                {"names": [n.lower() for n in tag_names]},
+            ).fetchall()
+            for row in rows:
+                conn.execute(
+                    text(
+                        "INSERT INTO content_tags (content_id, tag_id)"
+                        " VALUES (:content_id, :tag_id)"
+                        " ON CONFLICT DO NOTHING"
+                    ),
+                    {"content_id": content_id, "tag_id": str(row[0])},
+                )
+        logger.debug(
+            "content_tags 저장 완료: content_id=%s tags=%s", content_id, tag_names
+        )
 
     def save_ai_metadata(
         self,

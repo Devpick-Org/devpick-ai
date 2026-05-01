@@ -34,3 +34,7 @@ class NormalizedContent(BaseModel):
     top_answers: list[dict] = Field(
         default_factory=list
     )  # [{"body": str, "score": int}]
+    # 소스별 추가 데이터 — contents.extra JSONB 컬럼에 저장 (예: YouTube videoId/duration)
+    extra: dict | None = None
+    # 수집 시 태그 매핑 결과 — content_tags 테이블 INSERT에 사용 (태그 이름 목록)
+    content_tags: list[str] = Field(default_factory=list)

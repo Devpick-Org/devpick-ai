@@ -68,7 +68,10 @@ def main() -> None:
             if item.content_tags:
                 content_repo.save_content_tags(content_id, item.content_tags)
 
-        sent_id_store.add("YouTube", {i.canonical_url for i in new_items if i.canonical_url})
+        sent_id_store.add(
+            "YouTube",
+            {i.canonical_url for i in new_items if i.canonical_url},
+        )
 
     except Exception:
         logger.exception("YouTube 수집 배치 실패")

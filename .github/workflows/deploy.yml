@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - developV2
+  workflow_dispatch:
 
 jobs:
   deploy:
@@ -16,6 +17,10 @@ jobs:
           username: ${{ secrets.EC2_USER }}
           key: ${{ secrets.EC2_SSH_KEY }}
           script: |
+            set -euo pipefail
             cd ~/devpick-ai
-            git pull origin developV2
+            git fetch origin developV2
+            git checkout developV2
+            git reset --hard origin/developV2
+            docker compose down --remove-orphans || true
             docker compose up -d --build

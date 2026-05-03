@@ -99,12 +99,16 @@ def _parse_rallit_date_value(raw) -> str | None:
     m = re.search(r"(20\d{2})\s*[./년-]\s*(\d{1,2})\s*[./월-]\s*(\d{1,2})", s)
     if m:
         try:
-            return datetime(
-                int(m.group(1)),
-                int(m.group(2)),
-                int(m.group(3)),
-                tzinfo=timezone.utc,
-            ).date().isoformat()
+            return (
+                datetime(
+                    int(m.group(1)),
+                    int(m.group(2)),
+                    int(m.group(3)),
+                    tzinfo=timezone.utc,
+                )
+                .date()
+                .isoformat()
+            )
         except ValueError:
             return None
     m = re.search(r"(?<!\d)(\d{1,2})\s*[./]\s*(\d{1,2})(?!\d)", s)

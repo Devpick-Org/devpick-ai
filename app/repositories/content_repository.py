@@ -53,13 +53,15 @@ class ContentRepository:
         else:
             source_id = str(uuid4())
             conn.execute(
-                text("""
+                text(
+                    """
                     INSERT INTO content_sources
                         (id, name, url, collect_method, is_active, created_at)
                     VALUES
                         (:id, :name, '', 'AI_PIPELINE', true, :now)
                     ON CONFLICT (name) DO NOTHING
-                """),
+                """
+                ),
                 {
                     "id": source_id,
                     "name": source_name,
@@ -118,7 +120,8 @@ class ContentRepository:
                         )
 
                 row = conn.execute(
-                    text("""
+                    text(
+                        """
                         INSERT INTO contents (
                             id, source_id, title, author, canonical_url,
                             preview, thumbnail_url, thumbnail_width, thumbnail_height,
@@ -138,7 +141,8 @@ class ContentRepository:
                         )
                         ON CONFLICT DO NOTHING
                         RETURNING id
-                    """),
+                    """
+                    ),
                     {
                         "id": content_id,
                         "source_id": source_id,
@@ -226,14 +230,16 @@ class ContentRepository:
         """AI 요약에서 생성된 tags·category·translated_title을 contents 테이블에 UPDATE한다."""
         with self._engine.begin() as conn:
             conn.execute(
-                text("""
+                text(
+                    """
                     UPDATE contents
                        SET tags = :tags,
                            category = :category,
                            translated_title = :translated_title,
                            updated_at = :now
                      WHERE id = :content_id
-                    """),
+                    """
+                ),
                 {
                     "content_id": content_id,
                     "tags": json.dumps(tags, ensure_ascii=False),
@@ -251,31 +257,35 @@ class ContentRepository:
         )
 
     def count_by_published_range(self, start: datetime, end: datetime) -> int:
-        """기간 내 발행된 콘텐츠 수를 반환한다."""
+        """기간 내 수집된 콘텐츠 수를 반환한다 (created_at 기준)."""
         with self._engine.begin() as conn:
             row = conn.execute(
-                text("""
+                text(
+                    """
                     SELECT COUNT(*) FROM contents
-                    WHERE published_at >= :start AND published_at < :end
+                    WHERE created_at >= :start AND created_at < :end
                       AND is_available = true
-                """),
+                """
+                ),
                 {"start": start, "end": end},
             ).fetchone()
         return int(row[0]) if row else 0
 
     def find_by_published_range(self, start: datetime, end: datetime) -> list[dict]:
-        """기간 내 발행된 콘텐츠 목록을 반환한다 (KST 기준 >= start AND < end)."""
+        """기간 내 수집된 콘텐츠 목록을 반환한다 (created_at 기준 >= start AND < end)."""
         with self._engine.begin() as conn:
             result = conn.execute(
-                text("""
+                text(
+                    """
                     SELECT c.id, c.title, c.translated_title, c.category, c.tags,
                            cs.name AS source_name, c.thumbnail_url, c.published_at
                     FROM contents c
                     LEFT JOIN content_sources cs ON cs.id = c.source_id
-                    WHERE c.published_at >= :start AND c.published_at < :end
+                    WHERE c.created_at >= :start AND c.created_at < :end
                       AND c.is_available = true
-                    ORDER BY c.published_at DESC
-                """),
+                    ORDER BY c.created_at DESC
+                """
+                ),
                 {"start": start, "end": end},
             )
             return [dict(row) for row in result.mappings().fetchall()]
@@ -306,12 +316,14 @@ class ContentRepository:
         """
         with self._engine.begin() as conn:
             rows = conn.execute(
-                text("""
+                text(
+                    """
                     SELECT content_id, COUNT(DISTINCT user_id) AS view_count
                     FROM content_view_logs
                     WHERE created_at >= :start AND created_at < :end
                     GROUP BY content_id
-                """),
+                """
+                ),
                 {"start": start, "end": end},
             ).fetchall()
         return {str(row[0]): int(row[1]) for row in rows}

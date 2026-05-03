@@ -53,7 +53,9 @@ def load_collect_module():
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="재수집: URL 목록 → 랠릿 fetch → /internal/jobs/ingest")
+    parser = argparse.ArgumentParser(
+        description="재수집: URL 목록 → 랠릿 fetch → /internal/jobs/ingest"
+    )
     parser.add_argument(
         "--urls-file",
         required=True,
@@ -94,7 +96,9 @@ def main() -> int:
     key = os.environ.get("INTERNAL_KEY") or os.environ.get("INTERNAL_API_KEY", "")
 
     if not args.dry_run and (not base or not key):
-        print("BACKEND_URL and INTERNAL_KEY required (unless --dry-run)", file=sys.stderr)
+        print(
+            "BACKEND_URL and INTERNAL_KEY required (unless --dry-run)", file=sys.stderr
+        )
         return 1
 
     list_url = args.list_url.strip() or rallit.DEFAULT_LIST_URL

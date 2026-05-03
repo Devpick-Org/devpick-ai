@@ -40,3 +40,121 @@ class ResumeParseRequest(BaseModel):
     file_name: str = ""
     text: str = Field(..., min_length=1)
     profile_hint: str | None = None
+
+
+# ─────────────────────────────────────────────
+# Mock Interview (DP — 채팅형 모의면접)
+# ─────────────────────────────────────────────
+
+
+class MockInterviewQuestionPlanItem(BaseModel):
+    questionNo: int = Field(..., ge=1, le=15)
+    phase: str
+    topic: str
+    prompt: str
+    jdOnlyKeyword: bool = False
+    keywords: list[str] = Field(default_factory=list)
+
+
+class MockInterviewPlan(BaseModel):
+    questions: list[MockInterviewQuestionPlanItem] = Field(default_factory=list)
+    coreCsTopics: list[str] = Field(default_factory=list)
+    extendedCsTopics: list[str] = Field(default_factory=list)
+    jdGapKeywords: list[str] = Field(default_factory=list)
+    domainLabel: str = ""
+
+
+class MockInterviewPlanRequest(BaseModel):
+    job_title: str
+    company_name: str = ""
+    job_category: str | None = None
+    required_skills: list[str] = Field(default_factory=list)
+    preferred_skills: list[str] = Field(default_factory=list)
+    resume_json: str = "{}"
+    base_plan: MockInterviewPlan
+    model_key: str = "balanced"
+
+
+class MockInterviewTurnHistoryItem(BaseModel):
+    type: str
+    content: str
+    rating: str | None = None
+
+
+class MockInterviewTurnRequest(BaseModel):
+    session_id: str | None = None
+    model_key: str = "balanced"
+    job_title: str = ""
+    company_name: str = ""
+    job_category: str | None = None
+    question_no: int
+    phase: str
+    question_topic: str = ""
+    question_prompt: str = ""
+    question_keywords: list[str] = Field(default_factory=list)
+    answer: str
+    transcript: list[MockInterviewTurnHistoryItem] = Field(default_factory=list)
+    plan_summary: dict = Field(default_factory=dict)
+
+
+class MockInterviewTurnResponse(BaseModel):
+    rating: str = "OK"
+    evaluator_comment: str = ""
+    decision: str = "next"
+    follow_up_question: str | None = None
+    retry_hint: str | None = None
+    next_question_prompt: str | None = None
+
+
+class MockInterviewFinalizeTurn(BaseModel):
+    orderNo: int = 0
+    questionNo: int = 0
+    phase: str = ""
+    type: str = ""
+    content: str = ""
+    rating: str | None = None
+
+
+class MockInterviewFinalizeRequest(BaseModel):
+    session_id: str | None = None
+    model_key: str = "balanced"
+    job_title: str = ""
+    company_name: str = ""
+    job_category: str | None = None
+    answered_count: int = 0
+    total_questions: int = 15
+    early_finished: bool = False
+    plan: MockInterviewPlan
+    turns: list[MockInterviewFinalizeTurn] = Field(default_factory=list)
+
+
+class MockInterviewScoreSet(BaseModel):
+    framework: int | None = None
+    design: int | None = None
+    problemSolving: int | None = None
+    csInfra: int | None = None
+    communication: int | None = None
+
+
+class MockInterviewPerQuestionFeedback(BaseModel):
+    questionNo: int
+    questionSummary: str = ""
+    answerSummary: str = ""
+    modelAnswer: str = ""
+    whyImportant: str = ""
+    learningDirection: str = ""
+    references: list[str] = Field(default_factory=list)
+    rating: str | None = None
+    passed: bool = False
+
+
+class MockInterviewFinalizeResponse(BaseModel):
+    scores: MockInterviewScoreSet
+    overallScore: int | None = None
+    summary: str = ""
+    strengths: list[str] = Field(default_factory=list)
+    improvements: list[str] = Field(default_factory=list)
+    actionItems: list[str] = Field(default_factory=list)
+    uncoveredKeywords: list[str] = Field(default_factory=list)
+    perQuestion: list[MockInterviewPerQuestionFeedback] = Field(default_factory=list)
+    notice: str | None = None

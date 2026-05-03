@@ -33,6 +33,12 @@ from app.schemas.summary import (
 )
 from app.schemas.job_ai import (
     InterviewQaRequest,
+    MockInterviewFinalizeRequest,
+    MockInterviewFinalizeResponse,
+    MockInterviewPlan,
+    MockInterviewPlanRequest,
+    MockInterviewTurnRequest,
+    MockInterviewTurnResponse,
     ParseJdRequest,
     ParseJdResponse,
     ResumeParseRequest,
@@ -640,3 +646,37 @@ def job_skill_gap(body: SkillGapRequest) -> SkillGapResponse:
 def parse_uploaded_resume(body: ResumeParseRequest) -> dict:
     """추출된 이력서 텍스트 → 마스터 이력서 JSON(dict, camelCase 스키마)."""
     return _job_ai_service().parse_candidate_resume(body)
+
+
+@router.post(
+    "/jobs/mock-interview/plan",
+    response_model=MockInterviewPlan,
+    dependencies=[Depends(verify_internal_key)],
+)
+def plan_mock_interview(body: MockInterviewPlanRequest) -> MockInterviewPlan:
+    """모의면접 15문항 플랜 보강 — Spring 백업 플랜이 그대로 폴백된다."""
+    return _job_ai_service().plan_mock_interview(body)
+
+
+@router.post(
+    "/jobs/mock-interview/turn",
+    response_model=MockInterviewTurnResponse,
+    dependencies=[Depends(verify_internal_key)],
+)
+def evaluate_mock_interview_turn(
+    body: MockInterviewTurnRequest,
+) -> MockInterviewTurnResponse:
+    """모의면접 턴 평가 — 다음 행동(꼬리/재답변/다음) 결정."""
+    return _job_ai_service().evaluate_mock_turn(body)
+
+
+@router.post(
+    "/jobs/mock-interview/finalize",
+    response_model=MockInterviewFinalizeResponse,
+    dependencies=[Depends(verify_internal_key)],
+)
+def finalize_mock_interview(
+    body: MockInterviewFinalizeRequest,
+) -> MockInterviewFinalizeResponse:
+    """면접 종료 시 5개 영역 점수, QA별 모범답안, 종합 피드백 생성."""
+    return _job_ai_service().finalize_mock_interview(body)

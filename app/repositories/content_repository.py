@@ -15,6 +15,9 @@ from app.schemas.normalized_content import NormalizedContent
 
 logger = logging.getLogger(__name__)
 
+# 트렌드 분석에서 제외할 소스 목록 — 데이터 정리 후 제거
+_TREND_EXCLUDED_SOURCES: list[str] = ["YouTube"]
+
 
 @dataclass
 class SaveResult:
@@ -262,12 +265,14 @@ class ContentRepository:
             row = conn.execute(
                 text(
                     """
-                    SELECT COUNT(*) FROM contents
-                    WHERE created_at >= :start AND created_at < :end
-                      AND is_available = true
+                    SELECT COUNT(*) FROM contents c
+                    LEFT JOIN content_sources cs ON cs.id = c.source_id
+                    WHERE c.created_at >= :start AND c.created_at < :end
+                      AND c.is_available = true
+                      AND cs.name != ALL(:excluded)
                 """
                 ),
-                {"start": start, "end": end},
+                {"start": start, "end": end, "excluded": _TREND_EXCLUDED_SOURCES},
             ).fetchone()
         return int(row[0]) if row else 0
 
@@ -283,10 +288,11 @@ class ContentRepository:
                     LEFT JOIN content_sources cs ON cs.id = c.source_id
                     WHERE c.created_at >= :start AND c.created_at < :end
                       AND c.is_available = true
+                      AND cs.name != ALL(:excluded)
                     ORDER BY c.created_at DESC
                 """
                 ),
-                {"start": start, "end": end},
+                {"start": start, "end": end, "excluded": _TREND_EXCLUDED_SOURCES},
             )
             return [dict(row) for row in result.mappings().fetchall()]
 

@@ -70,6 +70,8 @@ def _parse_rallit_date_value(raw) -> str | None:
     if raw is None or isinstance(raw, bool):
         return None
     if isinstance(raw, (int, float)):
+        if raw < 1_000_000_000:
+            return None
         try:
             sec = raw / 1000.0 if raw > 10_000_000_000 else raw
             dt = datetime.fromtimestamp(sec, tz=timezone.utc)
@@ -94,6 +96,38 @@ def _parse_rallit_date_value(raw) -> str | None:
             return dt.date().isoformat()
         except ValueError:
             return None
+    m = re.search(r"(20\d{2})\s*[./년-]\s*(\d{1,2})\s*[./월-]\s*(\d{1,2})", s)
+    if m:
+        try:
+            return datetime(
+                int(m.group(1)),
+                int(m.group(2)),
+                int(m.group(3)),
+                tzinfo=timezone.utc,
+            ).date().isoformat()
+        except ValueError:
+            return None
+    m = re.search(r"(?<!\d)(\d{1,2})\s*[./]\s*(\d{1,2})(?!\d)", s)
+    if m:
+        today = datetime.now(timezone.utc).date()
+        year = today.year
+        try:
+            candidate = datetime(
+                year,
+                int(m.group(1)),
+                int(m.group(2)),
+                tzinfo=timezone.utc,
+            ).date()
+            if candidate < today:
+                candidate = datetime(
+                    year + 1,
+                    int(m.group(1)),
+                    int(m.group(2)),
+                    tzinfo=timezone.utc,
+                ).date()
+            return candidate.isoformat()
+        except ValueError:
+            return None
     return None
 
 
@@ -111,6 +145,41 @@ def _looks_like_rolling_deadline_text(s: str) -> bool:
         "별도공지",
     )
     return any(m in t for m in markers)
+
+
+def _iter_json_dicts(obj):
+    if isinstance(obj, dict):
+        yield obj
+        for v in obj.values():
+            yield from _iter_json_dicts(v)
+    elif isinstance(obj, list):
+        for item in obj:
+            yield from _iter_json_dicts(item)
+
+
+def _deadline_values_from_json(obj) -> list[object]:
+    key_hints = (
+        "deadline",
+        "duedate",
+        "closedat",
+        "closeat",
+        "closedate",
+        "enddate",
+        "endedat",
+        "endat",
+        "recruitmentdeadline",
+        "recruitmentenddate",
+        "recruitenddate",
+    )
+    values: list[object] = []
+    for d in _iter_json_dicts(obj):
+        for key, value in d.items():
+            nk = re.sub(r"[^a-z]", "", str(key).lower())
+            if nk in key_hints or any(h in nk for h in ("deadline", "enddate")):
+                values.append(value)
+            elif nk in ("end", "to", "until") and isinstance(value, (str, int, float)):
+                values.append(value)
+    return values
 
 
 def _normalize_job_url(raw: str, base_url: str) -> str | None:
@@ -280,6 +349,68 @@ def _absolute_image_url(raw: str | None) -> str | None:
     return urljoin("https://www.rallit.com", s)
 
 
+def _json_company_logo_candidate(obj) -> str | None:
+    """랠릿 Next JSON 구조 변경에 대비해 회사 근처 이미지 URL을 넓게 탐색."""
+    company_keys = ("company", "team", "employer", "partner")
+    image_keys = (
+        "logourl",
+        "logo",
+        "companylogo",
+        "partnerlogo",
+        "imageurl",
+        "profileimage",
+        "profileimageurl",
+        "thumbnailurl",
+    )
+
+    def from_dict(d: dict) -> str | None:
+        for key, value in d.items():
+            nk = re.sub(r"[^a-z]", "", str(key).lower())
+            if nk not in image_keys:
+                continue
+            if isinstance(value, str):
+                u = _absolute_image_url(value)
+                if u:
+                    return u
+            if isinstance(value, dict):
+                for inner_key in ("url", "src", "path"):
+                    inner = value.get(inner_key)
+                    if isinstance(inner, str):
+                        u = _absolute_image_url(inner)
+                        if u:
+                            return u
+        return None
+
+    for d in _iter_json_dicts(obj):
+        for key, value in d.items():
+            nk = re.sub(r"[^a-z]", "", str(key).lower())
+            if any(company_key in nk for company_key in company_keys):
+                if isinstance(value, dict):
+                    u = from_dict(value)
+                    if u:
+                        return u
+        u = from_dict(d)
+        if u:
+            return u
+    return None
+
+
+def _deadline_from_html_text(html: str) -> tuple[str | None, bool]:
+    soup = BeautifulSoup(html, "lxml")
+    for tag in soup(["script", "style", "noscript"]):
+        tag.decompose()
+    text = _clean_text(soup.get_text(" ", strip=True))
+    for keyword in ("마감", "접수기간", "접수 기간", "지원 기간", "상시"):
+        for m in re.finditer(keyword, text):
+            fragment = text[max(0, m.start() - 80) : m.end() + 120]
+            parsed = _parse_rallit_date_value(fragment)
+            if parsed:
+                return parsed, False
+            if _looks_like_rolling_deadline_text(fragment):
+                return None, True
+    return None, False
+
+
 def _img_urls_from_html_fragment(html: str) -> list[str]:
     """랠릿 position.content 등 HTML 조각에서 <img src> 를 순서대로 수집."""
     if not html or not isinstance(html, str):
@@ -312,6 +443,8 @@ def meta_from_html(html: str) -> dict:
         "companyLogoUrl": None,
         "representativeImageUrl": None,
         "canonicalUrl": "",
+        "deadline": None,
+        "rollingDeadline": False,
     }
     og_title = _meta_content(soup, "og:title", "title")
     if og_title:
@@ -324,15 +457,25 @@ def meta_from_html(html: str) -> dict:
 
     for img in soup.find_all("img"):
         alt = str(img.get("alt") or "")
+        title = str(img.get("title") or "")
         src = _absolute_image_url(str(img.get("src") or ""))
         if not src:
             continue
-        if "로고" in alt:
+        logo_hint = (
+            "로고" in alt
+            or "logo" in alt.lower()
+            or "로고" in title
+            or "logo" in title.lower()
+        )
+        if logo_hint:
             out["companyLogoUrl"] = src
             out["companyName"] = (
                 alt.replace("로고 이미지", "").replace("로고", "").strip()
             )
             break
+    deadline, rolling = _deadline_from_html_text(html)
+    out["deadline"] = deadline
+    out["rollingDeadline"] = rolling
     return out
 
 
@@ -475,6 +618,8 @@ def meta_from_next(data: dict | None) -> dict:
             out["companyLogoUrl"] = _absolute_image_url(
                 job.get("companyLogo") or job.get("partnerLogo")
             )
+        if not out["companyLogoUrl"]:
+            out["companyLogoUrl"] = _json_company_logo_candidate(data)
         images = job.get("companyRepresentativeImages")
         if isinstance(images, list) and images:
             rep_urls: list[str] = []
@@ -526,11 +671,16 @@ def meta_from_next(data: dict | None) -> dict:
 
         dl_keys = (
             "deadline",
+            "deadlineAt",
+            "dueDate",
             "endDate",
             "closeDate",
+            "closedAt",
+            "closeAt",
             "endedAt",
             "endAt",
             "recruitmentEndDate",
+            "recruitmentDeadline",
             "recruitEndDate",
         )
         unparsed_deadline_strings: list[str] = []
@@ -549,6 +699,15 @@ def meta_from_next(data: dict | None) -> dict:
                 _looks_like_rolling_deadline_text(s) for s in unparsed_deadline_strings
             ):
                 out["rollingDeadline"] = True
+        if not out["deadline"] and not out["rollingDeadline"]:
+            for v in _deadline_values_from_json(job):
+                parsed = _parse_rallit_date_value(v)
+                if parsed:
+                    out["deadline"] = parsed
+                    break
+                if isinstance(v, str) and _looks_like_rolling_deadline_text(v):
+                    out["rollingDeadline"] = True
+                    break
 
         skills = (
             job.get("skills")
@@ -893,6 +1052,14 @@ def main() -> int:
         html = resp.text
         nxt = parse_next_props(html)
         meta = meta_from_next(nxt)
+        html_meta = meta_from_html(html)
+        for key in ("title", "companyName", "companyLogoUrl", "canonicalUrl"):
+            if not meta.get(key) and html_meta.get(key):
+                meta[key] = html_meta[key]
+        if not meta.get("deadline") and html_meta.get("deadline"):
+            meta["deadline"] = html_meta["deadline"]
+        if not meta.get("rollingDeadline") and html_meta.get("rollingDeadline"):
+            meta["rollingDeadline"] = True
         jd_text = extract_text_fallback(html)
         payload = build_payload(u, meta, jd_text, args.url)
 

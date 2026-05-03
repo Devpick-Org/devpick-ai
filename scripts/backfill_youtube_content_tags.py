@@ -70,7 +70,9 @@ def main() -> None:
         for content_id, title, preview in rows:
             text_blob = ((title or "") + " " + (preview or "")).lower()
             matched_tag_ids = [
-                tag_id for tag_id, tag_name in all_tags if tag_name.lower() in text_blob
+                tag_id
+                for tag_id, tag_name in all_tags
+                if tag_name.lower() in text_blob
             ]
 
             if not matched_tag_ids:

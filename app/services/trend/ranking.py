@@ -45,18 +45,20 @@ class TrendRanker:
         if not cur_view_counts or not content_details:
             return []
         details_map = {str(c["id"]): c for c in content_details}
-        top_ids = sorted(
-            cur_view_counts, key=cur_view_counts.__getitem__, reverse=True
-        )[: self._top_contents]
+        filtered = {
+            cid: count
+            for cid, count in cur_view_counts.items()
+            if cid in details_map
+        }
+        top_ids = sorted(filtered, key=filtered.__getitem__, reverse=True)[
+            : self._top_contents
+        ]
         result = []
-        rank = 1
-        for cid in top_ids:
-            if cid in details_map:
-                item = dict(details_map[cid])
-                item["view_count"] = cur_view_counts[cid]
-                item["rank"] = rank
-                result.append(item)
-                rank += 1
+        for rank, cid in enumerate(top_ids, start=1):
+            item = dict(details_map[cid])
+            item["view_count"] = filtered[cid]
+            item["rank"] = rank
+            result.append(item)
         return result
 
     def rank_tags(

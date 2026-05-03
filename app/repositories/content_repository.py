@@ -296,7 +296,7 @@ class ContentRepository:
                     "SELECT id, title, translated_title, category, tags,"
                     " source_id, published_at"
                     " FROM contents"
-                    " WHERE id = ANY(:ids) AND is_available = true"
+                    " WHERE id::text = ANY(:ids) AND is_available = true"
                 ),
                 {"ids": list(content_ids)},
             )

@@ -85,7 +85,10 @@ class TrendSnapshotRepository:
             ).fetchone()
         if row is None:
             return None
-        return TrendResponse.model_validate_json(row[0])
+        payload = row[0]
+        if isinstance(payload, str):
+            return TrendResponse.model_validate_json(payload)
+        return TrendResponse.model_validate(payload)
 
     def get_by_period(
         self, unit: str, scope: str, period_start: date
@@ -102,7 +105,10 @@ class TrendSnapshotRepository:
             ).fetchone()
         if row is None:
             return None
-        return TrendResponse.model_validate_json(row[0])
+        payload = row[0]
+        if isinstance(payload, str):
+            return TrendResponse.model_validate_json(payload)
+        return TrendResponse.model_validate(payload)
 
     def close(self) -> None:
         self._engine.dispose()

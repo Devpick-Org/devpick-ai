@@ -107,6 +107,9 @@ class JobAiService:
             "Return ONLY valid JSON with keys: required_skills (array of short tech/skill names), "
             "preferred_skills (array), skip_reason (null or string). "
             "Classify obvious must-haves as required_skills and nice-to-have as preferred_skills. "
+            "Skills that appear ONLY in 우대/preferred sections (even if wording is soft like “경험 있으신 분”) "
+            "must go to preferred_skills, not required_skills. "
+            "Include concrete tech tokens (languages, frameworks, clouds, databases, CI, test tools).\n"
             "If the text is not a real JD (e.g. only an image placeholder), set skip_reason to image_jd."
         )
         user = f"JD text:\n{text[:120_000]}"

@@ -18,6 +18,7 @@
   export BACKEND_URL='https://배포-API-루트'   # 예: https://xxx.sslip.io 또는 /v1 포함 시 그대로
   export INTERNAL_KEY='Spring ai.server.internal-key 와 동일'
   python scripts/collect_rallit_jobs.py --urls-file job_urls.txt --max 500
+  또는 전용 배치 스크립트: python scripts/reingest_job_urls.py --urls-file job_urls.txt
 
   job_urls.txt 는 한 줄에 하나씩 랠릿 상세 URL (DB job_postings.source_url 과 같을 것)
 

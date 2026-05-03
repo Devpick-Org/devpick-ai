@@ -39,7 +39,9 @@ def main() -> None:
     try:
         with engine.connect() as conn:
             # content_tags 없는 YouTube 영상 조회
-            rows = conn.execute(text("""
+            rows = conn.execute(
+                text(
+                    """
                 SELECT c.id, c.title, c.preview
                 FROM contents c
                 JOIN content_sources cs ON c.source_id = cs.id
@@ -47,7 +49,9 @@ def main() -> None:
                   AND NOT EXISTS (
                     SELECT 1 FROM content_tags ct WHERE ct.content_id = c.id
                   )
-            """)).fetchall()
+            """
+                )
+            ).fetchall()
 
             if not rows:
                 logger.info("content_tags 없는 YouTube 영상 없음 — 스킵")
@@ -66,13 +70,14 @@ def main() -> None:
         for content_id, title, preview in rows:
             text_blob = ((title or "") + " " + (preview or "")).lower()
             matched_tag_ids = [
-                tag_id for tag_id, tag_name in all_tags
-                if tag_name.lower() in text_blob
+                tag_id for tag_id, tag_name in all_tags if tag_name.lower() in text_blob
             ]
 
             if not matched_tag_ids:
                 skipped_total += 1
-                logger.debug("태그 매칭 없음: content_id=%s title=%s", content_id, title)
+                logger.debug(
+                    "태그 매칭 없음: content_id=%s title=%s", content_id, title
+                )
                 continue
 
             with engine.begin() as conn:

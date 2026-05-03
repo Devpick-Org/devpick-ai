@@ -159,10 +159,14 @@ class YouTubeCollector:
                 return None
             return items[0]["contentDetails"]["relatedPlaylists"]["uploads"]
         except Exception:
-            logger.warning("channels.list 실패 — channel_id=%s", channel_id, exc_info=True)
+            logger.warning(
+                "channels.list 실패 — channel_id=%s", channel_id, exc_info=True
+            )
             return None
 
-    def _fetch_playlist_video_ids(self, playlist_id: str, max_results: int) -> list[str]:
+    def _fetch_playlist_video_ids(
+        self, playlist_id: str, max_results: int
+    ) -> list[str]:
         try:
             resp = self._session.get(
                 _PLAYLIST_ITEMS_URL,
@@ -179,7 +183,9 @@ class YouTubeCollector:
                 for item in resp.json().get("items", [])
             ]
         except Exception:
-            logger.warning("playlistItems.list 실패 — playlist_id=%s", playlist_id, exc_info=True)
+            logger.warning(
+                "playlistItems.list 실패 — playlist_id=%s", playlist_id, exc_info=True
+            )
             return []
 
     def _fetch_video_details(self, video_ids: list[str]) -> list[dict]:

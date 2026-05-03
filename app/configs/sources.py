@@ -344,6 +344,21 @@ VELOG = SourceConfig(
     note="GraphQL trendingPosts with HTML crawl fallback. ADR-006: SUMMARY_ONLY.",
 )
 
+# YouTube — 별도 파이프라인 (get_all_sources 제외)
+# - 수집기: YouTubeCollector (app/collectors/backfill/youtube.py)
+# - 스케줄러: scripts/run_youtube_scheduler.py (매일 02:00 KST)
+# - AI 처리 없음 (요약/퀴즈/임베딩 스킵)
+# - 환경변수: YOUTUBE_API_KEY (없으면 수집 스킵)
+YOUTUBE = SourceConfig(
+    name="YouTube",
+    feed_url="https://www.youtube.com",
+    site_url="https://www.youtube.com",
+    parser_type="backfill",
+    content_level=1,
+    active=True,
+    note="YouTube Data API v3. tags 테이블 키워드 7일 로테이션. 매일 02:00 KST.",
+)
+
 
 def get_all_sources() -> list[SourceConfig]:
     """Return all active source configs for the unified collection pipeline."""

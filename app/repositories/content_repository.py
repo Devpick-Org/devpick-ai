@@ -293,10 +293,11 @@ class ContentRepository:
         with self._engine.begin() as conn:
             result = conn.execute(
                 text(
-                    "SELECT id, title, translated_title, category, tags,"
-                    " source_id, published_at"
-                    " FROM contents"
-                    " WHERE id = ANY(:ids) AND is_available = true"
+                    "SELECT c.id, c.title, c.translated_title, c.category, c.tags,"
+                    " c.thumbnail_url, c.published_at, cs.name AS source_name"
+                    " FROM contents c"
+                    " LEFT JOIN content_sources cs ON cs.id = c.source_id"
+                    " WHERE c.id::text = ANY(:ids) AND c.is_available = true"
                 ),
                 {"ids": list(content_ids)},
             )

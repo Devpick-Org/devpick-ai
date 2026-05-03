@@ -46,9 +46,7 @@ class TrendRanker:
             return []
         details_map = {str(c["id"]): c for c in content_details}
         filtered = {
-            cid: count
-            for cid, count in cur_view_counts.items()
-            if cid in details_map
+            cid: count for cid, count in cur_view_counts.items() if cid in details_map
         }
         top_ids = sorted(filtered, key=filtered.__getitem__, reverse=True)[
             : self._top_contents

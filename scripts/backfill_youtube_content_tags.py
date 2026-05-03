@@ -79,8 +79,8 @@ def main() -> None:
                 for tag_id in matched_tag_ids:
                     conn.execute(
                         text(
-                            "INSERT INTO content_tags (content_id, tag_id)"
-                            " VALUES (:content_id, :tag_id)"
+                            "INSERT INTO content_tags (content_id, tag_id, created_at)"
+                            " VALUES (:content_id, :tag_id, NOW())"
                             " ON CONFLICT DO NOTHING"
                         ),
                         {"content_id": content_id, "tag_id": tag_id},

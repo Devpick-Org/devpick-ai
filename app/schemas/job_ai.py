@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 from pydantic import BaseModel, Field
 
 
@@ -40,6 +42,17 @@ class ResumeParseRequest(BaseModel):
     file_name: str = ""
     text: str = Field(..., min_length=1)
     profile_hint: str | None = None
+
+
+class ResumeEnrichRequest(BaseModel):
+    """1차 파싱 결과를 바탕으로 비어 있는 summary·경력·프로젝트 등만 채운 패치 생성."""
+
+    file_name: str = ""
+    text: str = Field(..., min_length=1)
+    partial_resume: dict[str, Any] | str = Field(
+        ...,
+        description="1차 정규화 직후 이력서 JSON 객체 또는 JSON 문자열",
+    )
 
 
 # ─────────────────────────────────────────────

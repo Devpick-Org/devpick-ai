@@ -41,6 +41,7 @@ from app.schemas.job_ai import (
     MockInterviewTurnResponse,
     ParseJdRequest,
     ParseJdResponse,
+    ResumeEnrichRequest,
     ResumeParseRequest,
     SkillGapRequest,
     SkillGapResponse,
@@ -643,6 +644,15 @@ def job_skill_gap(body: SkillGapRequest) -> SkillGapResponse:
 def parse_uploaded_resume(body: ResumeParseRequest) -> dict:
     """추출된 이력서 텍스트 → 마스터 이력서 JSON(dict, camelCase 스키마)."""
     return _job_ai_service().parse_candidate_resume(body)
+
+
+@router.post(
+    "/resume/enrich",
+    dependencies=[Depends(verify_internal_key)],
+)
+def enrich_uploaded_resume(body: ResumeEnrichRequest) -> dict:
+    """1차 파싱 스냅샷과 원문 텍스트로 비어 있는 항목용 패치 JSON."""
+    return _job_ai_service().enrich_candidate_resume(body)
 
 
 @router.post(

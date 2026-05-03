@@ -25,6 +25,7 @@ from app.schemas.job_ai import (
     MockInterviewTurnResponse,
     ParseJdRequest,
     ParseJdResponse,
+    ResumeEnrichRequest,
     ResumeParseRequest,
     SkillGapRequest,
     SkillGapResponse,
@@ -94,6 +95,87 @@ def _normalize_resume_candidate(data: dict[str, Any]) -> dict[str, Any]:
     data["techStack"] = tech
 
     return data
+
+
+def _normalize_enrich_patch(raw: dict[str, Any]) -> dict[str, Any]:
+    """모델 응답에서 허용 키만 남기고 타입 보정."""
+    allowed_keys = frozenset({"summary", "careers", "projects", "techStack"})
+    out: dict[str, Any] = {}
+    if not isinstance(raw, dict):
+        return out
+
+    summary = raw.get("summary")
+    if isinstance(summary, str):
+        out["summary"] = summary.strip()
+
+    careers = raw.get("careers")
+    if isinstance(careers, list):
+        careers_out: list[dict[str, str]] = []
+        for item in careers:
+            if isinstance(item, dict):
+                careers_out.append(
+                    {
+                        "company": _str_clean(item.get("company")),
+                        "role": _str_clean(item.get("role")),
+                        "period": _str_clean(item.get("period")),
+                        "description": _str_clean(item.get("description")),
+                    }
+                )
+        out["careers"] = careers_out
+
+    projects = raw.get("projects")
+    if isinstance(projects, list):
+        projects_out: list[dict[str, Any]] = []
+        for item in projects:
+            if isinstance(item, dict):
+                ts_raw = item.get("techStack") or item.get("tech_stack")
+                ts_items: list[str] = []
+                if isinstance(ts_raw, list):
+                    seen_t = set()
+                    for t in ts_raw:
+                        s = str(t).strip()
+                        if not s:
+                            continue
+                        lk = s.lower()
+                        if lk in seen_t:
+                            continue
+                        seen_t.add(lk)
+                        ts_items.append(s)
+                projects_out.append(
+                    {
+                        "name": _str_clean(item.get("name")),
+                        "period": _str_clean(item.get("period")),
+                        "role": _str_clean(item.get("role")),
+                        "description": _str_clean(item.get("description")),
+                        "achievements": _str_clean(item.get("achievements")),
+                        "techStack": ts_items,
+                    }
+                )
+        out["projects"] = projects_out
+
+    tech_stack = raw.get("techStack") or raw.get("tech_stack")
+    if isinstance(tech_stack, list):
+        tech: list[str] = []
+        seen: set[str] = set()
+        for t in tech_stack:
+            s = str(t).strip()
+            if not s:
+                continue
+            lk = s.lower()
+            if lk in seen:
+                continue
+            seen.add(lk)
+            tech.append(s)
+        out["techStack"] = tech
+
+    _ = allowed_keys  # 허용 키 명시
+    return out
+
+
+def _str_clean(val: Any) -> str:
+    if val is None:
+        return ""
+    return str(val).strip()
 
 
 class JobAiService:
@@ -222,6 +304,56 @@ class JobAiService:
         raw = self._converse_text(self._model, sys, user, max_tokens=8192)
         extracted = _extract_json_object(raw)
         return _normalize_resume_candidate(extracted)
+
+    def enrich_candidate_resume(self, body: ResumeEnrichRequest) -> dict[str, Any]:
+        """1차 결과를 알려 준 상태에서 빈 필드 후보만 채운 패치 JSON을 반환."""
+        txt = body.text.strip()[:120_000]
+        partial: dict[str, Any]
+        if isinstance(body.partial_resume, str):
+            try:
+                partial = json.loads(body.partial_resume)
+            except json.JSONDecodeError as exc:
+                raise AIInternalError("enrich_partial_not_json") from exc
+            if not isinstance(partial, dict):
+                raise AIInternalError("enrich_partial_invalid")
+        elif isinstance(body.partial_resume, dict):
+            partial = body.partial_resume
+        else:
+            raise AIInternalError("enrich_partial_invalid")
+
+        sys = (
+            "You help fill MISSING sections of a resume for a SaaS CV editor draft. "
+            "The user already parsed the document once; your output is SECOND-PASS PATCH only.\n"
+            "Return ONLY valid JSON with ZERO or more of these camelCase keys: "
+            "summary (Korean prose, 3-5 sentences as one string), careers (array), projects (array), "
+            "techStack (array). Do NOT repeat basicInfo, fileName, uploadedAt.\n"
+            "STRICT FACTUAL RULES:\n"
+            "- Never invent employers, titles, periods, counts, certifications, degrees, awards, URLs, patents. "
+            "If the source text shows no wording for something, omit it or leave that field empty.\n"
+            "- You may reorganize wording from the SAME document into structured careers/projects/description; "
+            "do NOT add plausible fiction.\n"
+            "- If unsure, prefer empty arrays and empty summary string.\n"
+            "- techStack: only technologies explicitly readable in resume_text.\n"
+            "careers[].{company,role,period,description} and "
+            "projects[].{name,period,role,description,achievements,string techStack[]} same schema as CV tools.\n"
+            "already_parsed shows what PASS1 extracted—only IMPROVE fields that are visibly empty/useless vs text.\n"
+            "No markdown. No prose outside JSON."
+        )
+        payload: dict[str, Any] = {
+            "file_name": body.file_name,
+            "resume_text_head": txt[:28_000],
+            "resume_text_tail": txt[-12_000] if len(txt) > 28_000 else "",
+            "already_parsed": partial,
+            "constraints": (
+                "If already_parsed.careers is non-empty array, omit careers entirely or send []. "
+                "If already_parsed.projects is non-empty array, omit projects entirely or send []. "
+                "Fill summary only when already_parsed.summary is empty OR len <40 characters—else omit summary key."
+            ),
+        }
+        user = json.dumps(payload, ensure_ascii=False)
+        raw = self._converse_text(self._model, sys, user, max_tokens=8192)
+        extracted = _extract_json_object(raw)
+        return _normalize_enrich_patch(extracted)
 
     # ──────────────────────────────────
     # Mock Interview (채팅형 모의면접)

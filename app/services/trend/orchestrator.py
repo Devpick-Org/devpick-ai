@@ -255,9 +255,9 @@ class TrendOrchestrator:
         )
         tfidf_keywords = [kw for kw, _ in self._tfidf.extract(tokenized)[:15]]
 
-        # Top 5 콘텐츠 랭킹
+        # Top 5 콘텐츠 랭킹 — 수집 기간 무관, 이번 기간 조회된 전체 글 대상
         top_contents_raw = self._ranker.rank_contents(
-            raw.cur_view_counts, raw.cur_contents
+            raw.cur_view_counts, raw.viewed_contents
         )
         top_posts = [
             _to_top_content(

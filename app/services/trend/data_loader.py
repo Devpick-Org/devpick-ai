@@ -20,6 +20,7 @@ class TrendRawData:
     prev_view_counts: dict[str, int] = field(default_factory=dict)
     prev_contents: list[dict] = field(default_factory=list)
     summary_meta: dict[str, dict] = field(default_factory=dict)
+    viewed_contents: list[dict] = field(default_factory=list)
 
 
 class TrendDataLoader:
@@ -65,6 +66,13 @@ class TrendDataLoader:
         cur_view_counts = f_cur_views.result()
         prev_view_counts = f_prev_views.result()
 
+        # 조회수 있는 전체 글 상세 조회 (Top 5용 — 수집 기간 무관)
+        viewed_contents = (
+            self._content_repo.find_by_ids(list(cur_view_counts.keys()))
+            if cur_view_counts
+            else []
+        )
+
         content_ids = [c["id"] for c in cur_contents]
         summary_meta = (
             self._summary_repo.find_summaries_for_trend(content_ids)
@@ -88,4 +96,5 @@ class TrendDataLoader:
             prev_view_counts=prev_view_counts,
             prev_contents=prev_contents,
             summary_meta=summary_meta,
+            viewed_contents=viewed_contents,
         )

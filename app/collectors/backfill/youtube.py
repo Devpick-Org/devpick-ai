@@ -145,7 +145,8 @@ class YouTubeCollector:
         day = date.today().toordinal() % _ROTATION_DAYS
         chunk = max(1, (n + _ROTATION_DAYS - 1) // _ROTATION_DAYS)
         start = day * chunk
-        return keywords[start : start + chunk]
+        # TODO: 테스트용 — 키워드 1개만 수집. 운영 시 아래 줄 제거
+        return keywords[start : start + chunk][:1]
 
     # ------------------------------------------------------------------
     # YouTube API

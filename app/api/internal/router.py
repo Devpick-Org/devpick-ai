@@ -60,11 +60,8 @@ from app.services.trend.orchestrator import (
 load_dotenv()
 _AWS_REGION = os.getenv("AWS_REGION", "ap-northeast-2")
 _BEDROCK_REGION = os.getenv("BEDROCK_REGION", "ap-northeast-2")
-# 단일 BEDROCK_MODEL 로 Sonnet 계열 지정 가능 (예: Claude 3.5 Sonnet v2)
-_DEFAULT_SONNET = "anthropic.claude-3-5-sonnet-20241022-v2:0"
-_BEDROCK_MODEL_SONNET = (
-    os.getenv("BEDROCK_MODEL") or os.getenv("BEDROCK_MODEL_SONNET") or _DEFAULT_SONNET
-)
+_DEFAULT_SONNET = "global.anthropic.claude-sonnet-4-6"
+_BEDROCK_MODEL_SONNET = os.getenv("BEDROCK_MODEL_SONNET") or _DEFAULT_SONNET
 _BEDROCK_MODEL_HAIKU = os.getenv(
     "BEDROCK_MODEL_HAIKU",
     "global.anthropic.claude-haiku-4-5-20251001-v1:0",
@@ -459,7 +456,7 @@ def create_insight(body: InsightRequest) -> InsightResponse:
 
     # Step 4. 인사이트 생성
     result = InsightService(
-        aws_region=_BEDROCK_REGION, model=_BEDROCK_MODEL_SONNET
+        aws_region=_BEDROCK_REGION, model=_BEDROCK_MODEL_HAIKU
     ).generate(
         activities=body.activities,
         ai_events=ai_events,
@@ -575,7 +572,7 @@ def create_trend(body: TrendGenerateRequest) -> TrendResponse:
     return TrendOrchestrator(
         database_url=_DATABASE_URL,
         aws_region=_AWS_REGION,
-        model=_BEDROCK_MODEL_SONNET,
+        model=_BEDROCK_MODEL_HAIKU,
     ).run(body.unit, period_start, period_end, force=body.force_refresh)
 
 

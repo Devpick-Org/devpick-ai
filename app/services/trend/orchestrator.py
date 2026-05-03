@@ -148,7 +148,7 @@ class TrendOrchestrator:
         self,
         database_url: str,
         aws_region: str = "ap-northeast-2",
-        model: str = "global.anthropic.claude-sonnet-4-6",
+        model: str = "global.anthropic.claude-haiku-4-5-20251001-v1:0",
         backend_url: str | None = None,
         internal_key: str | None = None,
     ) -> None:

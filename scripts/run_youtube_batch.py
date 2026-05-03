@@ -56,6 +56,8 @@ def main() -> None:
 
         sent_ids = sent_id_store.load("YouTube")
         new_items = [i for i in items if i.canonical_url not in sent_ids]
+        # TODO: 테스트용 — 최대 10개만 저장. 운영 시 아래 줄 제거
+        new_items = new_items[:10]
         logger.info("신규 항목: %d개 (중복 제외)", len(new_items))
 
         if not new_items:

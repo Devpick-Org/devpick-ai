@@ -1,18 +1,14 @@
-"""YouTube Data API v3 기반 영상 수집기 (DP-415).
+"""YouTube 채널 기반 영상 수집기.
 
 수집 전략:
-- PostgreSQL tags 테이블 키워드를 7일 로테이션으로 나눠 오늘 담당 서브셋만 수집
-- search.list(keyword, relevanceLanguage=ko, order=viewCount) → video ID 목록
-- videos.list(ids, part=snippet,statistics,contentDetails) → 상세 정보 (50개 배치)
-- 품질 필터: viewCount > 5,000 / 좋아요 비율 3%+ / 영상 길이 4~30분
-- content_tags 매핑: 제목+설명 ↔ tags 테이블 대소문자 무시 매칭, 없으면 검색 키워드 fallback
+- 고정 채널 목록에서 최신 영상 수집 (channels.list → playlistItems.list → videos.list)
+- 품질 필터 없음 (큐레이션된 개발 채널이므로 전체 수집)
+- content_tags 매핑: 제목+설명 ↔ tags 테이블 대소문자 무시 매칭
 """
 
 from __future__ import annotations
 
 import logging
-import re
-from datetime import date
 
 import requests
 from requests.adapters import HTTPAdapter
@@ -23,29 +19,41 @@ from app.schemas.normalized_content import NormalizedContent
 
 logger = logging.getLogger(__name__)
 
-_SEARCH_URL = "https://www.googleapis.com/youtube/v3/search"
+_CHANNELS_URL = "https://www.googleapis.com/youtube/v3/channels"
+_PLAYLIST_ITEMS_URL = "https://www.googleapis.com/youtube/v3/playlistItems"
 _VIDEOS_URL = "https://www.googleapis.com/youtube/v3/videos"
-_MIN_VIEW_COUNT = 5_000
-_MIN_LIKE_RATIO = 0.03
-_MIN_DURATION_SEC = 240  # 4분
-_MAX_DURATION_SEC = 1_800  # 30분
-_PREVIEW_MAX_LEN = 260
-_SEARCH_MAX_RESULTS = 50
 _VIDEOS_BATCH_SIZE = 50
-_ROTATION_DAYS = 7
-_DURATION_RE = re.compile(r"PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?")
+_PREVIEW_MAX_LEN = 260
 
+# TODO: 테스트용 — 채널당 1개만 수집. 운영 시 10으로 변경
+_VIDEOS_PER_CHANNEL = 1
 
-def _parse_duration_seconds(duration: str) -> int:
-    m = _DURATION_RE.match(duration)
-    if not m:
-        return 0
-    h, mn, s = (int(x or 0) for x in m.groups())
-    return h * 3600 + mn * 60 + s
+_CHANNEL_LIST = [
+    # 국내
+    {"id": "UCSLrpBAzr-ROVGHQ5EmxnUg", "name": "코딩애플"},
+    {"id": "UC_4u-bXaba7yrRz_6x6kb_w", "name": "드림코딩"},
+    {"id": "UC2nkWbaJt1KQDi2r2XclzTQ", "name": "얄팍한코딩사전"},
+    {"id": "UCQNE2JmbasNYbjGAcuBiRRg", "name": "조코딩"},
+    {"id": "UCFY_Zc7Hdb5lHGPFmKywXCw", "name": "컴공선배"},
+    {"id": "UCvc8kv-i5fvFTJBFAk6n1SA", "name": "생활코딩"},
+    {"id": "UCbMGBIayK26L4VaFrs5jyBw", "name": "개발하는남자"},
+    {"id": "UCUpJs89fSBXNolQGOYKn0YQ", "name": "노마드코더"},
+    # 해외
+    {"id": "UCsBjURrPoezykLs9EqgamOA", "name": "Fireship"},
+    {"id": "UCZgt6AzoyjslHTC9dz0UoTw", "name": "ByteByteGo"},
+    {"id": "UC8butISFwT-Wl7EV0hUK0BQ", "name": "freeCodeCamp"},
+    {"id": "UC29ju8bIPH5as8OGnQzwJyA", "name": "Traversy Media"},
+    {"id": "UCFbNIlppjAuEX4znoulh0Cw", "name": "Web Dev Simplified"},
+    {"id": "UCdngmbVKX1Tgre699-XLlUA", "name": "TechWorld with Nana"},
+    {"id": "UCbRP3c757lWg9M-U7TyEkXA", "name": "Theo (t3.gg)"},
+    {"id": "UC8ENHE5xdFSwx71u3fDH5Xw", "name": "ThePrimeagen"},
+    {"id": "UC9x0AN7BWHpCDHSm9NiJFJQ", "name": "NetworkChuck"},
+    {"id": "UC_ML5xP23TOWKUcc-oAE_Eg", "name": "Hussein Nasser"},
+]
 
 
 class YouTubeCollector:
-    """YouTube Data API v3 기반 영상 수집기.
+    """YouTube 채널 기반 영상 수집기.
 
     Usage:
         collector = YouTubeCollector(api_key="...", database_url="postgresql://...")
@@ -84,25 +92,23 @@ class YouTubeCollector:
 
     def fetch(self) -> list[NormalizedContent]:
         all_tags = self._load_all_tags()
-        if not all_tags:
-            logger.warning("tags 테이블이 비어 있음 — YouTube 수집 스킵")
-            return []
-
         tag_names = [t["name"] for t in all_tags]
-        today_keywords = self._get_todays_keywords(tag_names)
-        logger.info("오늘 수집 키워드 %d개: %s", len(today_keywords), today_keywords)
 
         video_ids: list[str] = []
-        keyword_map: dict[str, str] = {}  # video_id → 검색 키워드
-        for keyword in today_keywords:
-            ids = self._search_video_ids(keyword)
+        channel_map: dict[str, str] = {}  # video_id → channel name
+
+        for channel in _CHANNEL_LIST:
+            playlist_id = self._get_uploads_playlist_id(channel["id"])
+            if not playlist_id:
+                continue
+            ids = self._fetch_playlist_video_ids(playlist_id, _VIDEOS_PER_CHANNEL)
             for vid in ids:
-                if vid not in keyword_map:
-                    keyword_map[vid] = keyword
+                if vid not in channel_map:
+                    channel_map[vid] = channel["name"]
             video_ids.extend(ids)
 
         if not video_ids:
-            logger.info("검색 결과 없음")
+            logger.info("수집된 영상 없음")
             return []
 
         unique_ids = list(dict.fromkeys(video_ids))
@@ -111,11 +117,10 @@ class YouTubeCollector:
 
         results: list[NormalizedContent] = []
         for video in video_details:
-            item = self._to_normalized_content(video, keyword_map, tag_names)
+            item = self._to_normalized_content(video, channel_map, tag_names)
             if item is not None:
                 results.append(item)
 
-        logger.info("품질 필터 통과: %d개", len(results))
         return results
 
     # ------------------------------------------------------------------
@@ -134,42 +139,47 @@ class YouTubeCollector:
             engine.dispose()
 
     # ------------------------------------------------------------------
-    # Rotation
-    # ------------------------------------------------------------------
-
-    @staticmethod
-    def _get_todays_keywords(keywords: list[str]) -> list[str]:
-        n = len(keywords)
-        if n == 0:
-            return []
-        day = date.today().toordinal() % _ROTATION_DAYS
-        chunk = max(1, (n + _ROTATION_DAYS - 1) // _ROTATION_DAYS)
-        start = day * chunk
-        # TODO: 테스트용 — 키워드 1개만 수집. 운영 시 아래 줄 제거
-        return keywords[start : start + chunk][:1]
-
-    # ------------------------------------------------------------------
     # YouTube API
     # ------------------------------------------------------------------
 
-    def _search_video_ids(self, keyword: str) -> list[str]:
+    def _get_uploads_playlist_id(self, channel_id: str) -> str | None:
         try:
             resp = self._session.get(
-                _SEARCH_URL,
+                _CHANNELS_URL,
                 params={
-                    "part": "id",
-                    "q": keyword,
-                    "type": "video",
-                    "relevanceLanguage": "ko",
-                    "order": "viewCount",
-                    "maxResults": _SEARCH_MAX_RESULTS,
+                    "part": "contentDetails",
+                    "id": channel_id,
                     "key": self._api_key,
                 },
             )
             resp.raise_for_status()
-            return [item["id"]["videoId"] for item in resp.json().get("items", [])]
+            items = resp.json().get("items", [])
+            if not items:
+                logger.warning("채널 정보 없음 — channel_id=%s", channel_id)
+                return None
+            return items[0]["contentDetails"]["relatedPlaylists"]["uploads"]
         except Exception:
-            logger.warning("search.list 실패 — keyword=%s", keyword, exc_info=True)
+            logger.warning("channels.list 실패 — channel_id=%s", channel_id, exc_info=True)
+            return None
+
+    def _fetch_playlist_video_ids(self, playlist_id: str, max_results: int) -> list[str]:
+        try:
+            resp = self._session.get(
+                _PLAYLIST_ITEMS_URL,
+                params={
+                    "part": "contentDetails",
+                    "playlistId": playlist_id,
+                    "maxResults": max_results,
+                    "key": self._api_key,
+                },
+            )
+            resp.raise_for_status()
+            return [
+                item["contentDetails"]["videoId"]
+                for item in resp.json().get("items", [])
+            ]
+        except Exception:
+            logger.warning("playlistItems.list 실패 — playlist_id=%s", playlist_id, exc_info=True)
             return []
 
     def _fetch_video_details(self, video_ids: list[str]) -> list[dict]:
@@ -192,41 +202,16 @@ class YouTubeCollector:
         return results
 
     # ------------------------------------------------------------------
-    # Quality filter
-    # ------------------------------------------------------------------
-
-    def _passes_quality_filter(self, video: dict) -> bool:
-        stats = video.get("statistics", {})
-        view_count = int(stats.get("viewCount", 0))
-        if view_count < _MIN_VIEW_COUNT:
-            return False
-
-        duration_str = video.get("contentDetails", {}).get("duration", "PT0S")
-        secs = _parse_duration_seconds(duration_str)
-        if not (_MIN_DURATION_SEC <= secs <= _MAX_DURATION_SEC):
-            return False
-
-        like_count_str = stats.get("likeCount")
-        if like_count_str is not None and view_count > 0:
-            if int(like_count_str) / view_count < _MIN_LIKE_RATIO:
-                return False
-
-        return True
-
-    # ------------------------------------------------------------------
     # Tag mapping
     # ------------------------------------------------------------------
 
     @staticmethod
-    def _map_tags(video: dict, keyword: str, all_tag_names: list[str]) -> list[str]:
+    def _map_tags(video: dict, all_tag_names: list[str]) -> list[str]:
         snippet = video.get("snippet", {})
         text_blob = (
             (snippet.get("title") or "") + " " + (snippet.get("description") or "")
         ).lower()
-        matched = [t for t in all_tag_names if t.lower() in text_blob]
-        if not matched and keyword in all_tag_names:
-            matched = [keyword]
-        return matched
+        return [t for t in all_tag_names if t.lower() in text_blob]
 
     # ------------------------------------------------------------------
     # NormalizedContent 변환
@@ -235,12 +220,9 @@ class YouTubeCollector:
     def _to_normalized_content(
         self,
         video: dict,
-        keyword_map: dict[str, str],
+        channel_map: dict[str, str],
         all_tag_names: list[str],
     ) -> NormalizedContent | None:
-        if not self._passes_quality_filter(video):
-            return None
-
         video_id = video.get("id", "")
         if not video_id:
             return None
@@ -250,7 +232,7 @@ class YouTubeCollector:
         content_details = video.get("contentDetails", {})
 
         title = snippet.get("title") or ""
-        channel_name = snippet.get("channelTitle") or ""
+        channel_name = channel_map.get(video_id) or snippet.get("channelTitle") or ""
         description = snippet.get("description") or ""
         published_at = snippet.get("publishedAt")
         duration = content_details.get("duration", "PT0S")
@@ -265,8 +247,7 @@ class YouTubeCollector:
         view_count_str = stats.get("viewCount")
         view_count = int(view_count_str) if view_count_str else None
 
-        keyword = keyword_map.get(video_id, "")
-        tags = self._map_tags(video, keyword, all_tag_names)
+        tags = self._map_tags(video, all_tag_names)
 
         return NormalizedContent(
             source_name="YouTube",

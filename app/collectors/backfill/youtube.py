@@ -9,6 +9,7 @@
 from __future__ import annotations
 
 import logging
+from datetime import datetime, timedelta, timezone
 
 import requests
 from requests.adapters import HTTPAdapter
@@ -27,6 +28,7 @@ _PREVIEW_MAX_LEN = 260
 
 # TODO: 테스트용 — 채널당 1개만 수집. 운영 시 10으로 변경
 _VIDEOS_PER_CHANNEL = 1
+_MAX_AGE_DAYS = 365  # 1년 이내 영상만 수집
 
 _CHANNEL_LIST = [
     # 국내
@@ -234,13 +236,23 @@ class YouTubeCollector:
             return None
 
         snippet = video.get("snippet", {})
+        published_at_str = snippet.get("publishedAt")
+        if published_at_str:
+            try:
+                published_dt = datetime.fromisoformat(
+                    published_at_str.replace("Z", "+00:00")
+                )
+                cutoff = datetime.now(tz=timezone.utc) - timedelta(days=_MAX_AGE_DAYS)
+                if published_dt < cutoff:
+                    return None
+            except ValueError:
+                pass
         stats = video.get("statistics", {})
         content_details = video.get("contentDetails", {})
 
         title = snippet.get("title") or ""
         channel_name = channel_map.get(video_id) or snippet.get("channelTitle") or ""
         description = snippet.get("description") or ""
-        published_at = snippet.get("publishedAt")
         duration = content_details.get("duration", "PT0S")
 
         thumbnails = snippet.get("thumbnails", {})
@@ -260,7 +272,7 @@ class YouTubeCollector:
             title=title,
             author=channel_name,
             canonical_url=f"https://www.youtube.com/watch?v={video_id}",
-            published_at=published_at,
+            published_at=published_at_str,
             preview=description[:_PREVIEW_MAX_LEN] if description else None,
             body_candidate=None,
             is_original_visible=True,

@@ -16,6 +16,7 @@ from app.schemas.job_ai import (
     InterviewQaRequest,
     ParseJdRequest,
     ParseJdResponse,
+    ResumeParseRequest,
     SkillGapRequest,
     SkillGapResponse,
 )
@@ -47,6 +48,43 @@ def _extract_json_object(text: str) -> dict[str, Any]:
         except json.JSONDecodeError as exc:
             raise AIInternalError("json_slice_parse_failed") from exc
     raise AIInternalError("no_json_in_model_output")
+
+
+def _normalize_resume_candidate(data: dict[str, Any]) -> dict[str, Any]:
+    if not isinstance(data, dict):
+        raise AIInternalError("resume_parse_invalid_root")
+    if "basicInfo" not in data or not isinstance(data.get("basicInfo"), dict):
+        data["basicInfo"] = {
+            "name": "",
+            "jobTitle": "",
+            "careerYears": 0,
+            "location": "",
+        }
+    if "techStack" not in data or not isinstance(data["techStack"], list):
+        data["techStack"] = []
+    if "careers" not in data or not isinstance(data["careers"], list):
+        data["careers"] = []
+    if "projects" not in data or not isinstance(data["projects"], list):
+        data["projects"] = []
+    data.setdefault("summary", "")
+    if not isinstance(data["summary"], str):
+        data["summary"] = str(data["summary"])
+
+    tech_raw = data["techStack"]
+    tech: list[str] = []
+    seen: set[str] = set()
+    for t in tech_raw:
+        s = str(t).strip()
+        if not s:
+            continue
+        lk = s.lower()
+        if lk in seen:
+            continue
+        seen.add(lk)
+        tech.append(s)
+    data["techStack"] = tech
+
+    return data
 
 
 class JobAiService:
@@ -114,6 +152,32 @@ class JobAiService:
         raw = self._converse_text(self._model, sys, user, max_tokens=2048)
         data = _extract_json_object(raw)
         return SkillGapResponse.model_validate(data)
+
+    def parse_candidate_resume(self, body: ResumeParseRequest) -> dict[str, Any]:
+        txt = body.text.strip()[:120_000]
+        sys = (
+            "You normalize Korean or English resumes into structured data for a SaaS CV editor. "
+            "Return ONLY valid JSON using camelCase keys: "
+            "fileName optional string display name without folders, "
+            "basicInfo{name,jobTitle,careerYears non-negative integer,location}, "
+            "summary Korean text (empty string if unsure), techStack[], "
+            "careers{array of company,role,period,description}, "
+            "projects{array of name,period,role,techStack[],description,achievements}. "
+            "Use canonical tech spellings (Node.js, Spring Boot, TypeScript, PostgreSQL). "
+            "Do NOT use markdown fences. Do NOT add commentary outside JSON."
+        )
+        payload: dict[str, Any] = {
+            "file_name": body.file_name,
+            "resume_text_head": txt[:24_000],
+            "resume_text_tail": txt[-8000:] if len(txt) > 24_000 else "",
+        }
+        if body.profile_hint:
+            payload["profile_hint"] = body.profile_hint[:6000]
+
+        user = json.dumps(payload, ensure_ascii=False)
+        raw = self._converse_text(self._model, sys, user, max_tokens=8192)
+        extracted = _extract_json_object(raw)
+        return _normalize_resume_candidate(extracted)
 
     def _converse_text(
         self, model: str, system: str, user: str, max_tokens: int

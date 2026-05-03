@@ -32,3 +32,11 @@ class SkillGapRequest(BaseModel):
 
 class SkillGapResponse(BaseModel):
     roadmap: list[str] = Field(default_factory=list)
+
+
+class ResumeParseRequest(BaseModel):
+    """Spring에서 PDF/DOCX 추출 텍스트를 받아 마스터 이력서 JSON 생성."""
+
+    file_name: str = ""
+    text: str = Field(..., min_length=1)
+    profile_hint: str | None = None

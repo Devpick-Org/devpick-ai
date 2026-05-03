@@ -35,6 +35,7 @@ from app.schemas.job_ai import (
     InterviewQaRequest,
     ParseJdRequest,
     ParseJdResponse,
+    ResumeParseRequest,
     SkillGapRequest,
     SkillGapResponse,
 )
@@ -630,3 +631,12 @@ def generate_job_interview_qa(body: InterviewQaRequest) -> dict:
 def job_skill_gap(body: SkillGapRequest) -> SkillGapResponse:
     """부족 기술 기반 로드맵·유튜브 힌트."""
     return _job_ai_service().skill_gap(body)
+
+
+@router.post(
+    "/resume/parse",
+    dependencies=[Depends(verify_internal_key)],
+)
+def parse_uploaded_resume(body: ResumeParseRequest) -> dict:
+    """추출된 이력서 텍스트 → 마스터 이력서 JSON(dict, camelCase 스키마)."""
+    return _job_ai_service().parse_candidate_resume(body)

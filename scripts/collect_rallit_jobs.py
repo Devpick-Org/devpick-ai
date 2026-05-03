@@ -540,7 +540,53 @@ def map_job_category_from_position(job: dict, list_url: str) -> str:
         return "FULLSTACK"
     if any(x in hay for x in ("devops", "infra", "sre", "인프라", "mlops")):
         return "DEVOPS"
-    if any(x in hay for x in ("ai", "ml", "machine", "data scientist", "데이터")):
+    # 분석·데이터 플랫폼 (DATA). '데이터' 단독은 AI_ML 과 섞이지 않게 구체 키워드만 매칭.
+    if any(
+        x in hay
+        for x in (
+            "data engineer",
+            "데이터 엔지니어",
+            "데이터엔지니어",
+            "빅데이터",
+            "데이터 분석가",
+            "데이터분석가",
+            "데이터 분석 ",
+            "데이터분석 ",
+            "bi 엔지니어",
+            "analytics engineer",
+            "etl",
+            "dbt",
+            "데이터 플랫폼",
+            "data analyst",
+            "데이터 분석",
+        )
+    ):
+        return "DATA"
+    if any(
+        x in hay
+        for x in (
+            "machine learning",
+            "deep learning",
+            "딥러닝",
+            "머신러닝",
+            "llm",
+            "nlp",
+            "computer vision",
+            "ml engineer",
+            "ml 엔지니어",
+            "data scientist",
+            "데이터 사이언티스트",
+            " pytorch",
+            " tensorflow",
+            "인공지능",
+            "generative",
+            "/ai/",
+            "/ml/",
+            " ai ",
+            " ml ",
+            "ai/llm",
+        )
+    ):
         return "AI_ML"
     if any(x in hay for x in ("android", "ios", "mobile", "모바일", "aos")):
         return "MOBILE"

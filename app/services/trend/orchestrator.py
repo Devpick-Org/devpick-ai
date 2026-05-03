@@ -119,12 +119,13 @@ def _to_top_content(
         except (json.JSONDecodeError, ValueError):
             tags = []
 
-    prev_vc = prev_view_counts.get(content["id"], 0)
+    content_id = str(content["id"])
+    prev_vc = prev_view_counts.get(content_id, 0)
     cur_vc = view_count or 0
     change_rate = round((cur_vc - prev_vc) / prev_vc * 100, 1) if prev_vc > 0 else None
 
     return TopContent(
-        id=content["id"],
+        id=content_id,
         title=content.get("title", ""),
         translated_title=content.get("translated_title"),
         source_name=content.get("source_name") or "unknown",

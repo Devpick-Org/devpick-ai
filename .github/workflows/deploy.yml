@@ -18,9 +18,21 @@ jobs:
           key: ${{ secrets.EC2_SSH_KEY }}
           script: |
             set -euo pipefail
+            set -x
             cd ~/devpick-ai
             git fetch origin developV2
             git checkout developV2
             git reset --hard origin/developV2
-            docker compose down --remove-orphans || true
-            docker compose up -d --build
+            # env_file: .env 인 compose는 파일이 없으면 바로 실패하는 경우가 많음
+            [ -f .env ] || touch .env
+            if docker compose version >/dev/null 2>&1; then
+              DC="docker compose"
+            elif command -v docker-compose >/dev/null 2>&1; then
+              DC="docker-compose"
+            else
+              echo "Neither 'docker compose' nor 'docker-compose' is available."
+              exit 1
+            fi
+            $DC down --remove-orphans || true
+            $DC build
+            $DC up -d

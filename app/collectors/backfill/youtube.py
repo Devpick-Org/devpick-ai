@@ -219,7 +219,10 @@ class YouTubeCollector:
         text_blob = (
             (snippet.get("title") or "") + " " + (snippet.get("description") or "")
         ).lower()
-        return [t for t in all_tag_names if t.lower() in text_blob]
+        yt_tags = {t.lower() for t in (snippet.get("tags") or [])}
+        return [
+            t for t in all_tag_names if t.lower() in text_blob or t.lower() in yt_tags
+        ]
 
     # ------------------------------------------------------------------
     # NormalizedContent 변환

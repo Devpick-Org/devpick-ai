@@ -92,6 +92,10 @@ class ContentPipeline:
                     category=summary.common.category,
                     translated_title=summary.translated_title,
                 )
+                if summary.common.tags:
+                    self._content_repo.save_content_tags(
+                        content_id, summary.common.tags
+                    )
             except Exception:
                 logger.exception(
                     "[pipeline] content_id=%s AI metadata PostgreSQL 저장 실패",

@@ -14,6 +14,7 @@ def _make_pipeline() -> tuple[ContentPipeline, dict[str, MagicMock]]:
         "summary_svc": MagicMock(),
         "summary_repo": MagicMock(),
         "embedding": MagicMock(),
+        "content_repo": MagicMock(),
     }
 
     with (
@@ -40,10 +41,13 @@ def _make_pipeline() -> tuple[ContentPipeline, dict[str, MagicMock]]:
     pipeline._summary_svc = mocks["summary_svc"]
     pipeline._summary_repo = mocks["summary_repo"]
     pipeline._embedding = mocks["embedding"]
+    pipeline._content_repo = mocks["content_repo"]
 
     # 기본 반환값 설정
     mocks["preprocess"].preprocess.return_value = "정제된 텍스트"
-    mocks["summary_svc"].summarize_all.return_value = MagicMock()
+    summary = MagicMock()
+    summary.common.tags = ["Python", "Docker"]
+    mocks["summary_svc"].summarize_all.return_value = summary
 
     return pipeline, mocks
 
@@ -158,3 +162,45 @@ def test_embedding_failure_does_not_propagate() -> None:
 
     # 예외가 밖으로 나오지 않아야 함
     pipeline.process_content(content_id="cid-001", body_html="<p>본문</p>")
+
+
+# ── content_tags 저장 ─────────────────────────────────────────────────────────
+
+
+def test_save_content_tags_called_when_summary_has_tags() -> None:
+    pipeline, mocks = _make_pipeline()
+
+    pipeline.process_content(content_id="cid-001", body_html="<p>본문</p>")
+
+    mocks["content_repo"].save_content_tags.assert_called_once_with(
+        "cid-001", ["Python", "Docker"]
+    )
+
+
+def test_save_content_tags_not_called_when_tags_empty() -> None:
+    pipeline, mocks = _make_pipeline()
+    mocks["summary_svc"].summarize_all.return_value.common.tags = []
+
+    pipeline.process_content(content_id="cid-001", body_html="<p>본문</p>")
+
+    mocks["content_repo"].save_content_tags.assert_not_called()
+
+
+def test_save_content_tags_not_called_without_content_repo() -> None:
+    pipeline, mocks = _make_pipeline()
+    pipeline._content_repo = None
+
+    pipeline.process_content(content_id="cid-001", body_html="<p>본문</p>")
+
+    mocks["content_repo"].save_content_tags.assert_not_called()
+
+
+def test_save_content_tags_failure_does_not_propagate() -> None:
+    pipeline, mocks = _make_pipeline()
+    mocks["content_repo"].save_content_tags.side_effect = Exception("DB 오류")
+
+    # 예외가 밖으로 나오지 않아야 함
+    pipeline.process_content(content_id="cid-001", body_html="<p>본문</p>")
+
+    # 이후 단계(임베딩)도 계속 실행돼야 함
+    mocks["embedding"].embed_and_store.assert_called_once()

@@ -134,6 +134,7 @@ def _to_top_content(
         thumbnail_url=content.get("thumbnail_url"),
         category=content.get("category"),
         change_rate=change_rate,
+        rank=content.get("rank"),
     )
 
 

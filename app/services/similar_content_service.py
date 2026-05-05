@@ -35,7 +35,7 @@ class SimilarContentService:
         self,
         text: str,
         top_k: int = 20,
-        min_score: float = 0.5,
+        min_score: float = 0.7,
         exclude_content_id: str | None = None,
     ) -> list[SimilarContent]:
         """유사 아티클을 검색하여 반환한다.

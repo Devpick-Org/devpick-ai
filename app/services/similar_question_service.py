@@ -34,7 +34,7 @@ class SimilarQuestionService:
         self,
         text: str,
         top_k: int = 20,
-        min_score: float = 0.5,
+        min_score: float = 0.7,
         exclude_question_id: str | None = None,
     ) -> list[SimilarQuestion]:
         """유사 질문을 검색하여 반환한다.

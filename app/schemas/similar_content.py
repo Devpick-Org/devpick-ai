@@ -14,7 +14,7 @@ class SimilarContentRequest(BaseModel):
     content_id: str | None = None
     # 자기 자신 제외용 아티클 ID. 없으면 self-exclusion 없음.
 
-    min_score: float = Field(default=0.5, ge=0.0, le=1.0)
+    min_score: float = Field(default=0.7, ge=0.0, le=1.0)
     # 반환할 최소 유사도. 이 값 이상인 아티클만 반환한다.
 
     top_k: int = Field(default=20, ge=1, le=50)

@@ -110,9 +110,9 @@ def test_search_respects_top_k(service) -> None:
 
 def test_search_sorts_by_score_descending(service) -> None:
     docs = [
-        (_make_doc("article-a"), 0.5),
+        (_make_doc("article-a"), 0.75),
         (_make_doc("article-b"), 0.9),
-        (_make_doc("article-c"), 0.7),
+        (_make_doc("article-c"), 0.8),
     ]
     service._retriever.search.return_value = docs
 

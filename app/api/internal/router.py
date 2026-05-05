@@ -322,6 +322,7 @@ def search_similar_questions(body: SimilarQuestionRequest) -> SimilarQuestionRes
     ).search(
         text=body.text,
         top_k=body.top_k,
+        min_score=body.min_score,
         exclude_question_id=body.question_id,
     )
 
@@ -356,6 +357,7 @@ def search_similar_contents(body: SimilarContentRequest) -> SimilarContentRespon
     ).search(
         text=body.text,
         top_k=body.top_k,
+        min_score=body.min_score,
         exclude_content_id=body.content_id,
     )
 

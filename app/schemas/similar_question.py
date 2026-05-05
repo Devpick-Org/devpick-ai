@@ -12,7 +12,8 @@ class SimilarQuestionRequest(BaseModel):
         min_length=1
     )  # 검색 텍스트 (refined_title + " " + refined_content)
     question_id: str | None = None  # 자기 자신 제외용
-    top_k: int = Field(default=5, ge=1, le=20)  # 반환할 최대 유사 질문 수
+    min_score: float = Field(default=0.5, ge=0.0, le=1.0)  # 반환할 최소 유사도
+    top_k: int = Field(default=20, ge=1, le=50)  # 안전 상한
     user_id: str | None = None  # 이벤트 로그용 (DP-252) — 없으면 로깅 스킵
 
 

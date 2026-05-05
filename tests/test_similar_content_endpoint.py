@@ -103,7 +103,8 @@ def test_similar_contents_passes_content_id(client, mock_service) -> None:
 
     mock_service.search.assert_called_once_with(
         text="쿼리",
-        top_k=5,
+        top_k=20,
+        min_score=0.5,
         exclude_content_id="article-self",
     )
 
@@ -120,6 +121,7 @@ def test_similar_contents_custom_top_k(client, mock_service) -> None:
     mock_service.search.assert_called_once_with(
         text="쿼리",
         top_k=10,
+        min_score=0.5,
         exclude_content_id=None,
     )
 

@@ -89,20 +89,21 @@ def test_search_returns_empty_when_no_results(service) -> None:
     assert results == []
 
 
-def test_search_fetches_extra_when_excluding(service) -> None:
+def test_search_always_fetches_cap(service) -> None:
+    """threshold 주도 방식 — top_k/exclude 무관하게 항상 _FETCH_CAP(100)개 fetch."""
     service._retriever.search.return_value = []
 
     service.search("질문", top_k=5, exclude_question_id="q-001")
 
-    service._retriever.search.assert_called_once_with("질문", top_k=10)
+    service._retriever.search.assert_called_once_with("질문", top_k=100)
 
 
-def test_search_no_extra_fetch_without_exclude(service) -> None:
+def test_search_always_fetches_cap_without_exclude(service) -> None:
     service._retriever.search.return_value = []
 
     service.search("질문", top_k=5)
 
-    service._retriever.search.assert_called_once_with("질문", top_k=5)
+    service._retriever.search.assert_called_once_with("질문", top_k=100)
 
 
 def test_search_rounds_score(service) -> None:

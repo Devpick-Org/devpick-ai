@@ -129,18 +129,11 @@ def test_search_returns_empty_when_no_results(service) -> None:
     assert results == []
 
 
-def test_search_fetch_k_is_top_k_times_10(service) -> None:
+def test_search_always_fetches_cap(service) -> None:
+    """threshold 주도 방식 — top_k 무관하게 항상 _FETCH_CAP(100)개 fetch."""
     service._retriever.search.return_value = []
 
     service.search("쿼리", top_k=5)
-
-    service._retriever.search.assert_called_once_with("쿼리", top_k=50)
-
-
-def test_search_fetch_k_capped_at_100(service) -> None:
-    service._retriever.search.return_value = []
-
-    service.search("쿼리", top_k=20)
 
     service._retriever.search.assert_called_once_with("쿼리", top_k=100)
 

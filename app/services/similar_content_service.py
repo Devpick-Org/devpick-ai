@@ -77,10 +77,11 @@ class SimilarContentService:
         ][:top_k]
 
         logger.info(
-            "유사 콘텐츠 검색: query=%r, fetch_k=%d, unique_articles=%d, found=%d",
+            "유사 콘텐츠 검색: query=%r, min_score=%.2f, unique_articles=%d, found=%d, scores=%s",
             text[:50],
-            fetch_k,
+            min_score,
             len(best_scores),
             len(results),
+            [r.score for r in results],
         )
         return results

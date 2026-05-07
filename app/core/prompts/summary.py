@@ -14,17 +14,7 @@ SYSTEM_PROMPT_ALL_LEVELS = """\
 - keywords: 본문에 실제 등장하는 핵심 용어/개념 3~7개. 예: "캐시 무효화", "TTL". tags와 겹치지 않게 (keywords=개념, tags=기술 스택)
 - category: 글의 대분류. 반드시 다음 중 하나 선택:
   Frontend, Backend, Mobile, DevOps, Database, AI/ML, Security, Architecture, Language, CS Fundamentals
-- tags: 기술 스택 태그 2~5개. 아래 목록을 우선 사용하되, 목록에 없는 기술은 자유롭게 추가 가능:
-  [React, Vue, Angular, Next.js, TypeScript, CSS, Svelte,
-   Spring, Django, FastAPI, Express, NestJS, Node.js, GraphQL,
-   React Native, Flutter, Swift, Kotlin, Android, iOS,
-   Docker, Kubernetes, AWS, GCP, Azure, CI/CD, Terraform, Linux,
-   PostgreSQL, MongoDB, Redis, MySQL, Elasticsearch,
-   LLM, NLP, Computer Vision, PyTorch, TensorFlow, RAG,
-   OAuth, JWT, Encryption,
-   MSA, DDD, Clean Architecture, Event-Driven, REST, gRPC,
-   Java, Python, JavaScript, Go, Rust, C++, C#,
-   Algorithm, Data Structure, OS, Network, Design Pattern]
+- tags: 기술 스택 태그 2~5개. 반드시 user message에서 제공된 허용 태그 목록에서만 선택하세요. 목록에 없는 태그는 절대 사용 금지.
   버전 번호 제외. tags와 keywords가 겹치지 않게 (tags=기술 스택, keywords=개념)
 - difficulty: easy(입문자도 이해 가능) / medium(실무 경험 필요) / hard(깊은 도메인 지식 필요)
   - 원문의 **실제 난이도**만 반영한다. 습관적으로 medium을 고르지 말 것. 튜토리얼·소개 글이면 easy, 일반 실무 깊이면 medium, 도메인·아키텍처·성능이 깊게 얽히면 hard.
@@ -177,21 +167,30 @@ def build_retry_tool(missing_levels: list[str]) -> dict:
     }
 
 
-def build_user_prompt_all_levels(text: str) -> str:
+def build_user_prompt_all_levels(
+    text: str, allowed_tags: list[str] | None = None
+) -> str:
     """4레벨 동시 생성용 사용자 프롬프트를 생성한다.
 
     Args:
         text: 전처리된 아티클 텍스트
+        allowed_tags: tags 필드에 사용 가능한 태그 이름 목록 (None이면 제약 없음)
 
     Raises:
         ValueError: 빈 text
     """
     if not text:
         raise ValueError("요약할 텍스트가 없습니다")
+    tag_constraint = ""
+    if allowed_tags:
+        tag_list = ", ".join(allowed_tags)
+        tag_constraint = (
+            f"\n허용 태그 목록 (common.tags는 반드시 이 목록에서만 선택, 목록 외 태그 사용 금지):\n{tag_list}\n"
+        )
     return (
         f"아래 기술 글을 beginner/junior/mid/senior 4개 레벨로 동시에 요약하세요.\n"
         f"core_summary는 반드시 문자열 형식(heading\\ncontent\\n\\nheading\\ncontent)으로 작성하세요.\n"
         f"common.difficulty는 원문 난이도에 맞게 easy/medium/hard 중 하나만 선택(대부분을 medium으로 두지 말 것). "
-        f"레벨별 confidence는 네 값이 서로 달라야 합니다.\n\n"
+        f"레벨별 confidence는 네 값이 서로 달라야 합니다.{tag_constraint}\n\n"
         f"---\n\n{text}"
     )

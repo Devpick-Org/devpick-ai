@@ -194,6 +194,12 @@ class ContentRepository:
         )
         return result
 
+    def get_all_tag_names(self) -> list[str]:
+        """tags 테이블의 모든 태그 이름을 반환한다."""
+        with self._engine.connect() as conn:
+            rows = conn.execute(text("SELECT name FROM tags ORDER BY name")).fetchall()
+        return [row[0] for row in rows]
+
     def save_content_tags(self, content_id: str, tag_names: list[str]) -> None:
         """tag_names를 tags 테이블에서 조회해 content_tags에 INSERT한다.
 

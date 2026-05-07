@@ -85,6 +85,7 @@ class AllLevelsSummaryService:
         text: str,
         thumbnail_url: str | None = None,
         title: str | None = None,
+        allowed_tags: list[str] | None = None,
     ) -> AllLevelsSummaryResponse:
         """콘텐츠를 4개 레벨로 동시에 요약한다.
 
@@ -103,7 +104,7 @@ class AllLevelsSummaryService:
             AIInternalError: 파싱 실패 / tool_use 블록 없음
         """
         try:
-            user_prompt = build_user_prompt_all_levels(text)
+            user_prompt = build_user_prompt_all_levels(text, allowed_tags)
         except ValueError as exc:
             raise AIBadRequestError(str(exc)) from exc
 

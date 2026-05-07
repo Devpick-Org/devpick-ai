@@ -184,9 +184,7 @@ def build_user_prompt_all_levels(
     tag_constraint = ""
     if allowed_tags:
         tag_list = ", ".join(allowed_tags)
-        tag_constraint = (
-            f"\n허용 태그 목록 (common.tags는 반드시 이 목록에서만 선택, 목록 외 태그 사용 금지):\n{tag_list}\n"
-        )
+        tag_constraint = f"\n허용 태그 목록 (common.tags는 반드시 이 목록에서만 선택, 목록 외 태그 사용 금지):\n{tag_list}\n"
     return (
         f"아래 기술 글을 beginner/junior/mid/senior 4개 레벨로 동시에 요약하세요.\n"
         f"core_summary는 반드시 문자열 형식(heading\\ncontent\\n\\nheading\\ncontent)으로 작성하세요.\n"

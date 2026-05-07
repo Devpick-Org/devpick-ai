@@ -37,9 +37,13 @@ class ContentPipeline:
         if self._content_repo:
             try:
                 self._allowed_tags = self._content_repo.get_all_tag_names()
-                logger.info("[pipeline] 허용 태그 목록 로드: %d개", len(self._allowed_tags))
+                logger.info(
+                    "[pipeline] 허용 태그 목록 로드: %d개", len(self._allowed_tags)
+                )
             except Exception:
-                logger.warning("[pipeline] 허용 태그 목록 로드 실패 — 자유 태그 생성으로 폴백")
+                logger.warning(
+                    "[pipeline] 허용 태그 목록 로드 실패 — 자유 태그 생성으로 폴백"
+                )
         self._summary_svc = AllLevelsSummaryService(
             aws_region=bedrock_region, model=haiku_model
         )

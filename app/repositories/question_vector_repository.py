@@ -92,6 +92,14 @@ class QuestionVectorRepository:
                     item["embedding"] = _embedding_from_dynamo(item["embedding"])
                 yield item
 
+    def exists(self, question_id: str) -> bool:
+        """question_id가 이미 저장되어 있는지 확인한다."""
+        resp = self._table.get_item(
+            Key={"question_id": question_id},
+            ProjectionExpression="question_id",
+        )
+        return "Item" in resp
+
     def find_texts_by_ids(self, question_ids: list[str]) -> list[str]:
         """question_id 목록으로 질문 텍스트를 조회한다. 주간 인사이트 생성용 (DP-259).
 

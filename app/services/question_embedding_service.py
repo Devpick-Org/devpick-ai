@@ -52,6 +52,10 @@ class QuestionEmbeddingOrchestrator:
             logger.warning("질문 텍스트가 비어 있습니다 — question_id=%s", question_id)
             return
 
+        if self._question_repo.exists(question_id):
+            logger.info("이미 임베딩된 질문 스킵 — question_id=%s", question_id)
+            return
+
         embeddings = self._embedding_svc.embed([text])
         if not embeddings:
             logger.warning("임베딩 결과 없음 — question_id=%s", question_id)

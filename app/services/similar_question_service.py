@@ -51,15 +51,20 @@ class SimilarQuestionService:
         # threshold 주도 방식 — 통과 결과 수를 미리 알 수 없으므로 항상 최대 fetch
         raw_results = self._retriever.search(text, top_k=_FETCH_CAP)
 
+        seen_ids: set[str] = set()
         results: list[SimilarQuestion] = []
         for doc, score in raw_results:
-            if exclude_question_id and doc.metadata.content_id == exclude_question_id:
+            qid = doc.metadata.content_id
+            if exclude_question_id and qid == exclude_question_id:
                 continue
             if score < min_score:
                 continue
+            if qid in seen_ids:
+                continue
+            seen_ids.add(qid)
             results.append(
                 SimilarQuestion(
-                    question_id=doc.metadata.content_id,
+                    question_id=qid,
                     score=round(score, 4),
                     tags=doc.metadata.tags,
                 )

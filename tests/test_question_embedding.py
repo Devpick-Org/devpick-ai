@@ -27,6 +27,7 @@ def _make_orchestrator() -> tuple[QuestionEmbeddingOrchestrator, MagicMock, Magi
         mock_emb_cls.return_value = mock_emb
 
         mock_repo = MagicMock()
+        mock_repo.exists.return_value = False
         mock_repo_cls.return_value = mock_repo
 
         orch = QuestionEmbeddingOrchestrator(aws_region="us-east-1")
@@ -79,15 +80,17 @@ def test_embed_and_store_updates_faiss() -> None:
     orch._vector_store.save.assert_called_once()
 
 
-def test_embed_and_store_upserts_on_same_question_id() -> None:
-    """같은 question_id로 두 번 호출하면 save_question이 두 번 호출된다 (upsert는 repo 레이어 책임)."""
+def test_embed_and_store_skips_existing_question_id() -> None:
+    """이미 임베딩된 question_id는 두 번째 호출에서 skip된다."""
     orch, mock_emb, mock_repo = _make_orchestrator()
     mock_emb.embed.return_value = [[0.1] * 1024]
+    mock_repo.exists.side_effect = [False, True]
 
     orch.embed_and_store(question_id="q_001", text="첫 번째 텍스트")
     orch.embed_and_store(question_id="q_001", text="두 번째 텍스트")
 
-    assert mock_repo.save_question.call_count == 2
+    assert mock_repo.save_question.call_count == 1
+    assert mock_emb.embed.call_count == 1
 
 
 def test_embed_and_store_skips_empty_text() -> None:

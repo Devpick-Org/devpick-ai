@@ -9,6 +9,7 @@
 from __future__ import annotations
 
 import logging
+import re
 from datetime import datetime, timedelta, timezone
 
 import requests
@@ -219,10 +220,13 @@ class YouTubeCollector:
         text_blob = (
             (snippet.get("title") or "") + " " + (snippet.get("description") or "")
         ).lower()
-        yt_tags = {t.lower() for t in (snippet.get("tags") or [])}
-        return [
-            t for t in all_tag_names if t.lower() in text_blob or t.lower() in yt_tags
-        ]
+        yt_tags = [t.lower() for t in (snippet.get("tags") or [])]
+        matched = []
+        for t in all_tag_names:
+            pat = re.compile(r"\b" + re.escape(t.lower()) + r"\b")
+            if pat.search(text_blob) or any(pat.search(st) for st in yt_tags):
+                matched.append(t)
+        return matched
 
     # ------------------------------------------------------------------
     # NormalizedContent 변환

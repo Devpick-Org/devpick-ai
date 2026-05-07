@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import logging
 import os
-from datetime import datetime, time, timezone
+from datetime import datetime, time
 
 from dotenv import load_dotenv
 from fastapi import APIRouter, Depends, HTTPException, Response
@@ -12,9 +12,6 @@ from app.core.exceptions import AIBadRequestError
 from app.rag.retriever import RAGRetriever
 from app.repositories.answer_repository import AnswerRepository
 from app.repositories.event_repository import EventRepository
-from app.repositories.insight_repository import InsightRepository
-from app.repositories.user_repository import UserRepository
-from app.repositories.question_vector_repository import QuestionVectorRepository
 from app.repositories.quiz_repository import QuizRepository
 from app.repositories.summary_repository import SummaryRepository
 from app.repositories.vector_repository import VectorRepository
@@ -22,7 +19,6 @@ from app.repositories.content_repository import ContentRepository
 from app.repositories.trend_repository import TrendSnapshotRepository
 from app.schemas.answer import AnswerRequest, AnswerResponse, RelatedContent
 from app.schemas.event import EventType
-from app.schemas.insight import InsightRequest, InsightResponse
 from app.schemas.quiz import AllLevelsQuizResponse, QuizRequest
 from app.schemas.refine import RefineRequest, RefineResponse
 from app.schemas.similar_content import SimilarContentRequest, SimilarContentResponse
@@ -46,12 +42,17 @@ from app.schemas.job_ai import (
     SkillGapRequest,
     SkillGapResponse,
 )
+from app.schemas.report_keywords import (
+    ContentKeywordsRequest,
+    ContentKeywordsResponse,
+    QuestionKeywordsRequest,
+    QuestionKeywordsResponse,
+)
 from app.schemas.trend import TrendGenerateRequest, TrendResponse
 from app.services.all_levels_summary_service import AllLevelsSummaryService
 from app.services.answer_service import AnswerService
 from app.services.embedding_service import EmbeddingOrchestrator
 from app.services.quiz_service import QuizService
-from app.services.insight_service import InsightService
 from app.services.preprocess_service import PreprocessService
 from app.services.question_cleanup_service import cleanup_question_documents
 from app.services.question_embedding_service import QuestionEmbeddingOrchestrator
@@ -59,6 +60,7 @@ from app.services.refine_service import RefineService
 from app.services.similar_content_service import SimilarContentService
 from app.services.similar_question_service import SimilarQuestionService
 from app.services.job_ai_service import JobAiService
+from app.services.report_keywords_service import ReportKeywordsService
 from app.services.trend.orchestrator import (
     TrendOrchestrator,
     compute_period,
@@ -376,134 +378,6 @@ def search_similar_contents(body: SimilarContentRequest) -> SimilarContentRespon
 
 
 @router.post(
-    "/report",
-    response_model=InsightResponse,
-    dependencies=[Depends(verify_internal_key)],
-)
-def create_insight(body: InsightRequest) -> InsightResponse:
-    """주간 리포트 AI 인사이트 생성 (DP-259).
-
-    백엔드가 주간 리포트 생성 후 호출한다.
-    에러는 전역 핸들러(AIServiceError)가 처리한다.
-    DynamoDB 저장 실패는 무시하고 InsightResponse를 반환한다.
-    """
-    # Step 0. 유저 관심 키워드 + 미탐색 태그 기반 추천 글 조회 (PostgreSQL)
-    user_keywords: list[str] = []
-    unmatched_keywords: list[str] = []
-    recommended_contents: list[dict] = []
-    if _DATABASE_URL:
-        try:
-            user_repo = UserRepository(database_url=_DATABASE_URL)
-            user_keywords = user_repo.find_keywords_by_user_id(body.user_id)
-
-            active_tags = {t.tag_name.lower() for t in body.activities.tag_activities}
-            if not active_tags:
-                active_tags = {t.tag.lower() for t in body.activities.top_tags}
-            unmatched_keywords = [
-                k for k in user_keywords if k.lower() not in active_tags
-            ]
-
-            if unmatched_keywords:
-                recommended_contents = user_repo.find_contents_by_tag_names(
-                    unmatched_keywords
-                )
-        except Exception:
-            logger.exception(
-                "Failed to fetch user keywords/recommendations from PostgreSQL"
-            )
-
-    # Step 1. 주간 AI 이벤트 카운트 (event_logs 조회)
-    ai_events: dict = {"refine": 0, "answer": 0, "similar": 0}
-    try:
-        week_start_dt = datetime.fromisoformat(body.week_start).replace(
-            tzinfo=timezone.utc
-        )
-        week_end_dt = datetime.fromisoformat(body.week_end).replace(tzinfo=timezone.utc)
-        events = EventRepository(aws_region=_AWS_REGION).find_by_user(
-            user_id=body.user_id,
-            start=week_start_dt,
-            end=week_end_dt,
-        )
-        ai_events = {
-            "refine": sum(
-                1 for e in events if e["event_type"] == EventType.QUESTION_REFINED.value
-            ),
-            "answer": sum(
-                1 for e in events if e["event_type"] == EventType.ANSWER_GENERATED.value
-            ),
-            "similar": sum(
-                1
-                for e in events
-                if e["event_type"] == EventType.SIMILAR_QUESTIONS_SEARCHED.value
-            ),
-        }
-    except Exception:
-        logger.exception("Failed to fetch AI event counts from DynamoDB")
-
-    # Step 2. 읽은 글 / 스크랩한 글 one_line_summary 조회
-    read_summaries: list[dict] = []
-    scrapped_summaries: list[dict] = []
-    try:
-        repo = SummaryRepository(aws_region=_AWS_REGION)
-        if body.activities.read_content_ids:
-            read_summaries = repo.find_by_content_ids(body.activities.read_content_ids)
-        if body.activities.scrapped_content_ids:
-            scrapped_summaries = repo.find_by_content_ids(
-                body.activities.scrapped_content_ids
-            )
-    except Exception:
-        logger.exception("Failed to fetch article summaries from DynamoDB")
-
-    # Step 3. 작성한 질문 텍스트 조회
-    question_texts: list[str] = []
-    if body.activities.question_ids:
-        try:
-            question_texts = QuestionVectorRepository(
-                aws_region=_AWS_REGION
-            ).find_texts_by_ids(body.activities.question_ids)
-        except Exception:
-            logger.exception("Failed to fetch question texts from DynamoDB")
-
-    # Step 4. 인사이트 생성
-    result = InsightService(
-        aws_region=_BEDROCK_REGION, model=_BEDROCK_MODEL_HAIKU
-    ).generate(
-        activities=body.activities,
-        ai_events=ai_events,
-        read_summaries=read_summaries,
-        scrapped_summaries=scrapped_summaries,
-        question_texts=question_texts,
-        week_start=body.week_start,
-        week_end=body.week_end,
-        user_keywords=user_keywords,
-        unmatched_keywords=unmatched_keywords,
-        recommended_contents=recommended_contents,
-    )
-    result.report_id = body.report_id
-
-    # Step 5. 인사이트 DynamoDB 저장 (fire-and-forget)
-    try:
-        InsightRepository(aws_region=_AWS_REGION).save(
-            report_id=body.report_id,
-            user_id=body.user_id,
-            response=result,
-        )
-    except Exception:
-        logger.exception("Failed to save insight to DynamoDB")
-
-    # Step 6. 이벤트 로그 저장 (fire-and-forget)
-    try:
-        EventRepository(aws_region=_AWS_REGION).save_event(
-            user_id=body.user_id,
-            event_type=EventType.INSIGHT_GENERATED,
-        )
-    except Exception:
-        logger.exception("Failed to save insight event log")
-
-    return result
-
-
-@router.post(
     "/quiz",
     response_model=AllLevelsQuizResponse,
     dependencies=[Depends(verify_internal_key)],
@@ -689,3 +563,27 @@ def finalize_mock_interview(
 ) -> MockInterviewFinalizeResponse:
     """면접 종료 시 5개 영역 점수, QA별 모범답안, 종합 피드백 생성."""
     return _job_ai_service().finalize_mock_interview(body)
+
+
+@router.post(
+    "/report/content-keywords",
+    response_model=ContentKeywordsResponse,
+    dependencies=[Depends(verify_internal_key)],
+)
+def extract_content_keywords(body: ContentKeywordsRequest) -> ContentKeywordsResponse:
+    """읽은 글 목록에서 TF-IDF 키워드 추출 (DP-459)."""
+    return ReportKeywordsService().extract_content_keywords(body.contents)
+
+
+@router.post(
+    "/report/question-keywords",
+    response_model=QuestionKeywordsResponse,
+    dependencies=[Depends(verify_internal_key)],
+)
+def extract_question_keywords(
+    body: QuestionKeywordsRequest,
+) -> QuestionKeywordsResponse:
+    """기술/커리어 질문에서 TF-IDF 키워드 추출 (DP-459)."""
+    return ReportKeywordsService().extract_question_keywords(
+        body.tech_questions, body.career_questions
+    )

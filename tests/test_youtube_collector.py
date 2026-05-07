@@ -71,3 +71,34 @@ def test_map_tags_no_match_returns_empty() -> None:
     video = _video(title="재미있는 요리 영상", snippet_tags=["cooking"])
     result = YouTubeCollector._map_tags(video, ["Python", "React"])
     assert result == []
+
+
+# ── 단어 경계 매칭 (DP-466) ──────────────────────────────────────────────────
+
+
+def test_map_tags_no_false_positive_short_tag_in_longer_word() -> None:
+    # "django"에 "go" 부분 문자열이 포함되지만 독립 단어가 아니므로 매칭 안 됨
+    video = _video(title="Django tutorial for beginners")
+    result = YouTubeCollector._map_tags(video, ["Go", "Python"])
+    assert "Go" not in result
+
+
+def test_map_tags_word_boundary_standalone_match() -> None:
+    # "Go"가 독립 단어로 등장할 때는 정상 매칭
+    video = _video(title="Learn Go programming from scratch")
+    result = YouTubeCollector._map_tags(video, ["Go"])
+    assert "Go" in result
+
+
+def test_map_tags_no_false_positive_in_description() -> None:
+    # 설명에 "going"이 포함돼도 "Go" 태그가 매칭되면 안 됨
+    video = _video(description="GitHub is going through major issues")
+    result = YouTubeCollector._map_tags(video, ["Go"])
+    assert "Go" not in result
+
+
+def test_map_tags_snippet_tag_word_boundary() -> None:
+    # snippet tag "golang"에 "go"가 포함되지만 독립 단어가 아니므로 매칭 안 됨
+    video = _video(snippet_tags=["golang"])
+    result = YouTubeCollector._map_tags(video, ["Go"])
+    assert "Go" not in result

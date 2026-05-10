@@ -203,9 +203,7 @@ def test_missing_optional_fields_uses_fallback() -> None:
                         "toolUse": {
                             "toolUseId": "tool-1",
                             "name": "save_answer",
-                            "input": {
-                                "answer_content": "답변만"
-                            },
+                            "input": {"answer_content": "답변만"},
                         }
                     }
                 ]

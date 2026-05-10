@@ -189,8 +189,8 @@ def test_empty_refined_content_raises() -> None:
         svc.answer(refined_title="제목", refined_content="")
 
 
-def test_validation_error_raises_ai_internal_error() -> None:
-    """AnswerResponse 파싱 실패 → AIInternalError."""
+def test_missing_optional_fields_uses_fallback() -> None:
+    """key_points/suggested_tags/confidence 누락 시 fallback 값으로 정상 반환."""
     with patch("boto3.client"):
         svc = AnswerService(aws_region="us-east-1")
 
@@ -205,7 +205,7 @@ def test_validation_error_raises_ai_internal_error() -> None:
                             "name": "save_answer",
                             "input": {
                                 "answer_content": "답변만"
-                            },  # 필수 필드 대부분 누락
+                            },
                         }
                     }
                 ]
@@ -214,8 +214,13 @@ def test_validation_error_raises_ai_internal_error() -> None:
     }
     svc._client = mock_client
 
-    with pytest.raises(AIInternalError, match="파싱"):
-        svc.answer(refined_title="질문", refined_content="본문")
+    result, references = svc.answer(refined_title="질문", refined_content="본문")
+
+    assert result.answer_content == "답변만"
+    assert result.key_points == []
+    assert result.suggested_tags == []
+    assert result.confidence == 0.7
+    assert references == []
 
 
 # ─── SDK 예외 → 커스텀 예외 변환 단위 테스트 ───────────────────────

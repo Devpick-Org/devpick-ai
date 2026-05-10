@@ -94,7 +94,7 @@ class AnswerService:
                 ],
                 messages=[{"role": "user", "content": [{"text": user_prompt}]}],
                 toolConfig=to_tool_config(ANSWER_TOOL, _TOOL_NAME),
-                inferenceConfig={"maxTokens": 4096, "temperature": 0.0},
+                inferenceConfig={"maxTokens": 64000, "temperature": 0.0},
             )
         except ReadTimeoutError as exc:
             logger.warning("LLM 타임아웃: %s", exc)
@@ -123,8 +123,13 @@ class AnswerService:
         references: list[str] = raw_input.pop("references", [])
 
         try:
+            raw_confidence = raw_input.get("confidence", 0.7)
             payload = {
+                # Tool Use required 필드지만 LLM 비준수 시 fallback으로 500 방지
+                "key_points": [],
+                "suggested_tags": [],
                 **raw_input,
+                "confidence": min(1.0, max(0.0, raw_confidence)),
                 "related_contents": [],  # 라우터에서 채움
                 "generated_at": datetime.now(tz=timezone.utc).isoformat(),
             }

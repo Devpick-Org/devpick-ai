@@ -1,10 +1,10 @@
 """DynamoDB ai_summaries → PostgreSQL contents tags/category 동기화.
 
-이미 요약이 생성된 콘텐츠 중 PostgreSQL에 tags/category가 없는 항목을
-DynamoDB에서 읽어 PostgreSQL에 써준다. LLM 재호출 없음.
+이미 요약이 생성된 콘텐츠 중 content_tags가 없는 항목을 DynamoDB에서 읽어
+PostgreSQL content_tags에 INSERT한다. LLM 재호출 없음.
 
 사용 예:
-    # category IS NULL인 전체 콘텐츠 동기화
+    # content_tags 없는 전체 콘텐츠 동기화 (YouTube 제외)
     DATABASE_URL=postgresql://... python scripts/sync_ai_metadata.py
 
     # 특정 content_id만
@@ -35,12 +35,20 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(mess
 logger = logging.getLogger(__name__)
 
 
-def _fetch_no_category_ids(engine) -> list[str]:
-    """PostgreSQL에서 category가 없는 content_id 목록을 조회한다."""
+def _fetch_missing_content_tag_ids(engine) -> list[str]:
+    """PostgreSQL에서 content_tags가 없는 content_id 목록을 조회한다 (YouTube 제외)."""
     with engine.connect() as conn:
-        rows = conn.execute(
-            text("SELECT id FROM contents WHERE category IS NULL ORDER BY created_at")
-        ).fetchall()
+        rows = conn.execute(text("""
+                SELECT c.id FROM contents c
+                JOIN content_sources cs ON cs.id = c.source_id
+                WHERE c.is_available = true
+                  AND c.category IS NOT NULL
+                  AND cs.name <> 'YouTube'
+                  AND NOT EXISTS (
+                      SELECT 1 FROM content_tags ct WHERE ct.content_id = c.id
+                  )
+                ORDER BY c.created_at
+            """)).fetchall()
     return [str(row[0]) for row in rows]
 
 
@@ -73,6 +81,8 @@ def sync_one(
             tags=tags,
             category=str(category),
         )
+        if tags:
+            content_repo.save_content_tags(content_id=content_id, tag_names=tags)
         logger.info(
             "[%s] 동기화 완료 — category=%s tags=%s", content_id, category, tags
         )
@@ -98,8 +108,8 @@ def main(content_ids: list[str] | None = None) -> None:
         target_ids = content_ids
         logger.info("지정된 content_id %d개 처리", len(target_ids))
     else:
-        target_ids = _fetch_no_category_ids(engine)
-        logger.info("category 없는 콘텐츠 %d개 발견", len(target_ids))
+        target_ids = _fetch_missing_content_tag_ids(engine)
+        logger.info("content_tags 없는 콘텐츠 %d개 발견", len(target_ids))
 
     engine.dispose()
 
@@ -127,7 +137,7 @@ if __name__ == "__main__":
         "--content-id",
         nargs="+",
         metavar="CONTENT_ID",
-        help="특정 content_id만 처리 (생략 시 category IS NULL 전체 처리)",
+        help="특정 content_id만 처리 (생략 시 content_tags 없는 전체 처리)",
     )
     args = parser.parse_args()
     main(content_ids=args.content_id)

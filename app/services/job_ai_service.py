@@ -471,7 +471,7 @@ class JobAiService:
         user = json.dumps(payload, ensure_ascii=False)
         try:
             model = self._resolve_model_key(body.model_key)
-            raw = self._converse_text(model, sys, user, max_tokens=8192)
+            raw = self._converse_text(model, sys, user, max_tokens=16384)
             data = _extract_json_object(raw)
             return MockInterviewFinalizeResponse.model_validate(data)
         except Exception as exc:  # noqa: BLE001

@@ -41,7 +41,8 @@ class TrendSnapshotRepository:
         payload_json = payload.model_dump_json()
         with self._engine.begin() as conn:
             conn.execute(
-                text("""
+                text(
+                    """
                     INSERT INTO trend_snapshots
                         (id, created_at, unit, scope, period_start, period_end, payload, generated_at, expires_at)
                     VALUES
@@ -53,7 +54,8 @@ class TrendSnapshotRepository:
                         payload      = EXCLUDED.payload,
                         generated_at = EXCLUDED.generated_at,
                         expires_at   = EXCLUDED.expires_at
-                """),
+                """
+                ),
                 {
                     "unit": unit,
                     "scope": scope,
@@ -75,12 +77,14 @@ class TrendSnapshotRepository:
         """unit+scope 기준 가장 최근 period_start 스냅샷을 반환한다."""
         with self._engine.begin() as conn:
             row = conn.execute(
-                text("""
+                text(
+                    """
                     SELECT payload FROM trend_snapshots
                     WHERE unit = :unit AND scope = :scope
                     ORDER BY period_start DESC
                     LIMIT 1
-                """),
+                """
+                ),
                 {"unit": unit, "scope": scope},
             ).fetchone()
         if row is None:
@@ -96,11 +100,13 @@ class TrendSnapshotRepository:
         """특정 (unit, scope, period_start) 스냅샷 1건을 반환한다."""
         with self._engine.begin() as conn:
             row = conn.execute(
-                text("""
+                text(
+                    """
                     SELECT payload FROM trend_snapshots
                     WHERE unit = :unit AND scope = :scope AND period_start = :period_start
                     LIMIT 1
-                """),
+                """
+                ),
                 {"unit": unit, "scope": scope, "period_start": period_start},
             ).fetchone()
         if row is None:

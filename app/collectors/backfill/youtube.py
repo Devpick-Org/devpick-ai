@@ -32,7 +32,6 @@ _VIDEOS_PER_CHANNEL = 1
 _MAX_AGE_DAYS = 365  # 1년 이내 영상만 수집
 
 _CHANNEL_LIST = [
-    # 국내
     {"id": "UCSLrpBAzr-ROVGHQ5EmxnUg", "name": "코딩애플"},
     {"id": "UC_4u-bXaba7yrRz_6x6kb_w", "name": "드림코딩"},
     {"id": "UC2nkWbaJt1KQDi2r2XclzTQ", "name": "얄팍한코딩사전"},
@@ -41,17 +40,14 @@ _CHANNEL_LIST = [
     {"id": "UCvc8kv-i5fvFTJBFAk6n1SA", "name": "생활코딩"},
     {"id": "UCbMGBIayK26L4VaFrs5jyBw", "name": "개발하는남자"},
     {"id": "UCUpJs89fSBXNolQGOYKn0YQ", "name": "노마드코더"},
-    # 해외
-    {"id": "UCsBjURrPoezykLs9EqgamOA", "name": "Fireship"},
-    {"id": "UCZgt6AzoyjslHTC9dz0UoTw", "name": "ByteByteGo"},
-    {"id": "UC8butISFwT-Wl7EV0hUK0BQ", "name": "freeCodeCamp"},
-    {"id": "UC29ju8bIPH5as8OGnQzwJyA", "name": "Traversy Media"},
-    {"id": "UCFbNIlppjAuEX4znoulh0Cw", "name": "Web Dev Simplified"},
-    {"id": "UCdngmbVKX1Tgre699-XLlUA", "name": "TechWorld with Nana"},
-    {"id": "UCbRP3c757lWg9M-U7TyEkXA", "name": "Theo (t3.gg)"},
-    {"id": "UC8ENHE5xdFSwx71u3fDH5Xw", "name": "ThePrimeagen"},
-    {"id": "UC9x0AN7BWHpCDHSm9NiJFJQ", "name": "NetworkChuck"},
-    {"id": "UC_ML5xP23TOWKUcc-oAE_Eg", "name": "Hussein Nasser"},
+    {"id": "UC-mOekGSesms0agFntnQang", "name": "우아한Tech"},
+    {"id": "UCNrehnUq7Il-J7HQxrzp7CA", "name": "NAVER D2"},
+    {"id": "UCReNwSTQ1RqDZDnG9Qz_gyg", "name": "쉬운코드"},
+    {"id": "UCVrhnbfe78ODeQglXtT1Elw", "name": "메타코딩"},
+    {"id": "UC7iAOLiALt2rtMVAWWl4pnw", "name": "나도코딩"},
+    {"id": "UCdGTtaI-ERLjzZNLuBj3X6A", "name": "널널한 개발자 TV"},
+    {"id": "UC0Y0T9JpgIBbyGDjvy9PbOg", "name": "인프런"},
+    {"id": "UCFDbz39kFPvU0AUpgHx4ICw", "name": "김버그"},
 ]
 
 

@@ -39,22 +39,34 @@ def main() -> None:
             conn.execute(text("SELECT 1"))
             print("[init_postgres] PostgreSQL 연결 성공")
 
-            conn.execute(text("""
+            conn.execute(
+                text(
+                    """
                     CREATE UNIQUE INDEX IF NOT EXISTS idx_contents_canonical_url
                     ON contents (canonical_url)
-                """))
+                """
+                )
+            )
             print("[init_postgres] idx_contents_canonical_url — OK")
 
-            conn.execute(text("""
+            conn.execute(
+                text(
+                    """
                     CREATE UNIQUE INDEX IF NOT EXISTS idx_content_sources_name
                     ON content_sources (name)
-                """))
+                """
+                )
+            )
             print("[init_postgres] idx_content_sources_name — OK")
 
-            conn.execute(text("""
+            conn.execute(
+                text(
+                    """
                     CREATE UNIQUE INDEX IF NOT EXISTS idx_contents_source_title
                     ON contents (source_id, lower(title))
-                """))
+                """
+                )
+            )
             print("[init_postgres] idx_contents_source_title — OK")
 
         print("[init_postgres] 초기화 완료")

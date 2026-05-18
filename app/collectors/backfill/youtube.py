@@ -27,8 +27,7 @@ _VIDEOS_URL = "https://www.googleapis.com/youtube/v3/videos"
 _VIDEOS_BATCH_SIZE = 50
 _PREVIEW_MAX_LEN = 260
 
-# TODO: 테스트용 — 채널당 1개만 수집. 운영 시 10으로 변경
-_VIDEOS_PER_CHANNEL = 1
+_VIDEOS_PER_CHANNEL = 10
 _MAX_AGE_DAYS = 365  # 1년 이내 영상만 수집
 
 _CHANNEL_LIST = [

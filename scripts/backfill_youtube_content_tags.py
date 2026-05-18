@@ -19,6 +19,8 @@ if str(PROJECT_ROOT) not in sys.path:
 
 from dotenv import load_dotenv
 
+from app.collectors.backfill.youtube import KOREAN_SYNONYMS
+
 load_dotenv()
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
@@ -69,9 +71,15 @@ def main() -> None:
 
         for content_id, title, preview in rows:
             text_blob = ((title or "") + " " + (preview or "")).lower()
-            matched_tag_ids = [
-                tag_id for tag_id, tag_name in all_tags if tag_name.lower() in text_blob
-            ]
+            matched_tag_ids = []
+            for tag_id, tag_name in all_tags:
+                t_lower = tag_name.lower()
+                if t_lower in text_blob:
+                    matched_tag_ids.append(tag_id)
+                    continue
+                synonyms = KOREAN_SYNONYMS.get(t_lower, [])
+                if any(syn in text_blob for syn in synonyms):
+                    matched_tag_ids.append(tag_id)
 
             if not matched_tag_ids:
                 skipped_total += 1

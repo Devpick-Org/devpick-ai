@@ -30,6 +30,47 @@ _PREVIEW_MAX_LEN = 260
 _VIDEOS_PER_CHANNEL = 10
 _MAX_AGE_DAYS = 365  # 1년 이내 영상만 수집
 
+# 한국어 제목 영상에서 영어 태그를 매칭하기 위한 동의어 사전
+# key: tags 테이블의 태그명 소문자, value: 한국어/변형 표현 목록
+KOREAN_SYNONYMS: dict[str, list[str]] = {
+    "spring boot": ["스프링부트", "스프링 부트", "스프링"],
+    "spring": ["스프링"],
+    "react": ["리액트"],
+    "typescript": ["타입스크립트"],
+    "javascript": ["자바스크립트"],
+    "python": ["파이썬"],
+    "java": ["자바"],
+    "kotlin": ["코틀린"],
+    "kubernetes": ["쿠버네티스", "k8s"],
+    "docker": ["도커"],
+    "aws": ["아마존", "아마존 웹 서비스"],
+    "git": ["깃"],
+    "github": ["깃허브"],
+    "ci/cd": ["배포 자동화", "깃허브 액션", "github actions"],
+    "redis": ["레디스"],
+    "next.js": ["넥스트", "넥스트js", "nextjs"],
+    "node.js": ["노드", "노드js", "nodejs"],
+    "mysql": ["마이에스큐엘", "마이sql"],
+    "mongodb": ["몽고db", "몽고디비"],
+    "postgresql": ["포스트그레스", "postgres"],
+    "algorithm": ["알고리즘"],
+    "data structure": ["자료구조"],
+    "rust": ["러스트"],
+    "go": ["고언어", "golang"],
+    "security": ["보안"],
+    "caching": ["캐싱", "캐시"],
+    "clean code": ["클린 코드", "클린코드"],
+    "testing": ["테스트", "테스팅"],
+    "debugging": ["디버깅", "디버그"],
+    "open source": ["오픈소스"],
+    "code review": ["코드리뷰", "코드 리뷰"],
+    "backend": ["백엔드"],
+    "frontend": ["프론트엔드", "프론트"],
+    "database": ["데이터베이스", "데이터 베이스"],
+    "api": ["에이피아이"],
+    "msa": ["마이크로서비스", "마이크로 서비스"],
+}
+
 _CHANNEL_LIST = [
     {"id": "UCSLrpBAzr-ROVGHQ5EmxnUg", "name": "코딩애플"},
     {"id": "UC_4u-bXaba7yrRz_6x6kb_w", "name": "드림코딩"},
@@ -218,8 +259,13 @@ class YouTubeCollector:
         yt_tags = [t.lower() for t in (snippet.get("tags") or [])]
         matched = []
         for t in all_tag_names:
-            pat = re.compile(r"\b" + re.escape(t.lower()) + r"\b")
+            t_lower = t.lower()
+            pat = re.compile(r"\b" + re.escape(t_lower) + r"\b")
             if pat.search(text_blob) or any(pat.search(st) for st in yt_tags):
+                matched.append(t)
+                continue
+            synonyms = KOREAN_SYNONYMS.get(t_lower, [])
+            if any(syn in text_blob for syn in synonyms):
                 matched.append(t)
         return matched
 

@@ -38,9 +38,7 @@ logger = logging.getLogger(__name__)
 def _fetch_missing_content_tag_ids(engine) -> list[str]:
     """PostgreSQL에서 content_tags가 없는 content_id 목록을 조회한다 (YouTube 제외)."""
     with engine.connect() as conn:
-        rows = conn.execute(
-            text(
-                """
+        rows = conn.execute(text("""
                 SELECT c.id FROM contents c
                 JOIN content_sources cs ON cs.id = c.source_id
                 WHERE c.is_available = true
@@ -50,9 +48,7 @@ def _fetch_missing_content_tag_ids(engine) -> list[str]:
                       SELECT 1 FROM content_tags ct WHERE ct.content_id = c.id
                   )
                 ORDER BY c.created_at
-            """
-            )
-        ).fetchall()
+            """)).fetchall()
     return [str(row[0]) for row in rows]
 
 
@@ -68,6 +64,7 @@ def sync_one(
     item = items[0]
     tags = item.get("tags")
     category = item.get("category")
+    translated_title = item.get("translated_title") or None
 
     if not category:
         logger.warning("[%s] DynamoDB 아이템에 category 없음 — 스킵", content_id)
@@ -84,11 +81,16 @@ def sync_one(
             content_id=content_id,
             tags=tags,
             category=str(category),
+            translated_title=translated_title,
         )
         if tags:
             content_repo.save_content_tags(content_id=content_id, tag_names=tags)
         logger.info(
-            "[%s] 동기화 완료 — category=%s tags=%s", content_id, category, tags
+            "[%s] 동기화 완료 — category=%s tags=%s translated_title=%s",
+            content_id,
+            category,
+            tags,
+            translated_title,
         )
         return True
     except Exception:

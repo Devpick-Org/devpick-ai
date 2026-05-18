@@ -91,6 +91,17 @@ _CHANNEL_LIST = [
 ]
 
 
+def _parse_duration_seconds(duration: str) -> int:
+    """ISO 8601 duration 문자열을 초로 변환 (예: PT1M30S → 90)."""
+    match = re.fullmatch(
+        r"P(?:(\d+)D)?T(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?", duration or ""
+    )
+    if not match:
+        return 0
+    days, hours, minutes, seconds = (int(v or 0) for v in match.groups())
+    return days * 86400 + hours * 3600 + minutes * 60 + seconds
+
+
 class YouTubeCollector:
     """YouTube 채널 기반 영상 수집기.
 
@@ -302,6 +313,9 @@ class YouTubeCollector:
         channel_name = channel_map.get(video_id) or snippet.get("channelTitle") or ""
         description = snippet.get("description") or ""
         duration = content_details.get("duration", "PT0S")
+
+        if _parse_duration_seconds(duration) <= 60:
+            return None
 
         thumbnails = snippet.get("thumbnails", {})
         thumbnail_url = (

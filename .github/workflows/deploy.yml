@@ -35,5 +35,6 @@ jobs:
               exit 1
             fi
             $DC down --remove-orphans || true
+            docker builder prune -f || true
             $DC build
             $DC up -d

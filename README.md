@@ -1,79 +1,114 @@
-# Devpick AI
+# DevPick AI Server
 
-DevPick 캡스톤 프로젝트의 AI 서버입니다.
+[![AI PR Checks](https://github.com/Devpick-Org/devpick-ai/actions/workflows/ai-pr-check.yml/badge.svg)](https://github.com/Devpick-Org/devpick-ai/actions/workflows/ai-pr-check.yml)
+[![Python 3.12](https://img.shields.io/badge/python-3.12-blue.svg)](https://www.python.org/downloads/release/python-3120/)
+[![FastAPI](https://img.shields.io/badge/FastAPI-0.116-green.svg)](https://fastapi.tiangolo.com)
 
-**커밋·푸시 전:** `develop` / `developV2`에 Python 변경을 올리기 전에 [CI 파이프라인](#ci-파이프라인-pr-체크)과 **동일한 로컬 검사**(`ruff` → `black` → `pytest`)를 먼저 통과시키세요. 푸시 후에야 실패하는 **GitHub Actions `AI PR Checks`**(`.github/workflows/ai-pr-check.yml`)를 미리 맞춰 두면 빨간 CI를 줄일 수 있습니다.
+**DevPick** 플랫폼의 AI 처리 서버입니다.
+
+개발 콘텐츠 수집 · AI 요약/퀴즈 생성 · RAG 기반 질문 답변 · 채용 AI · 트렌드 분석까지, 개발자 성장형 통합 플랫폼의 AI 파이프라인 전체를 담당합니다.
+
+---
+
+## 주요 기능
+
+| 기능 | 설명 |
+|------|------|
+| **콘텐츠 수집** | 30개 소스(국내외 기업 블로그, Velog, Stack Overflow, YouTube 등) 통합 수집 → PostgreSQL 저장 |
+| **4레벨 AI 요약** | 입문·주니어·중급·시니어 수준별 요약 자동 생성 (Claude Haiku, Bedrock 1회 호출) |
+| **4레벨 퀴즈 생성** | 레벨별 문제·보기·해설 자동 생성 (Claude Haiku, 요약과 독립 실행) |
+| **RAG 질문 답변** | FAISS 벡터 검색 + Claude Tool Use 기반 AI 답변 생성 |
+| **채용 AI** | JD 파싱 · 면접 Q&A 생성 · 스킬 갭 분석 · 모의면접 (Claude Sonnet) |
+| **이력서 처리** | 이력서 텍스트 → 마스터 이력서 JSON 파싱 · 보강 |
+| **트렌드 분석** | 일/주/월 단위 태그 빈도 · TF-IDF · LLM 서사 요약 → PostgreSQL 저장 |
+| **주간 인사이트** | 사용자 태그 기반 미탐색 콘텐츠 추천 + 학습 리포트 생성 |
+
+---
+
+## 시스템 아키텍처
+
+```
+브라우저
+  └─ Nginx
+      └─ Next.js (프론트, :3000)
+          └─ Spring Boot (백엔드, :8080)
+              ├─ PostgreSQL (:5432)      ← 콘텐츠·트렌드 저장
+              ├─ Redis (:6379)           ← 요약·퀴즈 캐시
+              └─ FastAPI AI 서버 (:8000)   ← 이 레포
+                  ├─ DynamoDB (AWS)      ← 요약·퀴즈·RAG·로그 저장
+                  └─ FAISS (로컬)        ← 콘텐츠·질문 벡터 인덱스
+```
+
+---
+
+## 기술 스택
+
+| 구분 | 기술 | 비고 |
+|------|------|------|
+| 언어 | Python 3.12 | |
+| 프레임워크 | FastAPI 0.116 | |
+| LLM | Claude Haiku 4.5 / Sonnet 4.6 | AWS Bedrock Converse API + Tool Use |
+| 임베딩 | Amazon Titan Embeddings v2 | AWS Bedrock |
+| DB (관계형) | PostgreSQL | AI 서버가 직접 저장 (Backend push 없음) |
+| DB (비정형) | Amazon DynamoDB | 요약·퀴즈·RAG·이벤트 로그 |
+| 벡터 검색 | FAISS | 로컬 인덱스 (`data/vectors/`) |
+| RAG | LangChain + FAISS | 청킹·임베딩·검색 |
+| 형태소 분석 | kiwipiepy | 한국어 TF-IDF 전처리 |
+| 태그 정규화 | rapidfuzz | 유사 태그 병합 |
+| 스케줄링 | APScheduler | 수집·트렌드 배치 |
+| 린트/포맷 | ruff, black | CI 자동 체크 |
+| 테스트 | pytest | CI 자동 실행 |
+
+---
 
 ## 설치 및 실행
 
+### 1. 의존성 설치
+
 ```bash
 pip install -r requirements.txt
-uvicorn main:app --reload
 ```
 
-## 환경변수 설정
-
-`.env.example` 파일을 복사해 `.env` 파일을 생성하세요.
+### 2. 환경변수 설정
 
 ```bash
+# macOS / Linux
 cp .env.example .env
-```
 
-Windows PowerShell에서는 아래 명령을 사용하세요.
-
-```powershell
+# Windows PowerShell
 Copy-Item .env.example .env
 ```
 
-## 헬스체크 호출 예시
+주요 환경변수:
+
+| 변수 | 설명 | 기본값 |
+|------|------|--------|
+| `DATABASE_URL` | PostgreSQL 접속 URL | 필수 |
+| `INTERNAL_API_KEY` | Spring ↔ AI 서버 인증 키 | 필수 |
+| `AWS_REGION` | AWS 기본 리전 | `ap-northeast-2` |
+| `BEDROCK_MODEL_HAIKU` | 요약·퀴즈용 모델 ID | `claude-haiku-4-5` |
+| `BEDROCK_MODEL_SONNET` | 답변·채용 AI용 모델 ID | `claude-sonnet-4-6` |
+| `YOUTUBE_API_KEY` | YouTube Data API v3 | 선택 |
+| `BACKEND_URL` | 트렌드 캐시 무효화 대상 | `http://localhost:8080` |
+
+### 3. 개발 서버 실행
+
+```bash
+uvicorn main:app --reload
+```
+
+### 4. 헬스체크
 
 ```bash
 curl http://127.0.0.1:8000/health
+# {"status":"ok"}
 ```
 
-응답 예시:
+---
 
-```json
-{"status":"ok"}
-```
+## AI 처리 파이프라인
 
-## Internal API (Spring ↔ FastAPI 내부 통신)
-
-Spring Boot가 AI 서버와 통신할 때 사용하는 내부 전용 API다.
-Base URL: `http://ai-server:8000/internal`
-
-### 인증
-
-모든 `/internal/*` 엔드포인트는 `X-Internal-Key` 헤더 인증이 필요하다.
-키 값은 `.env`의 `INTERNAL_API_KEY`로 관리한다.
-
-| 상황 | 응답 |
-|------|------|
-| 헤더 없음 | 422 |
-| 키 불일치 | 401 |
-| 키 일치 | 200 |
-
-### 엔드포인트
-
-| 메서드 | 경로 | 설명 |
-|--------|------|------|
-| GET | `/internal/health` | AI 서버 내부 헬스체크 |
-| POST | `/internal/summaries` | 4레벨 동시 요약 생성 — DynamoDB ai_summaries 저장 + RAG 임베딩 (DP-300) |
-| POST | `/internal/quiz` | 4레벨 퀴즈 생성 — DynamoDB ai_quizzes 저장 (DP-265) |
-| POST | `/internal/refine` | AI 질문 개선 (DP-231) |
-| POST | `/internal/answer` | AI 1차 답변 생성 (DP-234) |
-| POST | `/internal/similar-questions` | 유사 질문 검색 (DP-235) |
-| POST | `/internal/similar-contents` | 유사 콘텐츠 검색 (DP-288) |
-| POST | `/internal/report` | 주간 리포트 AI 인사이트 생성 (DP-259) |
-| POST | `/internal/trends` | 트렌드 수동 생성 (DP-385) — 디버그·장애 복구용 |
-| GET | `/internal/trends/latest` | 최신 트렌드 스냅샷 조회 (DP-385) |
-| GET | `/internal/trends/{period_start}` | 특정 기간 트렌드 스냅샷 조회 (DP-385) |
-
-> **summaries / quiz 엔드포인트는 fallback 용도**다. 정상 운영 시에는 배치 수집 파이프라인이 자동으로 생성한다.
-
-## 콘텐츠 수집 + AI 처리 파이프라인
-
-AI 서버가 수집부터 PostgreSQL 저장, AI 처리까지 직접 담당한다.
+수집부터 PostgreSQL 저장, AI 처리까지 AI 서버가 직접 담당합니다.
 
 ```
 통합 수집기 (Backfill + Incremental)
@@ -81,123 +116,171 @@ AI 서버가 수집부터 PostgreSQL 저장, AI 처리까지 직접 담당한다
 NormalizeService → NormalizedContent
     ↓
 ContentRepository → PostgreSQL 직접 저장
-    ↓ (신규 저장된 콘텐츠만)
+    ↓ (신규 저장 콘텐츠만)
 ContentPipeline.process_content()
-    ├─ Step 1:   PreprocessService    — HTML → 구조 보존 텍스트
-    ├─ Step 2:   AllLevelsSummaryService — 4레벨 요약 생성 (Bedrock 1회 호출)
-    ├─ Step 3:   SummaryRepository    — DynamoDB ai_summaries 저장
-    ├─ Step 3-1: ContentRepository    — PostgreSQL contents tags·category UPDATE
-    ├─ Step 4:   QuizService          — 4레벨 퀴즈 생성 (Bedrock 1회 호출)
-    │            QuizRepository       — DynamoDB ai_quizzes 저장
-    └─ Step 5:   EmbeddingOrchestrator — RAG 임베딩 → DynamoDB + FAISS
+    ├─ Step 1:   PreprocessService          — HTML → 구조 보존 텍스트
+    ├─ Step 2:   AllLevelsSummaryService    — 4레벨 요약 (Claude Haiku, Bedrock 1회)
+    ├─ Step 3:   SummaryRepository         — DynamoDB ai_summaries 저장
+    ├─ Step 3-1: ContentRepository         — PostgreSQL tags·category UPDATE
+    ├─ Step 4:   QuizService               — 4레벨 퀴즈 (Claude Haiku, Bedrock 1회)
+    │            QuizRepository            — DynamoDB ai_quizzes 저장
+    └─ Step 5:   EmbeddingOrchestrator     — RAG 청크 임베딩 → DynamoDB + FAISS
 ```
 
-- 요약(Step 2~3)과 퀴즈(Step 4)는 독립 실행 — 요약 실패해도 퀴즈는 생성
-- Step 3-1은 요약 성공 시에만 실행 — AI 생성 tags·category를 PostgreSQL에 저장
+- 요약(Step 2~3)과 퀴즈(Step 4)는 독립 실행 — 요약 실패해도 퀴즈 생성 계속
+- Step 3-1은 요약 성공 시에만 실행 — AI 생성 tags·category를 PostgreSQL에 반영
 - Backend는 Redis → DynamoDB 순서로 조회, miss 시 fallback 엔드포인트 호출
 
-### 수집 소스
+### 수집 소스 (30개)
 
-| 소스 | 수집 전략 |
-|------|----------|
-| Kakao Tech | 순차 post ID 열거 |
-| NAVER D2 | REST API 리스팅 + 개별 글 fetch |
-| Toss Tech | 리스팅 페이지네이션 |
-| OliveYoung Tech | 리스팅 페이지네이션 |
-| Medium (daangn/musinsa-tech 등) | Medium API 직접 fetch |
-| Stack Overflow | SO API |
-| Velog | GraphQL API |
+| 카테고리 | 소스 |
+|----------|------|
+| 국내 기업 블로그 | Kakao Tech · NAVER D2 · Toss Tech · OliveYoung Tech · 우아한형제들 · 쏘카 · SK Planet · 농심 클라우드 · KakaoPay Tech · Flex Tech |
+| Medium 출판물 | 당근 · 무신사 · 마이리얼트립 · Netflix TechBlog · Airbnb Engineering · Pinterest Engineering · 여기어때(GC컴퍼니) · Flutter |
+| 글로벌 기업 블로그 | Meta Engineering · GitHub Blog · AWS Korea · Cloudflare · Microsoft DevBlogs · NVIDIA Developer · Google Developers · Grab Engineering · Spring Blog · Next.js Blog |
+| 기술 커뮤니티 | Velog (GraphQL) · Stack Overflow (API) |
+| 영상 | YouTube (Data API v3, 별도 파이프라인) |
 
-### 스크립트
+---
+
+## 트렌드 분석 파이프라인
+
+일/주/월 단위로 태그 빈도·TF-IDF·외부 신호·LLM 서사 요약을 생성하고 PostgreSQL `trend_snapshots`에 저장합니다.
+
+```
+TrendOrchestrator.run(unit, period_start, period_end)
+    ├─ TrendDataLoader              — PostgreSQL 콘텐츠 + 조회수 4개 병렬 쿼리
+    ├─ TagNormalizer                — rapidfuzz 기반 유사 태그 병합
+    ├─ FrequencyAnalyzer            — 태그 빈도 집계 + 증감 상태 (new/up/down/same)
+    ├─ KoreanTokenizer + TfidfAnalyzer — kiwipiepy 형태소 분석 + TF-IDF 키워드 추출
+    ├─ ExternalSignalFetcher        — GitHub Trending · HN Algolia · dev.to 외부 신호
+    ├─ TrendRanker                  — 내부 신호 + 외부 신호 가중치 합산 순위 계산
+    ├─ TopPostsSummaryGenerator     — Top 5 콘텐츠 LLM 서사 요약 (Bedrock)
+    ├─ CollectionSummaryGenerator   — 수집 동향 LLM 서사 요약 (weekly/monthly만)
+    └─ TrendSnapshotRepository      — trend_snapshots upsert + Backend 캐시 무효화
+```
+
+- `force=False`이고 동일 기간 스냅샷이 이미 있으면 재생성 없이 즉시 반환
+- LLM 실패 시 해당 요약 필드만 `null`로 저장, 스냅샷 저장은 계속 진행
+
+---
+
+## Internal API
+
+Spring Boot ↔ FastAPI 내부 통신 전용입니다.
+`Base URL: http://ai-server:8000/internal`
+
+모든 엔드포인트에 `X-Internal-Key` 헤더가 필요합니다.
+
+### 콘텐츠 AI
+
+| 메서드 | 경로 | 설명 |
+|--------|------|------|
+| GET | `/internal/health` | 내부 헬스체크 |
+| POST | `/internal/summaries` | 4레벨 동시 요약 생성 + DynamoDB + RAG 임베딩 (fallback) |
+| POST | `/internal/quiz` | 4레벨 퀴즈 생성 + DynamoDB 저장 (fallback) |
+
+### 질문 / 답변
+
+| 메서드 | 경로 | 설명 |
+|--------|------|------|
+| POST | `/internal/refine` | 질문 AI 개선 생성 |
+| POST | `/internal/answer` | AI 1차 답변 생성 (related_contents 주입) |
+| POST | `/internal/similar-questions` | FAISS 인덱스 기반 유사 질문 검색 |
+| POST | `/internal/similar-contents` | FAISS 인덱스 기반 유사 콘텐츠 검색 |
+| DELETE | `/internal/questions/{question_id}` | 질문 삭제 시 ai_answers · rag_questions · FAISS 정리 |
+
+### 채용 AI
+
+| 메서드 | 경로 | 설명 |
+|--------|------|------|
+| POST | `/internal/jobs/parse-jd` | JD 텍스트 → 필수/우대 기술 추출 |
+| POST | `/internal/jobs/interview-qa` | 공고·이력서 기반 면접 Q&A JSON 생성 |
+| POST | `/internal/jobs/skill-gap` | 부족 기술 → 로드맵 · 학습 리소스 추천 |
+| POST | `/internal/jobs/mock-interview/plan` | 모의면접 15문항 플랜 보강 |
+| POST | `/internal/jobs/mock-interview/turn` | 모의면접 턴 평가 + 다음 행동 결정 |
+| POST | `/internal/jobs/mock-interview/finalize` | 모의면접 종료 → 5영역 점수·모범답안·피드백 |
+
+### 이력서
+
+| 메서드 | 경로 | 설명 |
+|--------|------|------|
+| POST | `/internal/resume/parse` | 이력서 텍스트 → 마스터 이력서 JSON |
+| POST | `/internal/resume/enrich` | 1차 파싱 스냅샷 + 원문 → 보강 패치 JSON |
+
+### 트렌드 / 리포트
+
+| 메서드 | 경로 | 설명 |
+|--------|------|------|
+| POST | `/internal/trends` | 트렌드 수동 생성 (디버그·장애 복구용) |
+| GET | `/internal/trends/latest` | 최신 트렌드 스냅샷 조회 |
+| POST | `/internal/report` | 주간 리포트 AI 인사이트 생성 |
+| POST | `/internal/report/content-keywords` | 읽은 글 목록 → TF-IDF 키워드 추출 |
+| POST | `/internal/report/question-keywords` | 기술/커리어 질문 → TF-IDF 키워드 추출 |
+
+---
+
+## DynamoDB 테이블
+
+| 테이블 | PK / SK | 내용 |
+|--------|---------|------|
+| `ai_summaries` | content_id / level | 4레벨 요약 결과 (beginner·junior·mid·senior) |
+| `ai_quizzes` | content_id | 4레벨 퀴즈 결과 (레벨 중첩) |
+| `rag_documents` | content_id / chunk_index | RAG 청크 + 임베딩 |
+| `rag_questions` | question_id | 질문 임베딩 |
+| `ai_answers` | question_id | AI 답변 결과 |
+| `event_logs` | user_id / event_timestamp | AI 처리 이벤트 로그 (일별 dedup) |
+| `weekly_report_insights` | report_id | 주간 인사이트 |
+
+---
+
+## 주요 스크립트
 
 | 스크립트 | 설명 |
 |----------|------|
-| `scripts/run_backfill_batch.py` | 1회 수집 실행 — PostgreSQL 저장 + AI 처리 (요약+퀴즈+임베딩) |
-| `scripts/run_scheduler.py` | 6시간 간격 자동 반복 실행 |
-| `scripts/run_collect_and_save.py` | 로컬 JSONL 저장 전용 (AI 처리 없음, 개발용) |
-| `scripts/run_trend_batch.py` | 트렌드 분석 1회 실행 (`--unit daily/weekly/monthly`, `--force`) |
-| `scripts/run_trend_scheduler.py` | 트렌드 분석 자동 실행 (daily 00:05 / weekly 월 00:10 / monthly 1일 00:15 KST) |
+| `scripts/run_backfill_batch.py` | 1회 수집 + PostgreSQL 저장 + AI 처리 (요약·퀴즈·임베딩) |
+| `scripts/run_scheduler.py` | 6시간 간격 자동 수집 스케줄러 |
+| `scripts/run_trend_batch.py` | 트렌드 분석 1회 (`--unit daily/weekly/monthly`, `--force`) |
+| `scripts/run_trend_scheduler.py` | 트렌드 자동 스케줄러 (daily 00:05 / weekly 월 00:10 / monthly 1일 00:15 KST) |
+| `scripts/run_youtube_batch.py` | YouTube 영상 1회 수집 |
+| `scripts/run_youtube_scheduler.py` | YouTube 자동 수집 스케줄러 |
 | `scripts/init_postgres.py` | PostgreSQL UNIQUE 인덱스 초기화 (배포 시 1회) |
 | `scripts/init_vectors.py` | FAISS 인덱스 초기화 |
 | `scripts/reindex_vectors.py` | FAISS 인덱스 재빌드 (인덱스 유실 시) |
 | `scripts/reprocess_summary.py` | 특정 콘텐츠 요약 재생성 |
 | `scripts/reprocess_quiz.py` | 특정 콘텐츠 퀴즈 재생성 |
 | `scripts/sync_ai_metadata.py` | DynamoDB → PostgreSQL tags/category 동기화 |
-| `scripts/inspect_preprocess.py` | URL 기반 전처리 출력 확인 |
-
-## 주요 실행 명령
 
 ```bash
-# 1회 수집 실행 (PostgreSQL 저장 + 요약+퀴즈 자동 생성)
+# 1회 수집 실행
 DATABASE_URL=postgresql://... python scripts/run_backfill_batch.py
 
-# 스케줄러 (6시간 간격 자동 반복)
+# 수집 스케줄러 (6시간 간격)
 DATABASE_URL=postgresql://... python scripts/run_scheduler.py
 
-# 트렌드 분석 1회 실행
+# 트렌드 분석
 DATABASE_URL=postgresql://... python scripts/run_trend_batch.py --unit weekly
 DATABASE_URL=postgresql://... python scripts/run_trend_batch.py --unit daily --force
 
-# 트렌드 분석 스케줄러 (daily/weekly/monthly 자동 실행)
+# 트렌드 스케줄러
 DATABASE_URL=postgresql://... python scripts/run_trend_scheduler.py
-
-# 개발 서버
-uvicorn main:app --reload
-
-# FAISS 재빌드 (인덱스 유실 시)
-python scripts/reindex_vectors.py
 ```
 
-## 트렌드 분석 배치 파이프라인
+---
 
-AI 서버가 일/주/월 단위로 태그 빈도·TF-IDF·LLM 서사 요약을 생성하고 PostgreSQL `trend_snapshots`에 저장한다. Backend는 이 테이블을 읽어 Frontend에 전달한다.
+## CI 파이프라인
 
-```
-TrendOrchestrator.run(unit, period_start, period_end)
-    ├─ TrendDataLoader         — cur/prev 콘텐츠 + 조회수 4개 병렬 쿼리
-    ├─ TagNormalizer            — rapidfuzz 동의어 정규화
-    ├─ FrequencyAnalyzer        — 태그 빈도 집계 + 증감 상태 (new/up/down/same)
-    ├─ KoreanTokenizer + TfidfAnalyzer — TF-IDF 키워드 추출 (제목 기반)
-    ├─ TrendRanker              — 조회수 Top 5 콘텐츠 선정
-    ├─ TopPostsSummaryGenerator — Top 5 콘텐츠 LLM 서사 요약 (Bedrock)
-    ├─ CollectionSummaryGenerator — 수집 동향 LLM 서사 요약 (Bedrock, weekly/monthly만)
-    └─ TrendSnapshotRepository  — trend_snapshots upsert
-```
+`developV2` 브랜치 대상 PR 및 Push에서 자동 실행됩니다.
 
-- `force=False`이고 동일 기간 스냅샷이 이미 있으면 재생성 없이 즉시 반환
-- LLM 실패 시 해당 요약 필드만 `null`로 저장, 스냅샷 저장은 계속 진행
+| 단계 | 명령 |
+|------|------|
+| 린트 | `ruff check .` |
+| 포맷 | `black --check .` |
+| 테스트 | `pytest -q` |
 
-## DynamoDB 테이블 목록
-
-| 테이블 | 내용 |
-|--------|------|
-| `ai_summaries` | 4레벨 요약 결과 (content_id + level 기준) |
-| `ai_quizzes` | 4레벨 퀴즈 결과 (content_id 기준, 4레벨 중첩) |
-| `rag_documents` | RAG 청크 + 임베딩 (content_id + chunk_index 기준) |
-| `rag_questions` | 질문 임베딩 (question_id 기준) |
-| `ai_answers` | AI 답변 결과 (question_id 기준) |
-| `event_logs` | AI 처리 이벤트 로그 (일별 dedup) |
-| `weekly_report_insights` | 주간 인사이트 (report_id 기준) |
-
-## CI 파이프라인 (PR 체크)
-
-> **메모:** 원격에 푸시하기 **전에** 아래 명령을 로컬에서 실행해 통과 여부를 확인할 것. 실패한 채로 푸시하면 동일한 단계에서 `pr-check` 잡이 exit code 1로 끝난다.
-
-GitHub Actions 워크플로 `AI PR Checks`가 아래 조건에서 실행됩니다.
-
-- `developV2` 브랜치 대상 Pull Request
-- `developV2` 브랜치로의 Push
-
-체크 항목:
-
-- `ruff check .`
-- `black --check .`
-- `pytest -q`
-
-로컬에서 PR 전 동일하게 확인하려면:
+로컬 사전 확인:
 
 ```bash
-pip install -r requirements.txt
-pip install -r requirements-dev.txt
+pip install -r requirements.txt -r requirements-dev.txt
 ruff check . && black --check . && pytest -q
 ```

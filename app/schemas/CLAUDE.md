@@ -31,9 +31,12 @@ Pydantic 기반 데이터 계약. 수집부터 AI 처리까지 모든 데이터 
 | `similar_question.py` | `SimilarQuestion` | 유사 질문 개별 항목 (DP-235) |
 | `similar_question.py` | `SimilarQuestionResponse` | 유사 질문 검색 결과 (DP-235) |
 | `event.py` | `EventType` | AI 처리 이벤트 유형 enum (DP-252) |
-| `insight.py` | `ActivityData` | 주간 활동 데이터 |
-| `insight.py` | `InsightRequest` | 주간 인사이트 요청 스키마 (DP-259) |
-| `insight.py` | `InsightResponse` | 주간 인사이트 응답 스키마 (DP-259) |
+| `similar_content.py` | `SimilarContentRequest` | 유사 콘텐츠 검색 요청 스키마 (DP-288) |
+| `similar_content.py` | `SimilarContent` | 유사 콘텐츠 개별 항목 (DP-288) |
+| `similar_content.py` | `SimilarContentResponse` | 유사 콘텐츠 검색 결과 (DP-288) |
+| `report_keywords.py` | `ContentKeywordsRequest` / `ContentKeywordsResponse` | 읽은 글 TF-IDF 키워드 추출 요청/응답 |
+| `report_keywords.py` | `QuestionKeywordsRequest` / `QuestionKeywordsResponse` | 질문 TF-IDF 키워드 추출 요청/응답 |
+| `job_ai.py` | (다수) | 채용 AI 엔드포인트 요청/응답 스키마 (JD·면접·스킬갭·모의면접·이력서) |
 | `trend.py` | `TrendingTag` | 트렌딩 태그 항목 (keyword, count, rank, rank_change, state) (DP-378보강, DP-380) |
 | `trend.py` | `TrendResponse` | 트렌드 배치 결과 응답 스키마 — `trending_tags` 필드 포함 (DP-378보강) |
 
@@ -48,7 +51,7 @@ Pydantic 기반 데이터 계약. 수집부터 AI 처리까지 모든 데이터 
 | `QUESTION_REFINED` | POST /internal/refine |
 | `ANSWER_GENERATED` | POST /internal/answer |
 | `SIMILAR_QUESTIONS_SEARCHED` | POST /internal/similar-questions |
-| `INSIGHT_GENERATED` | POST /internal/report |
+| `SIMILAR_CONTENTS_SEARCHED` | POST /internal/similar-contents |
 | `QUIZ_GENERATED` | POST /internal/quiz (fallback) |
 
 ---

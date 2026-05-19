@@ -38,9 +38,18 @@
 | `run_collect_and_save.py` | 수집 → 로컬 JSONL 저장 전용 (AI 처리 없음, 개발·디버그용) |
 | `run_trend_batch.py` | 트렌드 분석 1회 실행 CLI — `--unit daily/weekly/monthly`, `--force` (DP-386) |
 | `run_trend_scheduler.py` | 트렌드 분석 자동 실행 스케줄러 — daily/weekly/monthly cron (DP-386) |
+| `run_youtube_batch.py` | YouTube 채널 영상 1회 수집 실행 |
+| `run_youtube_scheduler.py` | YouTube 자동 수집 스케줄러 |
+| `collect_rallit_jobs.py` | 랠릿 채용 공고 크롤링 → Spring `POST /internal/jobs/ingest` 전달 |
+| `reingest_job_urls.py` | DB에 저장된 랠릿 공고 URL 재수집 → ingest API 재전달 |
 | `init_postgres.py` | PostgreSQL UNIQUE 인덱스 초기화 — 배포 시 1회 실행 (멱등성 보장) |
 | `init_vectors.py` | FAISS 벡터 디렉터리 초기화 (Bedrock Titan v2 기반) |
 | `reindex_vectors.py` | FAISS 인덱스 재빌드 — DynamoDB rag_documents 기반 (인덱스 유실 시) |
+| `reprocess_summary.py` | 특정 content_id 요약 재생성 |
+| `reprocess_quiz.py` | 특정 content_id 퀴즈 재생성 |
+| `reprocess_embedding.py` | 저장된 콘텐츠 RAG 임베딩 재시도 |
+| `sync_ai_metadata.py` | DynamoDB → PostgreSQL tags/category/translated_title 동기화 |
+| `backfill_youtube_content_tags.py` | YouTube 기존 콘텐츠 content_tags 백필 |
 | `inspect_preprocess.py` | URL 기반 전처리 출력 확인 (디버그용) |
 
 ### `run_backfill_batch.py`

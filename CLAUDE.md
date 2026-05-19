@@ -29,7 +29,6 @@
   - 유사 질문 탐색 SimilarQuestionService + POST /internal/similar-questions 구현 완료 (DP-235)
   - 4레벨 동시 요약 AllLevelsSummaryService + POST /internal/summaries 구현 완료 (DP-300)
   - AI 처리 이벤트 로그 DynamoDB 저장 (event_logs) + 일별 중복 제거 구현 완료 (DP-252)
-  - 주간 인사이트 InsightService + InsightRepository + POST /internal/report 구현 완료 (DP-259, DP-260)
   - **AI 레포 직접 PostgreSQL 저장 구조로 전환 (ContentRepository + ContentPipeline)**
   - **RSS 파이프라인 제거 → 통합 수집기(백필+incremental) 단일화 (중복 수집 문제 해결)**
   - **4레벨 퀴즈 생성 QuizService + QuizRepository + POST /internal/quiz 구현 완료 (DP-265)**

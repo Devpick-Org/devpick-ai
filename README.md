@@ -21,7 +21,7 @@
 | **채용 AI** | JD 파싱 · 면접 Q&A 생성 · 스킬 갭 분석 · 모의면접 (Claude Sonnet) |
 | **이력서 처리** | 이력서 텍스트 → 마스터 이력서 JSON 파싱 · 보강 |
 | **트렌드 분석** | 일/주/월 단위 태그 빈도 · TF-IDF · LLM 서사 요약 → PostgreSQL 저장 |
-| **주간 인사이트** | 사용자 태그 기반 미탐색 콘텐츠 추천 + 학습 리포트 생성 |
+| **리포트 키워드 추출** | 읽은 글·질문 목록 → TF-IDF 키워드 추출 (DB 저장 없음) |
 
 ---
 
@@ -214,7 +214,6 @@ Spring Boot ↔ FastAPI 내부 통신 전용입니다.
 |--------|------|------|
 | POST | `/internal/trends` | 트렌드 수동 생성 (디버그·장애 복구용) |
 | GET | `/internal/trends/latest` | 최신 트렌드 스냅샷 조회 |
-| POST | `/internal/report` | 주간 리포트 AI 인사이트 생성 |
 | POST | `/internal/report/content-keywords` | 읽은 글 목록 → TF-IDF 키워드 추출 |
 | POST | `/internal/report/question-keywords` | 기술/커리어 질문 → TF-IDF 키워드 추출 |
 
@@ -230,7 +229,6 @@ Spring Boot ↔ FastAPI 내부 통신 전용입니다.
 | `rag_questions` | question_id | 질문 임베딩 |
 | `ai_answers` | question_id | AI 답변 결과 |
 | `event_logs` | user_id / event_timestamp | AI 처리 이벤트 로그 (일별 dedup) |
-| `weekly_report_insights` | report_id | 주간 인사이트 |
 
 ---
 

@@ -19,7 +19,10 @@
 | `answer_service.py` | `AnswerService` | Bedrock Tool Use 기반 AI 1차 답변 생성 (DP-234) |
 | `question_embedding_service.py` | `QuestionEmbeddingOrchestrator` | 질문 임베딩 → DynamoDB rag_questions + FAISS questions 저장 (DP-234) |
 | `similar_question_service.py` | `SimilarQuestionService` | FAISS questions 인덱스 유사 질문 검색 (DP-235) |
-| `insight_service.py` | `InsightService` | Bedrock Tool Use 기반 주간 학습 인사이트 생성 (DP-259) |
+| `similar_content_service.py` | `SimilarContentService` | FAISS devpick 인덱스 유사 콘텐츠 검색 (DP-288) |
+| `job_ai_service.py` | `JobAiService` | Bedrock Tool Use 기반 채용 AI — JD 파싱·면접 Q&A·스킬 갭·모의면접 |
+| `question_cleanup_service.py` | `cleanup_question_documents()` | 질문 삭제 시 DynamoDB ai_answers·rag_questions + FAISS 정리 |
+| `report_keywords_service.py` | `ReportKeywordsService` | 읽은 글·질문 목록 TF-IDF 키워드 추출 (DB 저장 없음) |
 | `trend/normalize.py` | `TagNormalizer` | rapidfuzz 기반 태그 동의어 정규화 (DP-380) |
 | `trend/frequency.py` | `FrequencyAnalyzer` | 태그 빈도 집계 + 증감 상태 판정 (DP-380) |
 | `trend/tokenizer.py` | `KoreanTokenizer` | kiwipiepy 형태소 분석 기반 토크나이저 (DP-381) |
@@ -112,7 +115,7 @@ embed_and_store(content_id, preprocessed_text, summary: AllLevelsSummaryResponse
 
 ```python
 RefineService(aws_region: str, model: str)
-refine(title, content, level, context_chunks=None) -> RefineResponse
+refine(title, content, context_chunks=None) -> RefineResponse
 ```
 
 - **Tool Use + Prompt Caching**, temperature=0
@@ -131,26 +134,6 @@ answer(refined_title, refined_content, original_title=None, original_content=Non
 
 - **반환**: `(AnswerResponse, references)` — references는 LLM이 활용한 content_id 리스트
 - **Tool Use + Prompt Caching**, temperature=0, max_tokens=4096
-
----
-
-## InsightService 상세 (DP-259, DP-254)
-
-```python
-InsightService(aws_region: str, model: str)
-generate(activities, ai_events, read_summaries, scrapped_summaries,
-         question_texts, week_start, week_end,
-         user_keywords=None, unmatched_keywords=None, recommended_contents=None
-) -> InsightResponse
-```
-
-- **모델**: Claude Sonnet (DP-254에서 Haiku → Sonnet 전환 — 다중 데이터 종합 분석 품질 향상)
-- **Tool Use**, temperature=0.3, maxTokens=4096
-- **입력 cap**: 읽은 글 10개, 스크랩 5개, 질문 3개, 태그 5개
-- **user_keywords**: 유저 설정 관심 키워드 (UserRepository 조회값)
-- **unmatched_keywords**: 이번 주 미탐색 관심 키워드 (라우터에서 계산)
-- **recommended_contents**: 미탐색 태그 기반 추천 글 제목 목록 (UserRepository 조회값)
-- 프롬프트 구조: well_done(태그+요약 기반 학습 분석) / lacking(미탐색 태그+요일 태도) / next_week(추천 글+심화+태도 가이드)
 
 ---
 

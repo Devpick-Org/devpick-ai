@@ -10,13 +10,23 @@ Spring Boot ↔ FastAPI 내부 통신 전용 라우터. Base URL: `/internal`
 | 메서드 | 경로 | 설명 |
 |--------|------|------|
 | GET | `/internal/health` | AI 서버 내부 헬스체크 |
+| DELETE | `/internal/questions/{question_id}` | 질문 삭제 시 ai_answers·rag_questions·FAISS 정리 |
 | POST | `/internal/summaries` | 4레벨 동시 요약 생성 (DP-300) — DynamoDB ai_summaries 저장 + RAG 임베딩. Backend DynamoDB miss 시 fallback 호출 |
 | POST | `/internal/quiz` | 4레벨 퀴즈 생성 (DP-265) — DynamoDB ai_quizzes 저장. Backend DynamoDB miss 시 fallback 호출 |
 | POST | `/internal/refine` | 질문 AI 개선 생성 (DP-231) — content_id 있으면 DynamoDB 청크 컨텍스트 |
 | POST | `/internal/answer` | 질문 AI 1차 답변 생성 (DP-234) — 아티클+RAG 컨텍스트, related_contents 주입, 질문 임베딩 저장 |
 | POST | `/internal/similar-questions` | 유사 질문 검색 (DP-235) — FAISS questions 인덱스 검색, 자기 자신 제외 |
 | POST | `/internal/similar-contents` | 유사 콘텐츠 검색 (DP-288) — FAISS devpick 인덱스 검색, content_id 기준 MAX 점수 집계 |
-| POST | `/internal/report` | 주간 리포트 AI 인사이트 생성 (DP-259) — Backend 주간 리포트 생성 후 호출 |
+| POST | `/internal/jobs/parse-jd` | JD 텍스트 → 필수/우대 기술 추출 |
+| POST | `/internal/jobs/interview-qa` | 공고·이력서 기반 면접 Q&A JSON 생성 |
+| POST | `/internal/jobs/skill-gap` | 부족 기술 → 로드맵·학습 리소스 추천 |
+| POST | `/internal/jobs/mock-interview/plan` | 모의면접 15문항 플랜 보강 |
+| POST | `/internal/jobs/mock-interview/turn` | 모의면접 턴 평가 + 다음 행동 결정 |
+| POST | `/internal/jobs/mock-interview/finalize` | 모의면접 종료 → 5영역 점수·모범답안·피드백 |
+| POST | `/internal/resume/parse` | 이력서 텍스트 → 마스터 이력서 JSON |
+| POST | `/internal/resume/enrich` | 1차 파싱 스냅샷 + 원문 → 보강 패치 JSON |
+| POST | `/internal/report/content-keywords` | 읽은 글 목록 → TF-IDF 키워드 추출 (DB 저장 없음) |
+| POST | `/internal/report/question-keywords` | 기술/커리어 질문 → TF-IDF 키워드 추출 (DB 저장 없음) |
 | POST | `/internal/trends` | 트렌드 수동 생성 (DP-385) — 디버그·장애 복구용. 0건→400, 5건미만→422 |
 | GET | `/internal/trends/latest` | unit+scope 기준 최신 트렌드 스냅샷 조회 (DP-385) — 없으면 404 |
 
@@ -57,25 +67,6 @@ Spring Boot ↔ FastAPI 내부 통신 전용 라우터. Base URL: `/internal`
 3. QuizRepository.save(result) → DynamoDB ai_quizzes [fire-and-forget]
 4. EventRepository.save_event(QUIZ_GENERATED) [fire-and-forget, user_id 있을 때만]
 5. AllLevelsQuizResponse 반환
-```
-
----
-
-## POST /internal/report 처리 흐름 (DP-259, DP-254)
-
-```
-0. UserRepository.find_keywords_by_user_id() → user_keywords (PostgreSQL user_tags JOIN tags)
-   → unmatched_keywords = user_keywords - 이번 주 tag_activities
-   → UserRepository.find_contents_by_tag_names(unmatched_keywords) → recommended_contents
-   [DATABASE_URL 없으면 전체 step 0 skip, 빈 리스트로 fallback]
-1. EventRepository.find_by_user() → 주간 AI 이벤트 카운트 (refine/answer/similar)
-2. SummaryRepository.find_by_content_ids() → 읽은 글/스크랩한 글 one_line_summary
-3. QuestionVectorRepository.find_texts_by_ids() → 작성한 질문 텍스트
-4. InsightService.generate(..., user_keywords, unmatched_keywords, recommended_contents)
-   → InsightResponse (report_id="" 초기값)
-5. result.report_id = body.report_id 주입
-6. InsightRepository.save(report_id, user_id, result) [fire-and-forget]
-7. EventRepository.save_event(INSIGHT_GENERATED) [fire-and-forget]
 ```
 
 ---

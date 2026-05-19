@@ -17,7 +17,6 @@ DynamoDB + PostgreSQL 접근 레이어. 각 도메인별 저장/조회 로직을
 | `answer_repository.py` | `AnswerRepository` | DynamoDB | `ai_answers` | AI 답변 결과 저장 (DP-234) |
 | `question_vector_repository.py` | `QuestionVectorRepository` | DynamoDB | `rag_questions` | 질문 임베딩 upsert 저장 (DP-234) |
 | `event_repository.py` | `EventRepository` | DynamoDB | `event_logs` | AI 처리 이벤트 로그 + 일별 dedup (DP-252) |
-| `insight_repository.py` | `InsightRepository` | DynamoDB | `weekly_report_insights` | 주간 인사이트 upsert 저장 (DP-259) |
 | `trend_repository.py` | `TrendSnapshotRepository` | PostgreSQL | `trend_snapshots` | 트렌드 분석 결과 upsert/조회 (DP-378, DP-386) |
 
 ---
@@ -45,7 +44,9 @@ close() -> None
 SummaryRepository(aws_region: str)
 save_all_levels(content_id, response: AllLevelsSummaryResponse) -> None
 find_by_content_ids(content_ids: list[str]) -> list[dict]
+find_meta_by_content_ids(content_ids: list[str]) -> list[dict]
 find_all_levels(content_id: str) -> list[dict]
+find_summaries_for_trend(content_ids: list[str]) -> list[dict]
 ```
 
 - DynamoDB `ai_summaries` 테이블
@@ -89,7 +90,9 @@ delete_by_content_id(content_id: str) -> int
 
 ```python
 AnswerRepository(aws_region: str)
-save(answer: AnswerResponse, question_id: str | None, content_id: str | None) -> None
+save(answer: AnswerResponse, question_id: str | None = None,
+     content_id: str | None = None, title: str | None = None,
+     content: str | None = None) -> None
 ```
 
 - DynamoDB `ai_answers` 테이블
@@ -108,7 +111,7 @@ find_texts_by_ids(question_ids: list[str]) -> list[str]
 
 - DynamoDB `rag_questions` 테이블
 - question_id 기준 upsert
-- `find_texts_by_ids`: 주간 인사이트 생성 시 질문 텍스트 조회
+- `find_texts_by_ids`: question_id 목록으로 질문 텍스트 배치 조회
 
 ---
 
@@ -138,19 +141,6 @@ close() -> None
 - PostgreSQL `content_tags JOIN contents JOIN tags` — 미탐색 태그 기반 추천 글 제목 조회
 - 인사이트 생성 시 `/internal/report` 라우터 Step 0에서 호출
 - `DATABASE_URL` 미설정 시 graceful fallback (빈 리스트 반환)
-
----
-
-## InsightRepository 상세 (DP-259)
-
-```python
-InsightRepository(aws_region: str)
-save(report_id: str, user_id: str, response: InsightResponse) -> None
-find_by_report_id(report_id: str) -> dict | None
-```
-
-- DynamoDB `weekly_report_insights` 테이블
-- report_id 기준 upsert
 
 ---
 

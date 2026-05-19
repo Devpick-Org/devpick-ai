@@ -16,7 +16,9 @@ RSS 파이프라인을 제거하고 **통합 수집기(백필 + incremental)** �
 | `backfill/naver_d2.py` | `NaverD2BackfillCollector` | REST API 리스팅 + 개별 글 fetch |
 | `backfill/toss.py` | `TossBackfillCollector` | 리스팅 페이지네이션 + article body 추출 |
 | `backfill/medium_direct.py` | `MediumDirectBackfillCollector` | Medium 내부 JSON API + curl_cffi |
-| `backfill/oliveyoung.py` | `OliveYoungBackfillCollector` | RSS 피드 파싱 (본문 전체 포함) |
+| `backfill/generic_rss.py` | `GenericRSSBackfillCollector` | 범용 RSS 피드 파싱 (본문 포함 소스용) |
+| `backfill/rss_with_fetch.py` | `RSSWithFetchBackfillCollector` | RSS 피드 파싱 + 개별 URL fetch로 본문 추출 |
+| `backfill/youtube.py` | `YouTubeCollector` | YouTube Data API v3 — 채널 영상 수집 |
 | `backfill/stackoverflow.py` | `StackOverflowBackfillCollector` | SO API — `NormalizedContent` 직접 반환. `score` 필드 매핑, `likes=None` |
 | `backfill/velog.py` | `VelogBackfillCollector` | GraphQL API — `NormalizedContent` 직접 반환. `likes` 필드 매핑, `score=None` |
 | `stackoverflow.py` | `StackOverflowCollector` | SO 트렌딩 페이지 스크래핑 + SO API 보강 — `score`/`view_count` 추출 |
@@ -59,7 +61,6 @@ class BackfillCollector(ABC):
 | `NAVER_D2` | `{"phase": "backfill", "next_page": 0, "pending_ids": [...], "latest_seen_ts": 0}` | `{"phase": "incremental", "latest_seen_ts": 1735689600000}` |
 | `Toss_Tech` | `{"phase": "backfill", "next_page": 5, "pending_slugs": [...], "seen_slugs": [...]}` | `{"phase": "incremental", "seen_slugs": [...]}` |
 | `Medium_*` | `{"phase": "backfill", "collection_id": "...", "next_to": null, "discovery_done": false, "pending": [...], "seen_urls": [...]}` | `{"phase": "incremental", "collection_id": "...", "seen_urls": [...]}` |
-| `OliveYoung_Tech` | `{"phase": "backfill", "seen_ids": [...]}` | `{"phase": "incremental", "seen_ids": [...]}` |
 | `Stack_Overflow` | `{"phase": "backfill", "year": 2026, "month": 1}` | `{"phase": "incremental"}` |
 | `Velog` | `{"phase": "backfill", "fetched": false}` | `{"phase": "incremental"}` |
 

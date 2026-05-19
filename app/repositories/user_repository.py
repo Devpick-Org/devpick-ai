@@ -24,15 +24,13 @@ class UserRepository:
         """user_tags JOIN tags 로 유저 설정 관심 키워드 이름 목록을 반환한다."""
         with self._engine.connect() as conn:
             rows = conn.execute(
-                text(
-                    """
+                text("""
                     SELECT t.name
                     FROM user_tags ut
                     JOIN tags t ON ut.tag_id = t.id
                     WHERE ut.user_id = :user_id
                     ORDER BY t.name
-                """
-                ),
+                """),
                 {"user_id": user_id},
             ).fetchall()
         return [row[0] for row in rows]
@@ -50,8 +48,7 @@ class UserRepository:
 
         with self._engine.connect() as conn:
             rows = conn.execute(
-                text(
-                    """
+                text("""
                     SELECT c.title
                     FROM contents c
                     JOIN content_tags ct ON c.id = ct.content_id
@@ -61,8 +58,7 @@ class UserRepository:
                     GROUP BY c.id, c.title, c.published_at
                     ORDER BY c.published_at DESC
                     LIMIT :limit
-                """
-                ),
+                """),
                 {"tag_names": tag_names, "limit": limit},
             ).fetchall()
         return [{"title": row[0]} for row in rows]

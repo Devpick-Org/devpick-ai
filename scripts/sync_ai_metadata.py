@@ -38,9 +38,7 @@ logger = logging.getLogger(__name__)
 def _fetch_missing_content_tag_ids(engine) -> list[str]:
     """PostgreSQL에서 content_tags가 없는 content_id 목록을 조회한다 (YouTube 제외)."""
     with engine.connect() as conn:
-        rows = conn.execute(
-            text(
-                """
+        rows = conn.execute(text("""
                 SELECT c.id FROM contents c
                 JOIN content_sources cs ON cs.id = c.source_id
                 WHERE c.is_available = true
@@ -50,9 +48,7 @@ def _fetch_missing_content_tag_ids(engine) -> list[str]:
                       SELECT 1 FROM content_tags ct WHERE ct.content_id = c.id
                   )
                 ORDER BY c.created_at
-            """
-            )
-        ).fetchall()
+            """)).fetchall()
     return [str(row[0]) for row in rows]
 
 

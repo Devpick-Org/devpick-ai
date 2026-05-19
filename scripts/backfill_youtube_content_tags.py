@@ -41,9 +41,7 @@ def main() -> None:
     try:
         with engine.connect() as conn:
             # content_tags 없는 YouTube 영상 조회
-            rows = conn.execute(
-                text(
-                    """
+            rows = conn.execute(text("""
                 SELECT c.id, c.title, c.preview
                 FROM contents c
                 JOIN content_sources cs ON c.source_id = cs.id
@@ -51,9 +49,7 @@ def main() -> None:
                   AND NOT EXISTS (
                     SELECT 1 FROM content_tags ct WHERE ct.content_id = c.id
                   )
-            """
-                )
-            ).fetchall()
+            """)).fetchall()
 
             if not rows:
                 logger.info("content_tags 없는 YouTube 영상 없음 — 스킵")

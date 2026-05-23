@@ -7,6 +7,10 @@ services:
       - "8000:8000"
     env_file:
       - .env
+    environment:
+      SENTRY_DSN: ${SENTRY_DSN:-https://e7a64ae50c8feeb1e3ffc35552f9e221@o4511437841498112.ingest.us.sentry.io/4511437846151168}
+      SENTRY_ENVIRONMENT: ${SENTRY_ENVIRONMENT:-production}
+      SENTRY_TRACES_SAMPLE_RATE: ${SENTRY_TRACES_SAMPLE_RATE:-0.05}
     volumes:
       - ./data:/app/data
     restart: unless-stopped

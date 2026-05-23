@@ -1,14 +1,30 @@
 from __future__ import annotations
 
 import logging
+import os
 
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
+import sentry_sdk
+from sentry_sdk.integrations.fastapi import FastApiIntegration
+from sentry_sdk.integrations.logging import LoggingIntegration
 
 from app.api.internal.router import router as internal_router
 from app.core.exceptions import AIServiceError
 
 logger = logging.getLogger(__name__)
+
+if os.getenv("SENTRY_DSN"):
+    sentry_sdk.init(
+        dsn=os.getenv("SENTRY_DSN"),
+        environment=os.getenv("SENTRY_ENVIRONMENT", "production"),
+        traces_sample_rate=float(os.getenv("SENTRY_TRACES_SAMPLE_RATE", "0.05")),
+        send_default_pii=False,
+        integrations=[
+            FastApiIntegration(),
+            LoggingIntegration(level=logging.INFO, event_level=logging.ERROR),
+        ],
+    )
 
 app = FastAPI(title="DevPick AI Server")
 
@@ -35,4 +51,6 @@ async def ai_service_error_handler(
 @app.exception_handler(Exception)
 async def unhandled_exception_handler(request: Request, exc: Exception) -> JSONResponse:
     logger.exception("Unhandled error: %s", exc)
+    if os.getenv("SENTRY_DSN"):
+        sentry_sdk.capture_exception(exc)
     return JSONResponse(status_code=500, content={"detail": "Internal server error"})

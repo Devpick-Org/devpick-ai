@@ -1,47 +1,23 @@
-# DevPick AI Server
+# devpick-ai
 
-[![AI PR Checks](https://github.com/Devpick-Org/devpick-ai/actions/workflows/ai-pr-check.yml/badge.svg)](https://github.com/Devpick-Org/devpick-ai/actions/workflows/ai-pr-check.yml)
-[![Python 3.12](https://img.shields.io/badge/python-3.12-blue.svg)](https://www.python.org/downloads/release/python-3120/)
-[![FastAPI](https://img.shields.io/badge/FastAPI-0.116-green.svg)](https://fastapi.tiangolo.com)
-
-**DevPick** 플랫폼의 AI 처리 서버입니다.
-
-개발 콘텐츠 수집 · AI 요약/퀴즈 생성 · RAG 기반 질문 답변 · 채용 AI · 트렌드 분석까지, 개발자 성장형 통합 플랫폼의 AI 파이프라인 전체를 담당합니다.
-
----
-
-## 주요 기능
-
-| 기능 | 설명 |
-|------|------|
-| **콘텐츠 수집** | 30개 소스(국내외 기업 블로그, Velog, Stack Overflow, YouTube 등) 통합 수집 → PostgreSQL 저장 |
-| **4레벨 AI 요약** | 입문·주니어·중급·시니어 수준별 요약 자동 생성 (Claude Haiku, Bedrock 1회 호출) |
-| **4레벨 퀴즈 생성** | 레벨별 문제·보기·해설 자동 생성 (Claude Haiku, 요약과 독립 실행) |
-| **RAG 질문 답변** | FAISS 벡터 검색 + Claude Tool Use 기반 AI 답변 생성 |
-| **채용 AI** | JD 파싱 · 면접 Q&A 생성 · 스킬 갭 분석 · 모의면접 (Claude Sonnet) |
-| **이력서 처리** | 이력서 텍스트 → 마스터 이력서 JSON 파싱 · 보강 |
-| **트렌드 분석** | 일/주/월 단위 태그 빈도 · TF-IDF · LLM 서사 요약 → PostgreSQL 저장 |
-| **리포트 키워드 추출** | 읽은 글·질문 목록 → TF-IDF 키워드 추출 (DB 저장 없음) |
-
----
-
-## 시스템 아키텍처
-
-```
-브라우저
-  └─ Nginx
-      └─ Next.js (프론트, :3000)
-          └─ Spring Boot (백엔드, :8080)
-              ├─ PostgreSQL (:5432)      ← 콘텐츠·트렌드 저장
-              ├─ Redis (:6379)           ← 요약·퀴즈 캐시
-              └─ FastAPI AI 서버 (:8000)   ← 이 레포
-                  ├─ DynamoDB (AWS)      ← 요약·퀴즈·RAG·로그 저장
-                  └─ FAISS (로컬)        ← 콘텐츠·질문 벡터 인덱스
-```
+> DevPick 플랫폼의 FastAPI AI 서버입니다.  
+> 전체 프로젝트 소개는 [Devpick-Org](https://github.com/Devpick-Org) 에서 확인할 수 있습니다.
 
 ---
 
 ## 기술 스택
+
+![Python](https://img.shields.io/badge/Python_3.12-3776AB?style=for-the-badge&logo=python&logoColor=white)
+![FastAPI](https://img.shields.io/badge/FastAPI_0.116-009688?style=for-the-badge&logo=fastapi&logoColor=white)
+![Claude](https://img.shields.io/badge/Claude_Haiku_·_Sonnet-D97706?style=for-the-badge&logo=anthropic&logoColor=white)
+![AWS Bedrock](https://img.shields.io/badge/AWS_Bedrock-FF9900?style=for-the-badge&logo=amazonaws&logoColor=white)
+![PostgreSQL](https://img.shields.io/badge/PostgreSQL_16-4169E1?style=for-the-badge&logo=postgresql&logoColor=white)
+![DynamoDB](https://img.shields.io/badge/DynamoDB-4053D6?style=for-the-badge&logo=amazondynamodb&logoColor=white)
+![Redis](https://img.shields.io/badge/Redis_7-DC382D?style=for-the-badge&logo=redis&logoColor=white)
+![FAISS](https://img.shields.io/badge/FAISS-00599C?style=for-the-badge&logo=meta&logoColor=white)
+![LangChain](https://img.shields.io/badge/LangChain-1C3C3C?style=for-the-badge&logo=langchain&logoColor=white)
+![Docker](https://img.shields.io/badge/Docker-2496ED?style=for-the-badge&logo=docker&logoColor=white)
+![GitHub Actions](https://img.shields.io/badge/GitHub_Actions-2088FF?style=for-the-badge&logo=githubactions&logoColor=white)
 
 | 구분 | 기술 | 비고 |
 |------|------|------|
@@ -61,48 +37,57 @@
 
 ---
 
-## 설치 및 실행
+## 시스템 구조
 
-### 1. 의존성 설치
+```mermaid
+flowchart LR
+    Browser[Browser]
+    Nginx[Nginx]
+    Front[Next.js port 3000]
+    Api[Spring Boot port 8080]
+    Pg[PostgreSQL on RDS]
+    Redis[Redis on ElastiCache]
+    Dyn[DynamoDB]
+    Ai[FastAPI AI port 8000]
+    Faiss[FAISS Local Index]
 
-```bash
-pip install -r requirements.txt
+    Browser --> Nginx
+    Nginx --> Front
+    Nginx --> Api
+    Api --> Pg
+    Api --> Redis
+    Api --> Ai
+    Ai --> Dyn
+    Ai --> Pg
+    Ai --> Faiss
 ```
 
-### 2. 환경변수 설정
-
-```bash
-# macOS / Linux
-cp .env.example .env
-
-# Windows PowerShell
-Copy-Item .env.example .env
+```
+브라우저
+  └─ Nginx
+      └─ Next.js (프론트, :3000)
+          └─ Spring Boot (백엔드, :8080)
+              ├─ PostgreSQL (:5432)      ← 콘텐츠·트렌드 저장
+              ├─ Redis (:6379)           ← 요약·퀴즈 캐시
+              └─ FastAPI AI 서버 (:8000)   ← 이 레포
+                  ├─ DynamoDB (AWS)      ← 요약·퀴즈·RAG·로그 저장
+                  └─ FAISS (로컬)        ← 콘텐츠·질문 벡터 인덱스
 ```
 
-주요 환경변수:
+---
 
-| 변수 | 설명 | 기본값 |
-|------|------|--------|
-| `DATABASE_URL` | PostgreSQL 접속 URL | 필수 |
-| `INTERNAL_API_KEY` | Spring ↔ AI 서버 인증 키 | 필수 |
-| `AWS_REGION` | AWS 기본 리전 | `ap-northeast-2` |
-| `BEDROCK_MODEL_HAIKU` | 요약·퀴즈용 모델 ID | `claude-haiku-4-5` |
-| `BEDROCK_MODEL_SONNET` | 답변·채용 AI용 모델 ID | `claude-sonnet-4-6` |
-| `YOUTUBE_API_KEY` | YouTube Data API v3 | 선택 |
-| `BACKEND_URL` | 트렌드 캐시 무효화 대상 | `http://localhost:8080` |
+## 주요 기능
 
-### 3. 개발 서버 실행
-
-```bash
-uvicorn main:app --reload
-```
-
-### 4. 헬스체크
-
-```bash
-curl http://127.0.0.1:8000/health
-# {"status":"ok"}
-```
+| 기능 | 설명 |
+|------|------|
+| **콘텐츠 수집** | 30개 소스(국내외 기업 블로그, Velog, Stack Overflow, YouTube 등) 통합 수집 → PostgreSQL 저장 |
+| **4레벨 AI 요약** | 입문·주니어·중급·시니어 수준별 요약 자동 생성 (Claude Haiku, Bedrock 1회 호출) |
+| **4레벨 퀴즈 생성** | 레벨별 문제·보기·해설 자동 생성 (Claude Haiku, 요약과 독립 실행) |
+| **RAG 질문 답변** | FAISS 벡터 검색 + Claude Tool Use 기반 AI 답변 생성 |
+| **채용 AI** | JD 파싱 · 면접 Q&A 생성 · 스킬 갭 분석 · 모의면접 (Claude Sonnet) |
+| **이력서 처리** | 이력서 텍스트 → 마스터 이력서 JSON 파싱 · 보강 |
+| **트렌드 분석** | 일/주/월 단위 태그 빈도 · TF-IDF · LLM 서사 요약 → PostgreSQL 저장 |
+| **리포트 키워드 추출** | 읽은 글·질문 목록 → TF-IDF 키워드 추출 (DB 저장 없음) |
 
 ---
 
@@ -167,7 +152,7 @@ TrendOrchestrator.run(unit, period_start, period_end)
 
 ## Internal API
 
-Spring Boot ↔ FastAPI 내부 통신 전용입니다.
+Spring Boot ↔ FastAPI 내부 통신 전용입니다.  
 `Base URL: http://ai-server:8000/internal`
 
 모든 엔드포인트에 `X-Internal-Key` 헤더가 필요합니다.
@@ -232,6 +217,45 @@ Spring Boot ↔ FastAPI 내부 통신 전용입니다.
 
 ---
 
+## Getting Started
+
+### 사전 요구사항
+
+- Python 3.12
+- Docker (DynamoDB Local, Redis 로컬 개발 시)
+- `.env` 파일 — `.env.example` 참고
+
+### 로컬 실행
+
+```bash
+git clone https://github.com/Devpick-Org/devpick-ai.git
+cd devpick-ai
+pip install -r requirements.txt -r requirements-dev.txt
+cp .env.example .env   # 환경변수 설정 후
+uvicorn main:app --reload
+```
+
+### 헬스체크
+
+```bash
+curl http://127.0.0.1:8000/health
+# {"status":"ok"}
+```
+
+### 환경변수
+
+| 변수 | 설명 | 필수 |
+|------|------|------|
+| `DATABASE_URL` | PostgreSQL 접속 URL | 필수 |
+| `INTERNAL_API_KEY` | Spring ↔ AI 서버 인증 키 | 필수 |
+| `AWS_REGION` | AWS 기본 리전 (`ap-northeast-2`) | 필수 |
+| `BEDROCK_MODEL_HAIKU` | 요약·퀴즈용 모델 ID | 선택 |
+| `BEDROCK_MODEL_SONNET` | 답변·채용 AI용 모델 ID | 선택 |
+| `YOUTUBE_API_KEY` | YouTube Data API v3 | 선택 |
+| `BACKEND_URL` | 트렌드 캐시 무효화 대상 URL | 선택 |
+
+---
+
 ## 주요 스크립트
 
 | 스크립트 | 설명 |
@@ -266,15 +290,14 @@ DATABASE_URL=postgresql://... python scripts/run_trend_scheduler.py
 
 ---
 
-## CI 파이프라인
+## CI/CD
 
-`developV2` 브랜치 대상 PR 및 Push에서 자동 실행됩니다.
-
-| 단계 | 명령 |
-|------|------|
-| 린트 | `ruff check .` |
-| 포맷 | `black --check .` |
-| 테스트 | `pytest -q` |
+| Job | 트리거 | 설명 |
+|-----|--------|------|
+| Lint | PR to developV2 | `ruff check .` |
+| Format | PR to developV2 | `black --check .` |
+| Test | PR to developV2 | `pytest -q` |
+| Deploy | push to developV2 | EC2 SSH 자동 배포 |
 
 로컬 사전 확인:
 
@@ -282,3 +305,40 @@ DATABASE_URL=postgresql://... python scripts/run_trend_scheduler.py
 pip install -r requirements.txt -r requirements-dev.txt
 ruff check . && black --check . && pytest -q
 ```
+
+---
+
+## 브랜치 전략
+
+| 브랜치 | 용도 |
+|--------|------|
+| `main` | 배포용 |
+| `developV2` | MVP 이후 통합 브랜치 |
+| `feature/DP-{번호}-{기능명}` | 기능 개발 |
+| `fix/DP-{번호}-{설명}` | 버그 수정 |
+
+```bash
+git checkout -b feature/DP-{티켓번호}-{기능명}
+```
+
+> PR 머지 대상은 `developV2`입니다. `main`은 배포 브랜치이므로 직접 푸시 금지.
+
+---
+
+## 팀
+
+<table>
+  <tr>
+    <td align="center" width="180">
+      <a href="https://github.com/suheon98">
+        <img src="https://github.com/suheon98.png" width="96" height="96" style="border-radius: 50%;" alt="수헌" />
+      </a>
+      <br />
+      <strong>수헌</strong>
+      <br />
+      <sub>AI Lead</sub>
+      <br />
+      <a href="https://github.com/suheon98">@suheon98</a>
+    </td>
+  </tr>
+</table>

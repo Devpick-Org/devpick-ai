@@ -880,9 +880,24 @@ def merge_jd_image_urls(meta: dict) -> list[str]:
         t = u.strip()
         if not t or t in seen:
             continue
+        if _is_unusable_jd_image_url(t):
+            continue
         seen.add(t)
         out.append(t)
     return out[:10]
+
+
+def _is_unusable_jd_image_url(url: str) -> bool:
+    lower = url.lower()
+    return "/samples/" in lower or "image.review.rivers.co.kr" in lower
+
+
+def _is_sample_or_test_posting(payload: dict) -> bool:
+    title = str(payload.get("title") or "").casefold()
+    company = str(payload.get("companyName") or "").casefold()
+    if "(sample)" in title:
+        return True
+    return "테스트원" in company
 
 
 def default_job_category_from_list_url(list_url: str) -> str:
@@ -1017,16 +1032,23 @@ def main() -> int:
     args = parser.parse_args()
 
     base = os.environ.get("BACKEND_URL", "").rstrip("/")
-    key = os.environ.get("INTERNAL_KEY") or os.environ.get("INTERNAL_API_KEY", "")
+    internal_key = (
+        os.environ.get("INTERNAL_KEY")
+        or os.environ.get("INTERNAL_API_KEY")
+        or os.environ.get("AI_SERVER_INTERNAL_KEY")
+        or ""
+    )
     if not args.dry_run and not args.list_urls_only:
-        if not base or not key:
+        if not base or not internal_key:
             print(
-                "BACKEND_URL and INTERNAL_KEY (or INTERNAL_API_KEY) are required (or use --dry-run)",
+                "BACKEND_URL and INTERNAL_KEY (or INTERNAL_API_KEY / AI_SERVER_INTERNAL_KEY) "
+                "are required (or use --dry-run)",
                 file=sys.stderr,
             )
             return 1
 
     sess = _session()
+    ingest_failures = 0
 
     if args.urls_file:
         try:
@@ -1104,15 +1126,19 @@ def main() -> int:
         nxt = parse_next_props(html)
         meta = meta_from_next(nxt)
         html_meta = meta_from_html(html)
-        for key in ("title", "companyName", "companyLogoUrl", "canonicalUrl"):
-            if not meta.get(key) and html_meta.get(key):
-                meta[key] = html_meta[key]
+        for field in ("title", "companyName", "companyLogoUrl", "canonicalUrl"):
+            if not meta.get(field) and html_meta.get(field):
+                meta[field] = html_meta[field]
         if not meta.get("deadline") and html_meta.get("deadline"):
             meta["deadline"] = html_meta["deadline"]
         if not meta.get("rollingDeadline") and html_meta.get("rollingDeadline"):
             meta["rollingDeadline"] = True
         jd_text = extract_text_fallback(html)
         payload = build_payload(u, meta, jd_text, args.url)
+
+        if _is_sample_or_test_posting(payload):
+            print("skip sample/test posting", u, file=sys.stderr)
+            continue
 
         if args.debug:
             skills_for_debug = (payload.get("requiredSkills") or []) + (
@@ -1129,12 +1155,13 @@ def main() -> int:
             print(json.dumps(payload, ensure_ascii=False, indent=2))
         else:
             try:
-                post_ingest(base, key, payload)
+                post_ingest(base, internal_key, payload)
                 print("ingested", u)
             except Exception as exc:
+                ingest_failures += 1
                 print("ingest failed", u, exc, file=sys.stderr)
         time.sleep(1.0)
-    return 0
+    return 1 if ingest_failures else 0
 
 
 if __name__ == "__main__":

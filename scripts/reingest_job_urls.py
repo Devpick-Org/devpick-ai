@@ -93,7 +93,12 @@ def main() -> int:
         return 2
 
     base = os.environ.get("BACKEND_URL", "").rstrip("/")
-    key = os.environ.get("INTERNAL_KEY") or os.environ.get("INTERNAL_API_KEY", "")
+    key = (
+        os.environ.get("INTERNAL_KEY")
+        or os.environ.get("INTERNAL_API_KEY")
+        or os.environ.get("AI_SERVER_INTERNAL_KEY")
+        or ""
+    )
 
     if not args.dry_run and (not base or not key):
         print(

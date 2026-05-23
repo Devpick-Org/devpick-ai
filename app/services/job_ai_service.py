@@ -367,11 +367,20 @@ class JobAiService:
         오류 시 base_plan을 그대로 돌려 안전장치 역할을 한다.
         """
         sys = (
-            "You are a senior software-engineering interviewer. "
-            "You receive a base interview plan (Korean) of exactly 15 questions in five phases "
+            "You are a senior software-engineering interviewer conducting a mock interview in Korean. "
+            "You receive a base interview plan of exactly 15 questions in five phases "
             "(WARM_UP 2, PROJECT 4, DOMAIN 4, CS_INFRA 4, BEHAVIORAL 1). "
-            "Refine each question prompt so it is natural Korean, concise (under 220 chars), "
-            "and tailored to the resume and JD. Keep questionNo/phase/topic as-is and keep array length 15. "
+            "Refine each question prompt: natural Korean, concise (under 240 chars), "
+            "highly specific to THIS candidate's resume (companies, projects, tech stack, summary) "
+            "and THIS job (company_name, job_title, required/preferred skills, jd_context). "
+            "Keep questionNo/phase/topic unchanged and keep array length 15. "
+            "DIVERSITY RULES: "
+            "- Do NOT reuse generic clichés like '핵심 강점과 경험 한두 가지를 1분 내로', "
+            "'기여할 수 있다고 생각하는', '가장 깊은 경험' across multiple questions. "
+            "- Each question must anchor to a DIFFERENT concrete noun from resume or JD "
+            "(project name, employer, technology, JD bullet). "
+            "- WARM_UP/PROJECT questions must cite resume specifics when available. "
+            "- COMPANY questions must mention company_name and a JD focus line when jd_context exists. "
             "Return ONLY valid JSON matching the input schema with keys: "
             "questions, coreCsTopics, extendedCsTopics, jdGapKeywords, domainLabel."
         )
@@ -382,6 +391,7 @@ class JobAiService:
                 "job_category": body.job_category,
                 "required_skills": body.required_skills,
                 "preferred_skills": body.preferred_skills,
+                "jd_context": (body.jd_context or "")[:12_000],
                 "resume": (body.resume_json or "")[:60_000],
                 "base_plan": body.base_plan.model_dump(),
             },
@@ -389,7 +399,7 @@ class JobAiService:
         )
         try:
             model = self._resolve_model_key(body.model_key)
-            raw = self._converse_text(model, sys, user, max_tokens=4096)
+            raw = self._converse_text(model, sys, user, max_tokens=4096, temperature=0.55)
             data = _extract_json_object(raw)
             plan = MockInterviewPlan.model_validate(data)
             if len(plan.questions) == 15:
@@ -498,14 +508,14 @@ class JobAiService:
             )
 
     def _converse_text(
-        self, model: str, system: str, user: str, max_tokens: int
+        self, model: str, system: str, user: str, max_tokens: int, temperature: float = 0.2
     ) -> str:
         try:
             response = self._client.converse(
                 modelId=model,
                 system=[{"text": system}],
                 messages=[{"role": "user", "content": [{"text": user}]}],
-                inferenceConfig={"maxTokens": max_tokens, "temperature": 0.2},
+                inferenceConfig={"maxTokens": max_tokens, "temperature": temperature},
             )
         except ReadTimeoutError as exc:
             raise AITimeoutError("bedrock_timeout") from exc

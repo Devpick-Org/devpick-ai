@@ -84,6 +84,7 @@ class MockInterviewPlanRequest(BaseModel):
     required_skills: list[str] = Field(default_factory=list)
     preferred_skills: list[str] = Field(default_factory=list)
     resume_json: str = "{}"
+    jd_context: str = ""
     base_plan: MockInterviewPlan
     model_key: str = "balanced"
 

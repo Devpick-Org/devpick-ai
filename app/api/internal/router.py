@@ -22,6 +22,7 @@ from app.schemas.event import EventType
 from app.schemas.quiz import AllLevelsQuizResponse, QuizRequest
 from app.schemas.refine import RefineRequest, RefineResponse
 from app.schemas.similar_content import SimilarContentRequest, SimilarContentResponse
+from app.schemas.question import QuestionIndexRequest
 from app.schemas.similar_question import SimilarQuestionRequest, SimilarQuestionResponse
 from app.schemas.summary import (
     AllLevelsSummaryRequest,
@@ -89,6 +90,29 @@ router = APIRouter(prefix="/internal", tags=["internal"])
 @router.get("/health", dependencies=[Depends(verify_internal_key)])
 def internal_health() -> dict[str, str]:
     return {"status": "ok"}
+
+
+@router.post(
+    "/questions",
+    status_code=200,
+    dependencies=[Depends(verify_internal_key)],
+)
+def index_question(body: QuestionIndexRequest) -> Response:
+    """TECH 게시글 생성 시 질문을 FAISS questions 인덱스에 임베딩/인덱싱 (답변 생성 없음).
+
+    Spring 백엔드가 fire-and-forget으로 호출한다. 실패해도 게시글 생성에 영향 없음.
+    이미 임베딩된 question_id면 QuestionEmbeddingOrchestrator 내부에서 스킵.
+    """
+    try:
+        text = f"{body.title}\n{body.content}"
+        QuestionEmbeddingOrchestrator(aws_region=_AWS_REGION).embed_and_store(
+            question_id=body.question_id,
+            text=text,
+        )
+    except Exception:
+        logger.exception("Failed to embed question — question_id=%s", body.question_id)
+
+    return Response(status_code=200)
 
 
 @router.delete(

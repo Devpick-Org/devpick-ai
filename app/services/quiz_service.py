@@ -74,6 +74,7 @@ class QuizService:
                 modelId=self._model,
                 system=[
                     {"text": SYSTEM_PROMPT_QUIZ},
+                    {"cachePoint": {"type": "default"}},
                 ],
                 messages=[{"role": "user", "content": [{"text": user_prompt}]}],
                 toolConfig=to_tool_config(QUIZ_TOOL, _TOOL_NAME),
@@ -161,7 +162,10 @@ class QuizService:
         try:
             response = self._client.converse(
                 modelId=self._model,
-                system=[{"text": SYSTEM_PROMPT_QUIZ}],
+                system=[
+                    {"text": SYSTEM_PROMPT_QUIZ},
+                    {"cachePoint": {"type": "default"}},
+                ],
                 messages=[{"role": "user", "content": [{"text": retry_prompt}]}],
                 toolConfig=to_tool_config(retry_tool, _TOOL_NAME),
                 inferenceConfig={"maxTokens": 8192, "temperature": 0.0},

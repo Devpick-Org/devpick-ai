@@ -265,6 +265,8 @@ class JobAiService:
         sys = (
             "Return ONLY valid JSON with key: roadmap — an array of 5-8 short Korean learning steps "
             "ordered for someone who must learn the missing_skills for the given job. "
+            "Each element in roadmap MUST be a plain string (not an object). "
+            'Example: {"roadmap": ["1단계: ...", "2단계: ..."]}\n'
             "No other keys."
         )
         user = json.dumps(
@@ -277,6 +279,20 @@ class JobAiService:
         )
         raw = self._converse_text(self._model, sys, user, max_tokens=2048)
         data = _extract_json_object(raw)
+        roadmap = data.get("roadmap", [])
+        if isinstance(roadmap, list):
+            data["roadmap"] = [
+                (
+                    v
+                    if isinstance(v, str)
+                    else (
+                        " ".join(str(x) for x in v.values())
+                        if isinstance(v, dict)
+                        else str(v)
+                    )
+                )
+                for v in roadmap
+            ]
         return SkillGapResponse.model_validate(data)
 
     def parse_candidate_resume(self, body: ResumeParseRequest) -> dict[str, Any]:

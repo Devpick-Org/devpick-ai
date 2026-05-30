@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+from concurrent.futures import ThreadPoolExecutor
 
 from app.repositories.content_repository import ContentRepository
 from app.repositories.quiz_repository import QuizRepository
@@ -73,18 +74,32 @@ class ContentPipeline:
             )
             return
 
-        # Step 2: 4레벨 요약 (title이 있으면 영어 제목 번역 포함)
+        # Steps 2 & 5: 요약·퀴즈 병렬 생성 (서로 독립)
         summary = None
-        try:
-            summary = self._summary_svc.summarize_all(
+        with ThreadPoolExecutor(max_workers=2) as executor:
+            f_summary = executor.submit(
+                self._summary_svc.summarize_all,
                 content_id=content_id,
                 text=preprocessed,
                 thumbnail_url=thumbnail_url,
                 title=title,
                 allowed_tags=self._allowed_tags,
             )
+            f_quiz = executor.submit(
+                self._quiz_svc.generate_all,
+                content_id=content_id,
+                text=preprocessed,
+            )
+
+        try:
+            summary = f_summary.result()
         except Exception:
             logger.exception("[pipeline] content_id=%s 요약 실패", content_id)
+
+        try:
+            self._quiz_repo.save(f_quiz.result())
+        except Exception:
+            logger.exception("[pipeline] content_id=%s 퀴즈 생성 실패", content_id)
 
         # Step 3: 요약 DynamoDB 저장 (fire-and-forget)
         if summary:
@@ -124,12 +139,5 @@ class ContentPipeline:
                 )
             except Exception:
                 logger.exception("[pipeline] content_id=%s 임베딩 실패", content_id)
-
-        # Step 5: 퀴즈 생성 + DynamoDB 저장 (fire-and-forget, 요약과 독립)
-        try:
-            quiz = self._quiz_svc.generate_all(content_id=content_id, text=preprocessed)
-            self._quiz_repo.save(quiz)
-        except Exception:
-            logger.exception("[pipeline] content_id=%s 퀴즈 생성 실패", content_id)
 
         logger.info("[pipeline] content_id=%s 처리 완료", content_id)

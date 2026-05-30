@@ -6,6 +6,7 @@ import logging
 import math
 import re
 import time
+from concurrent.futures import ThreadPoolExecutor
 
 import requests
 from bs4 import BeautifulSoup
@@ -467,13 +468,19 @@ class ExternalSignalFetcher:
         """
         ext_kw = _extended_keywords(internal_tags)
         raw: dict[str, float] = {}
-        for name, weight in self._WEIGHTS:
+
+        def _fetch_one(name: str) -> dict[str, float]:
             fetcher = self._fetchers[name]
+            if name in ("github", "hn"):
+                return fetcher.fetch(unit, extended_keywords=ext_kw)
+            return fetcher.fetch(unit)
+
+        with ThreadPoolExecutor(max_workers=3) as executor:
+            futures = {name: executor.submit(_fetch_one, name) for name, _ in self._WEIGHTS}
+
+        for name, weight in self._WEIGHTS:
             try:
-                if name in ("github", "hn"):
-                    signals = fetcher.fetch(unit, extended_keywords=ext_kw)
-                else:
-                    signals = fetcher.fetch(unit)
+                signals = futures[name].result()
                 for tag, score in signals.items():
                     raw[tag] = raw.get(tag, 0) + score * weight
             except Exception as exc:

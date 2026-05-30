@@ -476,7 +476,9 @@ class ExternalSignalFetcher:
             return fetcher.fetch(unit)
 
         with ThreadPoolExecutor(max_workers=3) as executor:
-            futures = {name: executor.submit(_fetch_one, name) for name, _ in self._WEIGHTS}
+            futures = {
+                name: executor.submit(_fetch_one, name) for name, _ in self._WEIGHTS
+            }
 
         for name, weight in self._WEIGHTS:
             try:
